@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/index.md", "reason": "主真相源:项目真实形态(持续 manager + 可导出清单/provisioner + 开源产品 + LLM 后置)与「7 条不可妥协项」原文——R1/R3 改写 CLAUDE.md 项目目标与领域约束的浓缩来源;并定义 CLAUDE.md(目标/约束)与 design-direction(锁定决策)的分工边界,确保不双写。"}
+{"file": ".trellis/spec/design-direction.md", "reason": "真相源优先级最高:锁定决策与 why(audience/产品形态/架构/安全/LLM),R2 让 CLAUDE.md「当前状态」指向它;其「待办/风险」里记着『CLAUDE.md 写成一次性 provisioner→需回写』这条漂移,回写后据此在 journal 标记已解决。"}
+{"file": ".trellis/spec/core/index.md", "reason": "7 条不可妥协项中多数(check 幂等引擎、逐命令 sudo、plan-before-apply/fail-fast、单一 subprocess runner 边界、provider 注册表分发)落在 core 层;提供准确的文档路径,让 R4 每行『指向 spec』的指针真实可点。"}
+{"file": ".trellis/spec/catalog/index.md", "reason": "第⑦条『catalog 是数据非代码、LLM 后置只生成声明式条目』的指向目标,确保 CLAUDE.md 该行的 spec 指针准确。"}
+{"file": ".trellis/spec/tui/index.md", "reason": "第①条『脑/脸分离(import textual 或含安装逻辑,二选一)』中 face 侧的指向目标,确保该行 spec 指针准确。"}

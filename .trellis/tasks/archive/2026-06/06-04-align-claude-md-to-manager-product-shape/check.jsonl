@@ -1,0 +1,2 @@
+{"file": ".trellis/spec/index.md", "reason": "验收核对:CLAUDE.md「项目目标」须含持续 manager + 可导出清单/provisioner 表述,「领域约束」须涵盖 7 条不可妥协项且每条精炼一行——以本文件为基准核对无遗漏、无矛盾。"}
+{"file": ".trellis/spec/design-direction.md", "reason": "验收核对:CLAUDE.md 与锁定决策(产品形态/安全/LLM 后置)无矛盾;且确认那条『需回写 CLAUDE.md』的漂移待办在回写后可视为已解决。"}
