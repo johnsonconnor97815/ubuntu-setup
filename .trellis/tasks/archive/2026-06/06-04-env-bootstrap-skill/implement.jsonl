@@ -1,0 +1,2 @@
+{"file": ".trellis/tasks/06-04-env-bootstrap-skill/research/codex-cli-skills-and-mcp.md", "reason": "查证过的 CLI 事实:Codex 原生扫描 .agents/skills/、codegraph install 的 Claude(项目级 .mcp.json)/Codex(用户级)目标差异、Codex hooks 启用条件。skill 文本必须据此编写,不能凭记忆。"}
+{"file": "AGENTS.md", "reason": "Trellis 对 skill/subagent 投放位置的约定(.agents/skills/、.codex/agents/),确保三处 skill 文件路径正确、与现有约定一致。"}
