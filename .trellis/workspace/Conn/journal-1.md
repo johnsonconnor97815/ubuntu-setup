@@ -72,3 +72,36 @@
 ### Next Steps
 
 - None - task complete
+
+
+## Session 3: CLAUDE.md 对齐 spec 的持续管理器产品形态
+
+**Date**: 2026-06-04
+**Task**: CLAUDE.md 对齐 spec 的持续管理器产品形态
+**Branch**: `dev`
+
+### Summary
+
+把 CLAUDE.md 三处章程漂移向 .trellis/spec/ 对齐:①项目目标改为面向全新 Ubuntu(含 Server/SSH/无桌面)的持续软件管理器(装/卸/升级/查看)+ 操作自动记录为可导出清单(重放新机=provisioner),TUI+Python 大脑/bash 手,开源→安全一等约束;②当前状态不再称'无法描述架构',改为指向 spec 各文档;③领域约束在 Ubuntu-fresh+幂等基础上浓缩 spec/index.md 的 7 条不可妥协项,每条一行+指向对应 spec。trellis-implement 改写、trellis-check 0 缺陷核对(7 条 1:1、16 链接有效、与 design-direction.md 无矛盾)。纯文档改动,未动 spec、无产品源码。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `54d9dab` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
