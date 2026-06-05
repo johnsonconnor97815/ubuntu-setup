@@ -216,3 +216,6 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Codegraph local index (machine-local, rebuilt by `codegraph init`)
+.codegraph/
