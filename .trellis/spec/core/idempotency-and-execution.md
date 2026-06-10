@@ -119,7 +119,11 @@ JSON, stored at `~/.local/state/ubuntu-setup/manifest.json` (XDG state dir, reso
 
 - `desired` = the user's intended end-state (ad-hoc TUI actions update it); it is *not* a record of what is currently installed — current state is always re-derived via `check()`.
 - `history` = append-only transactions (nala's model): one per apply, with the `run_id`, the `actions` and their `outcome` (`changed`/`ok`/`skipped`/`failed`), and the run's `exit_code`. `outcome` values match the per-entry outcomes above; `exit_code` values match the table above.
-- `version` gates forward-compatible schema migrations.
+- `version` gates forward-compatible schema migrations. Enforce it on load: a non-integer `version`, or one **newer** than the code's `MANIFEST_VERSION`, is a `CatalogError` (exit `2`) — silently accepting a newer manifest means misreading fields written by a future schema.
+
+### Load behavior: missing path is an error on `--apply`
+
+`--apply <path>` with a nonexistent path must raise `CatalogError` (exit `2`), **not** be treated as an empty manifest. The first implementation silently "succeeded" on a typo'd path (planned zero actions, exit 0) and then *created* a fresh manifest file at the bogus path — masking the user's mistake. Only entry points that legitimately bootstrap state (e.g. the first `--install` on a fresh machine, writing the default XDG path) may initialize a missing manifest; an explicit replay of a user-supplied file never does.
 
 ---
 

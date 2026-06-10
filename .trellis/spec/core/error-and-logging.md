@@ -21,7 +21,7 @@ The runner guarantees:
 - **Privileged variant** that prefixes `sudo` and re-asserts `DEBIAN_FRONTEND` *inside* the sudo invocation (sudo's `env_reset` strips the parent's). See [privilege-and-safety.md](./privilege-and-safety.md).
 - **Captured output + timeout**, returning a small result object (`returncode`, `stdout`, `stderr`, `duration`). Decisions branch on `returncode`; when output *must* be read, read a **machine-format field** (`dpkg-query -W -f='${Status}'`, `flatpak list --columns=…`, `systemctl is-enabled`) under forced `LC_ALL=C`, never localized human prose. The `${Status}`/`${Version}` checks in [catalog-and-providers.md](./catalog-and-providers.md) are exactly this sanctioned pattern — stable, field-formatted, locale-pinned — not an exception to the rule.
 - **Child-process-group handling** so `SIGINT`/`SIGTERM` propagate to the running child and the run aborts cleanly (see signals in [idempotency-and-execution.md](./idempotency-and-execution.md)).
-- **Logs the exact argv** of every command (the audit trail) before running it.
+- **Logs the exact argv** of every command (the audit trail) before running it. Render it with `shlex.join(argv)`, not `" ".join(argv)` — a plain space-join is ambiguous the moment an argument contains spaces (you can't tell `["a b"]` from `["a", "b"]` in the log), defeating the "exact argv" audit guarantee. `shlex.join` quotes such arguments (`dpkg-query -W '-f=${Status}' tree`) and round-trips via `shlex.split`.
 
 ---
 
