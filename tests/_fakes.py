@@ -3,6 +3,10 @@
 ``FakeRun`` stands in for ``core.runner.run`` — the single subprocess boundary.
 Injecting it lets us exercise providers / executor / cli without touching real
 apt or sudo (the prd's "fake runner" test strategy).
+
+``register_provider`` temporarily registers a scripted provider *instance* in
+the registry, so executor/facade tests can drive arbitrary install behavior
+(emit timing, PreconditionError, slow steps) without a real provider type.
 """
 
 from __future__ import annotations
@@ -10,7 +14,9 @@ from __future__ import annotations
 import logging
 from types import SimpleNamespace
 from typing import Callable, Sequence
+from unittest import mock
 
+from ubuntu_setup.core import providers as providers_mod
 from ubuntu_setup.core.privilege import Privilege
 from ubuntu_setup.core.providers.base import Ctx
 from ubuntu_setup.core.runner import RunResult
@@ -67,4 +73,20 @@ def make_ctx(run: FakeRun, *, check_mode: bool = False) -> Ctx:
         priv=Privilege(run=run),
         log=logging.getLogger("test"),
         check_mode=check_mode,
+    )
+
+
+def register_provider(provider) -> "mock._patch_dict":
+    """Patch the registry so ``get_provider(provider.type)`` returns *this*
+    instance (the registry normally constructs a fresh ``cls(run=run)`` per
+    step; a shared instance lets tests observe state across the run).
+
+    Use as a context manager::
+
+        with register_provider(MyFakeProvider()):
+            ...
+    """
+    return mock.patch.dict(
+        providers_mod._REGISTRY,
+        {provider.type: lambda run=None, _p=provider: _p},
     )

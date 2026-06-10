@@ -43,7 +43,7 @@ Before applying, render the plan and require confirmation — the single most im
 
 ## Execution: fail-fast
 
-`core/executor.py` walks the ordered `Plan`. For each action: `check()` → skip if already satisfied → otherwise apply via the provider → record a `StepResult`.
+`core/executor.py` walks the ordered `Plan` as a **generator of progress events** (`core/events.py`: `RunStarted` → per step `StepStarted`, live `OutputLine`/`ctx.emit` payloads, `StepFinished` carrying the step's `StepResult` → always a final `RunFinished` with the results and exit code). For each action: `check()` → skip if already satisfied → otherwise apply via the provider (in a bridge worker thread, so provider `emit`s reach the consumer *live*, via a bounded queue — never buffered until the call returns). Consumers (the CLI, a TUI worker) just iterate; `core/service.py` wraps the stream with `cancel()` and records the transaction when the stream finishes — including on cancel or an abandoned/closed stream, never for a dry run.
 
 **The failure policy is fail-fast (decided in `design-direction.md`):** on the first failed action, stop and report which entry failed and why. Re-running after a fix is safe because every prior step's `check()` now passes and is skipped — "fix the cause and re-run", not rollback (see *No rollback* below). Because the plan is topologically ordered, a failed prerequisite naturally prevents its dependents from running.
 

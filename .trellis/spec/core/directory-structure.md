@@ -47,7 +47,9 @@ ubuntu_setup/
 │   │   ├── service.py
 │   │   └── script.py      # the escape hatch — see ../catalog/authoring-guidelines.md
 │   ├── planner.py         # desired actions → ordered Plan (dependency sort) + dry-run diff
-│   ├── executor.py        # run a Plan: fail-fast, check-before-act, emit progress events
+│   ├── executor.py        # run a Plan as a generator of events: fail-fast, check-before-act
+│   ├── events.py          # the progress-event dataclasses the executor yields (RunStarted … RunFinished)
+│   ├── service.py         # orchestration facade: load → plan → apply (+ cancel) → record; full-status scan — shared by CLI & TUI
 │   ├── runner.py          # the ONLY subprocess wrapper: env, logging, capture, timeout
 │   ├── privilege.py       # sudo validate + keep-alive, real-user/home resolution
 │   ├── state.py           # live system queries + manifest (desired-state) read/write
