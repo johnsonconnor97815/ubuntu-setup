@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/core/idempotency-and-execution.md", "reason": "复查：生成器化后 check-before-act / fail-fast / dry-run 语义是否回归"}
+{"file": ".trellis/spec/core/error-and-logging.md", "reason": "复查：流式 runner 是否保持单一边界全部语义（argv 审计、LC_ALL=C、超时）"}
+{"file": ".trellis/spec/core/privilege-and-safety.md", "reason": "复查：探测/keep-alive 实现是否逐条符合 sudo 硬规则（-Nnv 不重置 TTL、回退路径）"}
+{"file": ".trellis/spec/core/directory-structure.md", "reason": "复查：facade 不引入 textual、依赖方向 cli→core 单向"}

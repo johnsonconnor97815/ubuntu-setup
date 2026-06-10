@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/core/directory-structure.md", "reason": "facade 的放置与脑/手/脸边界；core/ 绝不 import textual；模块命名惯例"}
+{"file": ".trellis/spec/core/idempotency-and-execution.md", "reason": "executor 语义（check-before-act / fail-fast / dry-run 零变更）重构为生成器时不可回归"}
+{"file": ".trellis/spec/core/error-and-logging.md", "reason": "runner 单一 subprocess 边界：argv 列表、LC_ALL=C、审计日志、超时——流式路径必须同样满足"}
+{"file": ".trellis/spec/core/privilege-and-safety.md", "reason": "sudo -Nnv 探测 / keep-alive / 22.04 回退 / 密码提示绝不突袭 UI 的硬规则与验证过的 sudo 习语"}
+{"file": ".trellis/spec/core/catalog-and-providers.md", "reason": "provider 协议与 Ctx.emit 现有契约，executor 桥接事件流时保持"}
+{"file": ".trellis/spec/tui/ui-guidelines.md", "reason": "消费方契约：脑以生成器暴露进度、worker 消费模式——决定接缝形状"}
