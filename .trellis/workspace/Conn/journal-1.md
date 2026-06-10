@@ -105,3 +105,38 @@
 ### Next Steps
 
 - None - task complete
+
+
+## Session 4: 引擎最薄垂直切片:runner+models+apt provider+headless apply 落地
+
+**Date**: 2026-06-09
+**Task**: 引擎最薄垂直切片:runner+models+apt provider+headless apply 落地
+**Branch**: `dev`
+
+### Summary
+
+打通第一条端到端脑/手路径并提交:core/runner.py 单一 subprocess 边界(argv+shell=False+非交互 env+sudo env 特权变体)→ provider 协议与注册表 → check→apply 引擎(fail-fast、dry-run 零变更)→ 可导出 manifest(desired+history),含 catalog schema 校验、exit codes 0-4、CLI(--install/--apply/--dry-run)。trellis-check 审查确认 7 条不可妥协项全部落地,修复 6 处问题(--apply 路径不存在静默成功、planner/manifest 非法输入裸崩溃、version 无门控、审计日志改 shlex.join、schema $comment、移除本切片不需的 textual 依赖)并补 14 测试,最终 53 单测全绿 + 1 smoke 默认跳过。spec 沉淀 3 处:sudo env VAR=… 提权形式(受限 sudoers 下 sudo VAR= 被拒)、审计 argv 用 shlex.join、manifest 加载边界(version 门控 + --apply 缺失路径必须 exit 2)。README 另补开发环境初始化说明。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `ef46f5e` | (see git log) |
+| `7392d2c` | (see git log) |
+| `c5c7469` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
