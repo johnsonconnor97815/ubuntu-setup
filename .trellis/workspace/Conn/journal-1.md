@@ -140,3 +140,38 @@
 ### Next Steps
 
 - None - task complete
+
+
+## Session 5: TUI 引擎接缝：事件生成器、facade、privilege 补全、流式 runner 与取消契约
+
+**Date**: 2026-06-09
+**Task**: TUI 引擎接缝：事件生成器、facade、privilege 补全、流式 runner 与取消契约
+**Branch**: `dev`
+
+### Summary
+
+完成 engine-seams-for-tui 全部三个提交点：a) execute() 改事件生成器（每步工作线程+有界队列桥接 ctx.emit，禁缓冲补发，results_sink 带外记账审计不缺页）+ core/service.py facade（scan 错误通道/prepare/apply→ApplyHandle.cancel()）+ CLI 瘦身；b) privilege 探测自适应（sudo -Nnv 静默探测+-N 检测+22.04 回退、SudoKeepalive 生命周期归 service.apply、每步前探测凭证失效 exit 4 干净信号）；c) run_streaming 流式 runner（双 reader 逐行、聚合契约不变、超时 124）+ 程序化终止（TERM→宽限→KILL，组完成判定=组长退出且 reader EOF；提权步 sudo -n kill -- -<pgid>，失败降级 DEGRADED 可感知）+ OutputLine 零侵入接线 + CLI 信号驱动协作取消。测试 53→121 全绿，压力 10 遍无 flake；六份 spec 同步修订。质量检查抓住 3 个实质 bug（on_line 异常吞没致 SIGPIPE 误杀、组员无视 TERM 不升级、Ctrl-C 路径整体失效丢审计页）均修复。遗留：提权 kill/降级 EPERM 语义的真机冒烟待手测（需真 sudo），prd 风险节有记录。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `429c5c6` | (see git log) |
+| `6881a82` | (see git log) |
+| `ae9ed19` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
