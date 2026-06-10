@@ -1,0 +1,34 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ubuntu-setup"
+version = "0.0.1"
+description = "Idempotent software manager/provisioner for fresh Ubuntu machines (brain + hands + Textual face)."
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.9"
+dependencies = [
+    "pyyaml",
+    "jsonschema",
+    # textual>=8,<9 (the Face/TUI) is deliberately NOT a dependency of this
+    # headless MVP slice (prd decision); it lands additively with tui/.
+]
+
+[project.scripts]
+ubuntu-setup = "ubuntu_setup.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["ubuntu_setup*"]
+
+[tool.setuptools.package-data]
+ubuntu_setup = ["catalog/*.json", "catalog/*.yaml"]
+
+# Tests are stdlib `unittest` (run: `python -m unittest discover -s tests`).
+# pytest config is kept for when pytest is available in the dev env.
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "smoke: real apt/sudo end-to-end test; skipped unless UBUNTU_SETUP_SMOKE=1",
+]

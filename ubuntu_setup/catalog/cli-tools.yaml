@@ -1,0 +1,15 @@
+# Declarative catalog entries (data, not code). Validated against schema.json
+# at load time. Adding normal software touches only this YAML — never Python.
+- id: ripgrep
+  description: "Fast recursive grep (rg)"
+  type: apt
+  package: ripgrep
+  tags: [cli, search]
+  source: official
+
+- id: tree
+  description: "List directories as a tree"
+  type: apt
+  package: tree
+  tags: [cli]
+  source: official

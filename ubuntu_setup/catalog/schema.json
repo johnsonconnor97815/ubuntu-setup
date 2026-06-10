@@ -1,0 +1,48 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "ubuntu-setup catalog entry",
+  "type": "object",
+  "required": ["id", "description", "type"],
+  "additionalProperties": true,
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9._-]*$",
+      "description": "unique, kebab-case; the depends_on reference key"
+    },
+    "description": {
+      "type": "string",
+      "minLength": 1,
+      "description": "one human line shown in the TUI"
+    },
+    "type": {
+      "type": "string",
+      "description": "selects the provider; must be a registered type (validated by the loader)"
+    },
+    "depends_on": {
+      "type": "array",
+      "items": { "type": "string" },
+      "default": []
+    },
+    "tags": {
+      "type": "array",
+      "items": { "type": "string" },
+      "default": []
+    },
+    "source": {
+      "type": "string",
+      "enum": ["official", "community", "ai-generated"],
+      "default": "community"
+    },
+    "package": { "type": "string" },
+    "version": { "type": "string" },
+    "hold": { "type": "boolean" }
+  },
+  "allOf": [
+    {
+      "$comment": "apt requires a package name (field set kept in sync with apt.py and authoring-guidelines.md)",
+      "if": { "properties": { "type": { "const": "apt" } }, "required": ["type"] },
+      "then": { "required": ["package"] }
+    }
+  ]
+}
