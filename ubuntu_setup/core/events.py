@@ -12,8 +12,9 @@ detect-and-skip (the run continues), ``failed`` is fail-fast (the run stops).
 
 Provider ``ctx.emit`` payloads pass through the stream verbatim, so consumers
 may also see provider-defined objects; :class:`OutputLine` is the predefined
-type for live per-line output (its real producer is the streaming runner —
-a later commit point; today only test fakes emit it).
+type for live per-line output, produced by the executor's per-step ``ctx.run``
+binding over the streaming runner (``runner.run_streaming``): each line a
+provider's command prints arrives in the stream while the command runs.
 """
 
 from __future__ import annotations

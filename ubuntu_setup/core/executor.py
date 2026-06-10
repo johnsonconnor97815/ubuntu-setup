@@ -34,8 +34,24 @@ producer can never block forever on a full queue, then the thread is joined —
 no leak. In that case the in-flight step runs to completion and its true
 outcome is still pushed into the caller's ``results_sink`` (no ``StepFinished``
 can be yielded anymore — the out-of-band channel is what keeps the audit from
-missing a page); programmatically terminating its command is the streaming
-runner's kill handle (a later commit point — ``cancel`` is its injection seam).
+missing a page).
+
+Live output and the kill seam
+-----------------------------
+For each mutating op the executor binds ``ctx.run`` to the **streaming** runner
+(:func:`runner.run_streaming`): every output line of the provider's commands
+becomes a live :class:`OutputLine` event in the bridge queue, and the running
+command's terminate handle is published into an
+:class:`runner.InFlightCommand` slot. ``ApplyHandle.cancel()`` terminates the
+current step through that slot (sudo-aware: an escalated child is killed via
+``sudo -n kill``; a failed privileged kill degrades to "wait the step out" —
+see ``core/runner.py``). A step whose command was killed fails with rc != 0
+(``StepFinished(failed)``), but under a cancel request the run terminates with
+``RunFinished(cancelled=True, exit_code=3)`` — a genuine failure *before* the
+cancel keeps exit 1 (fail-fast). ``close()`` keeps the abandon semantics
+above: the in-flight step is waited out, never killed — killing is explicit
+``cancel()``'s job. The provider protocol is untouched: ``check()`` keeps the
+plain capturing runner, and providers keep calling ``ctx.run(argv, sudo=...)``.
 """
 
 from __future__ import annotations
@@ -45,8 +61,9 @@ import queue
 import threading
 from typing import Any, Callable, Iterator
 
+from . import runner as runner_mod
 from .errors import PreconditionError, PrivilegeError, ProviderError, UserAbort
-from .events import Event, RunFinished, RunStarted, StepFinished, StepStarted
+from .events import Event, OutputLine, RunFinished, RunStarted, StepFinished, StepStarted
 from .models import CatalogEntry, Op, Outcome, Plan, StepResult
 from .privilege import Privilege
 from .providers import Ctx, State, get_provider
@@ -95,6 +112,38 @@ def _bridge(
         q.put(_StepDone(None))
 
 
+def _step_run(
+    stream_run: "Callable[..., RunResult]",
+    inflight: "runner_mod.InFlightCommand",
+    entry_id: str,
+    emit: "Callable[[Any], None]",
+) -> "Callable[..., RunResult]":
+    """Bind ``ctx.run`` for one mutating step: stream by default, forwarding
+    each output line as a live :class:`OutputLine` event into the bridge
+    queue, and publishing the running command's terminate handle so
+    ``cancel()`` can kill the current step. Providers keep calling
+    ``ctx.run(argv, sudo=...)`` unchanged (zero protocol intrusion); the
+    ``check()`` path keeps the plain capturing runner."""
+
+    def step_run(argv, *, sudo=False, on_line=None, on_start=None, **kw) -> RunResult:
+        def forward(line: str, stream: str) -> None:
+            emit(OutputLine(entry_id=entry_id, line=line, stream=stream))
+            if on_line is not None:
+                on_line(line, stream)
+
+        def started(handle) -> None:
+            inflight.publish(handle)
+            if on_start is not None:
+                on_start(handle)
+
+        try:
+            return stream_run(argv, sudo=sudo, on_line=forward, on_start=started, **kw)
+        finally:
+            inflight.clear()
+
+    return step_run
+
+
 def _completed_result(
     entry: CatalogEntry,
     op: Op,
@@ -126,17 +175,34 @@ def execute(
     priv: Privilege,
     logger: logging.Logger,
     run: "Callable[..., RunResult] | None" = None,
+    stream_run: "Callable[..., RunResult] | None" = None,
     check_mode: bool = False,
     cancel: "threading.Event | None" = None,
     results_sink: "list[StepResult] | None" = None,
+    inflight: "runner_mod.InFlightCommand | None" = None,
 ) -> Iterator[Event]:
     """Run ``plan``, yielding events; the final event is :class:`RunFinished`.
 
-    ``cancel`` (a ``threading.Event``) is the cooperative stop signal: once set,
-    no further step starts; the step already in flight finishes normally, then
-    the stream terminates with ``RunFinished(cancelled=True, exit_code=3)``.
-    Provider ``ctx.emit`` payloads are yielded live, interleaved between the
-    step's ``StepStarted`` and ``StepFinished`` (see the bridge note above).
+    ``cancel`` (a ``threading.Event``) is the cooperative stop signal: once
+    set, no further step starts and the stream terminates with
+    ``RunFinished(cancelled=True, exit_code=3)``. Killing the step already in
+    flight is ``inflight``'s job (see below): a killed command fails its step
+    (``StepFinished(failed)``) but keeps cancelled semantics (exit 3); without
+    a kill — or on the degraded path — the in-flight step finishes normally
+    first. A genuine failure *before* the cancel keeps exit 1 (fail-fast).
+    Provider ``ctx.emit`` payloads and each command's :class:`OutputLine`\\ s
+    are yielded live, interleaved between the step's ``StepStarted`` and
+    ``StepFinished`` (see the bridge note above).
+
+    ``stream_run`` is the streaming-runner seam bound into ``ctx.run`` for
+    mutating ops. It defaults to the injected ``run`` when one is given (so
+    test fakes keep the single ``run=`` seam — extra ``on_line``/``on_start``
+    kwargs are simply ignored by fakes that don't stream), else to
+    :func:`runner.run_streaming`.
+
+    ``inflight`` is the :class:`runner.InFlightCommand` slot through which the
+    consumer's ``cancel()`` reaches the current command's terminate handle;
+    the facade owns it (``service.apply``) and wires it to ``ApplyHandle``.
 
     ``results_sink`` is the out-of-band results channel: when given, every
     step's :class:`StepResult` is appended to it the moment it forms — so a
@@ -145,7 +211,10 @@ def execute(
     yielded then). On a fully consumed stream the sink's content equals
     ``RunFinished.results``.
     """
+    if stream_run is None:
+        stream_run = run if run is not None else runner_mod.run_streaming
     run = run or default_run
+    inflight = inflight if inflight is not None else runner_mod.InFlightCommand()
     cancel = cancel if cancel is not None else threading.Event()
     total = len(plan)
     results: list[StepResult] = results_sink if results_sink is not None else []
@@ -201,9 +270,12 @@ def execute(
 
         change = f"{state.value} -> {_TARGET[op].value}"
 
-        # thread bridge: the op blocks in a worker; we drain its emits live
+        # thread bridge: the op blocks in a worker; we drain its emits live.
+        # ctx.run is the streaming binding: command output -> OutputLine events,
+        # the running command's terminate handle -> the inflight slot (cancel).
         q: "queue.Queue[Any]" = queue.Queue(maxsize=_EMIT_QUEUE_MAX)
-        ctx = Ctx(run=run, priv=priv, log=logger, check_mode=check_mode, emit=q.put)
+        ctx = Ctx(run=_step_run(stream_run, inflight, entry.id, q.put),
+                  priv=priv, log=logger, check_mode=check_mode, emit=q.put)
         method = getattr(provider, op.value)
         worker = threading.Thread(
             target=_bridge,
@@ -261,7 +333,15 @@ def execute(
             logger.warning("skipped %s: %s", entry.id, result.detail)
         else:  # FAILED — fail-fast below
             logger.error("failed %s: %s", entry.id, result.detail)
-            exit_code = 1
+            if cancel.is_set():
+                # the failure happened under a cancel request — typically our
+                # own kill of the in-flight command (rc != 0): cancelled
+                # semantics (exit 3). A genuine failure BEFORE cancel() keeps
+                # the fail-fast exit 1 via the branch below.
+                cancelled = True
+                exit_code = UserAbort.exit_code
+            else:
+                exit_code = 1
         yield StepFinished(index=index, total=total, result=result)
         if result.outcome is Outcome.FAILED:
             break

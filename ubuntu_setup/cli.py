@@ -16,7 +16,9 @@ from __future__ import annotations
 import argparse
 import logging
 import os
+import signal
 import sys
+import threading
 from typing import Iterable, Sequence
 
 from .core import runner, service
@@ -104,7 +106,8 @@ def _render_events(events: Iterable[Event], *, dry_run: bool) -> int:
         elif isinstance(event, StepStarted):
             print(f"  [{event.index}/{event.total}] {event.op.value} {event.entry_id} ...", flush=True)
         elif isinstance(event, OutputLine):
-            print(f"      | {event.line}", flush=True)
+            glyph = "!" if event.stream == "stderr" else "|"
+            print(f"      {glyph} {event.line}", flush=True)
         elif isinstance(event, StepFinished):
             r = event.result
             counts[r.outcome.value] = counts.get(r.outcome.value, 0) + 1
@@ -116,6 +119,49 @@ def _render_events(events: Iterable[Event], *, dry_run: bool) -> int:
             suffix = "; cancelled" if event.cancelled else ""
             print(f"  ({tally}; exit {exit_code}{suffix})", flush=True)
     return exit_code
+
+
+def _consume_with_signals(handle: "service.ApplyHandle", *, dry_run: bool) -> int:
+    """Consume the apply stream with SIGINT/SIGTERM converted to ``cancel()``.
+
+    The streaming child runs in its own session, so the terminal's Ctrl-C
+    never reaches it — and letting ``KeyboardInterrupt`` unwind the generator
+    would not kill it either: the engine's abandon semantics *wait out* the
+    in-flight step (blocking, with no feedback) and only ``cancel()`` kills
+    it. So the first signal cancels cooperatively — the in-flight command is
+    killed, the stream still ends with ``RunFinished(cancelled, exit 3)`` and
+    the partial transaction is recorded. A second signal stops waiting (e.g. a
+    degraded, unkillable sudo step) by raising ``KeyboardInterrupt`` into the
+    normal abandon path.
+    """
+    seen: "list[int]" = []
+
+    def on_signal(signum: int, frame: object) -> None:
+        seen.append(signum)
+        if len(seen) > 1:
+            raise KeyboardInterrupt  # second signal: abandon instead of waiting
+        print("\ninterrupt: cancelling — killing the in-flight command ...",
+              file=sys.stderr)
+        outcome = handle.cancel()
+        if outcome is runner.TerminateOutcome.DEGRADED:
+            print(
+                "cannot kill the escalated command (sudo credential "
+                "unavailable); waiting for the current step to finish "
+                "(interrupt again to stop waiting) ...",
+                file=sys.stderr,
+            )
+
+    installed: "list[tuple[int, object]]" = []
+    if threading.current_thread() is threading.main_thread():
+        for sig in (signal.SIGINT, signal.SIGTERM):
+            installed.append((sig, signal.signal(sig, on_signal)))
+    try:
+        return _render_events(handle, dry_run=dry_run)
+    finally:
+        for sig, old in installed:
+            # getsignal-style None (a handler not installed from Python) cannot
+            # be passed back to signal.signal — fall back to the default
+            signal.signal(sig, signal.SIG_DFL if old is None else old)
 
 
 # --------------------------------------------------------------------------- #
@@ -151,9 +197,21 @@ def main(argv: Sequence[str] | None = None) -> int:
                 priv.ensure_sudo()
 
         handle = service.apply(
-            prepared, priv=priv, logger=_LOG, run=runner.run, check_mode=dry_run
+            prepared, priv=priv, logger=_LOG,
+            run=runner.run, stream_run=runner.run_streaming, check_mode=dry_run,
         )
-        return _render_events(handle, dry_run=dry_run)
+        try:
+            return _consume_with_signals(handle, dry_run=dry_run)
+        except KeyboardInterrupt:
+            # Second signal (or one landing outside the handler's window): the
+            # exception already unwound the generator — the engine drained the
+            # bridge and recorded the partial transaction on its way out.
+            # cancel()/close() are idempotent backstops for the narrow case
+            # where the interrupt fired in *this* frame instead.
+            handle.cancel()
+            handle.close()
+            print("aborted: interrupted (signal)", file=sys.stderr)
+            return UserAbort.exit_code
 
     except UserAbort as exc:
         _LOG.error("%s", exc)

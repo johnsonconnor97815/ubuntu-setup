@@ -22,8 +22,14 @@ from ubuntu_setup.core.executor import execute
 from ubuntu_setup.core.models import Action, CatalogEntry, Op, Outcome, Plan
 from ubuntu_setup.core.privilege import Privilege
 from ubuntu_setup.core.providers.base import State
-from ubuntu_setup.core.runner import RunResult
-from tests._fakes import FakeRun, apt_install, register_provider, status_query
+from ubuntu_setup.core.runner import InFlightCommand, RunResult, TerminateOutcome
+from tests._fakes import (
+    FakeKillableCommand,
+    FakeRun,
+    apt_install,
+    register_provider,
+    status_query,
+)
 
 _LOG = logging.getLogger("test.executor")
 
@@ -272,6 +278,124 @@ class TestEventStream(unittest.TestCase):
              "StepFinished", "RunFinished"],
         )
         self.assertEqual(events[-2].result.outcome, Outcome.CHANGED)
+
+
+class TestOutputLineWiring(unittest.TestCase):
+    """ctx.run's streaming binding: provider command output becomes live
+    OutputLine events — zero provider-protocol intrusion (the real apt
+    provider just calls ctx.run as before)."""
+
+    def test_install_command_lines_become_output_line_events(self):
+        run = (
+            FakeRun()
+            .when(status_query, returncode=1)  # absent -> install runs
+            .when(apt_install, lines=["Unpacking ripgrep ...",
+                                      ("W: noise", "stderr"),
+                                      "Setting up ripgrep ..."])
+        )
+        gen = execute(_plan("ripgrep"), priv=Privilege(run=run), logger=_LOG, run=run)
+        results, code, events = _drain(gen)
+
+        self.assertEqual(code, 0)
+        self.assertEqual(results[0].outcome, Outcome.CHANGED)
+        self.assertEqual(
+            [type(e).__name__ for e in events],
+            ["RunStarted", "StepStarted", "OutputLine", "OutputLine", "OutputLine",
+             "StepFinished", "RunFinished"],  # lines BETWEEN started/finished
+        )
+        lines = [e for e in events if isinstance(e, OutputLine)]
+        self.assertEqual(
+            [(l.entry_id, l.line, l.stream) for l in lines],
+            [("ripgrep", "Unpacking ripgrep ...", "stdout"),
+             ("ripgrep", "W: noise", "stderr"),
+             ("ripgrep", "Setting up ripgrep ...", "stdout")],
+        )
+
+    def test_check_path_emits_no_output_lines(self):
+        """check() keeps the plain capturing runner — a satisfied step's
+        dpkg-query produces no OutputLine events."""
+        run = FakeRun().when(status_query, returncode=0,
+                             stdout="install ok installed",
+                             lines=["should never surface"])
+        gen = execute(_plan("ripgrep"), priv=Privilege(run=run), logger=_LOG, run=run)
+        _, code, events = _drain(gen)
+        self.assertEqual(code, 0)
+        self.assertEqual([e for e in events if isinstance(e, OutputLine)], [])
+
+
+class TestCancelKillsInFlightStep(unittest.TestCase):
+    """cancel() mid-step reaches the in-flight command's terminate handle
+    through the InFlightCommand slot (executor level)."""
+
+    def _execute_with_canceller(self, cmd: FakeKillableCommand):
+        run = FakeRun().when(status_query, returncode=1)  # both absent
+        cancel = threading.Event()
+        slot = InFlightCommand()
+        gen = execute(_plan("one", "two"), priv=Privilege(run=run), logger=_LOG,
+                      run=run, stream_run=cmd.stream_run, cancel=cancel,
+                      inflight=slot)
+        outcomes: "list[TerminateOutcome]" = []
+
+        def canceller():
+            # sync primitive: only act once the command is provably in flight
+            assert cmd.started.wait(timeout=10.0)
+            cancel.set()
+            outcomes.append(slot.terminate())
+            if not cmd.was_killed:
+                cmd.finish()  # degraded path: the command completes naturally
+
+        t = threading.Thread(target=canceller)
+        t.start()
+        results, code, events = _drain(gen)
+        t.join()
+        return results, code, events, outcomes
+
+    def test_cancel_mid_step_kills_command_and_ends_with_exit_3(self):
+        cmd = FakeKillableCommand()
+        results, code, events, outcomes = self._execute_with_canceller(cmd)
+
+        self.assertEqual(outcomes, [TerminateOutcome.TERMINATED])
+        self.assertTrue(cmd.was_killed)
+        # the killed command fails its step (rc -15 -> ProviderError) ...
+        self.assertEqual([r.outcome for r in results], [Outcome.FAILED])
+        # ... but under a cancel request the run is cancelled (exit 3), not exit 1
+        fin = events[-1]
+        self.assertIsInstance(fin, RunFinished)
+        self.assertTrue(fin.cancelled)
+        self.assertEqual(fin.exit_code, 3)
+        started = [e for e in events if isinstance(e, StepStarted)]
+        self.assertEqual([s.entry_id for s in started], ["one"])  # "two" never starts
+
+    def test_degraded_cancel_waits_out_the_step_then_stops(self):
+        """Privileged kill unavailable: the consumer sees DEGRADED, the
+        in-flight step runs to completion (its true outcome stands), and the
+        run still stops before the next step with exit 3."""
+        cmd = FakeKillableCommand(degraded=True)
+        results, code, events, outcomes = self._execute_with_canceller(cmd)
+
+        self.assertEqual(outcomes, [TerminateOutcome.DEGRADED])
+        self.assertFalse(cmd.was_killed)
+        self.assertEqual([r.outcome for r in results], [Outcome.CHANGED])  # ran to completion
+        fin = events[-1]
+        self.assertTrue(fin.cancelled)
+        self.assertEqual(fin.exit_code, 3)
+        started = [e for e in events if isinstance(e, StepStarted)]
+        self.assertEqual([s.entry_id for s in started], ["one"])
+
+    def test_genuine_failure_without_cancel_keeps_exit_1(self):
+        """The cancel attribution must not leak: a real failure with no cancel
+        request stays fail-fast exit 1 / cancelled=False (regression guard for
+        the exit-code precedence rule)."""
+        run = (
+            FakeRun()
+            .when(status_query, returncode=1)
+            .when(apt_install, returncode=100, stderr="boom")
+        )
+        gen = execute(_plan("one"), priv=Privilege(run=run), logger=_LOG, run=run)
+        results, code, events = _drain(gen)
+        self.assertEqual(code, 1)
+        fin = events[-1]
+        self.assertFalse(fin.cancelled)
 
 
 class TestCancelAndClose(unittest.TestCase):

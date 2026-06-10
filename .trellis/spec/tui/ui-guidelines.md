@@ -22,12 +22,11 @@ The TUI only: composes widgets, holds **UI** state in `reactive()` attributes, d
 # tui/app.py
 from textual import work
 from textual.app import App
-from ubuntu_setup.core.executor import Executor      # brain: ZERO textual imports
+from ubuntu_setup.core import service                 # brain facade: ZERO textual imports
 
 class ManagerApp(App[None]):
-    def __init__(self, executor: Executor) -> None:
-        super().__init__()
-        self._executor = executor                     # inject the brain
+    """Drives core/service.py seams (scan / prepare_* / apply) from workers;
+    contains no install logic itself."""
 ```
 
 Putting install logic in an event handler or `compose()` blocks the event loop and freezes the UI. Handlers only dispatch to a worker; long work lives in `@work` methods that call `core/`.
@@ -61,21 +60,27 @@ from textual.worker import get_current_worker
 
 class ManagerApp(App[None]):
     @work(thread=True, exclusive=True, group="apply")  # thread=True for blocking work
-    def apply_plan(self, plan) -> None:
+    def apply_plan(self, prepared) -> None:
         worker = get_current_worker()
-        for event in self._executor.run(plan):         # brain yields progress events
-            if worker.is_cancelled():
-                return
-            self.call_from_thread(self._append_event, event)   # marshal UI update back
+        handle = service.apply(prepared, priv=..., logger=...)  # ApplyHandle: event stream + cancel()
+        try:
+            for event in handle:                       # brain yields progress events
+                if worker.is_cancelled():
+                    handle.cancel()                    # kill the in-flight command; the stream
+                                                       # still ends promptly with RunFinished(cancelled)
+                self.call_from_thread(self._append_event, event)   # marshal UI update back
+        finally:
+            handle.close()                             # joins the bridge + records the audit page
+                                                       # even if the loop was abandoned
 ```
 
 Rules (verified):
 
 - **`@work(thread=True)` for synchronous/blocking work** (apt, subprocess). Plain `@work` (async) is only for awaitable I/O. `@work` on a non-async function *without* `thread=True` raises `WorkerDeclarationError`.
 - **Inside a thread worker, never touch widgets directly** — it is not thread-safe. Marshal updates with `self.call_from_thread(callable, *args)` or `post_message(...)`.
-- The brain exposes install progress as an **iterator/generator of events** the worker consumes — that is the seam between blocking logic and the UI.
+- The brain exposes install progress as an **iterator/generator of events** the worker consumes — that is the seam between blocking logic and the UI. The real interface is `service.apply(...) -> ApplyHandle` (iterable of `RunStarted … RunFinished` with live `OutputLine`s interleaved, plus `cancel()`).
 - Use `exclusive=True` + a consistent `group=` to cancel a superseded worker (e.g. re-triggered search/apply). `exclusive` only cancels within the same group.
-- Cooperative cancel: long loops check `get_current_worker().is_cancelled()`.
+- Cooperative cancel: check `get_current_worker().is_cancelled()`, then call **`handle.cancel()` and keep consuming until `RunFinished`** — cancel kills the in-flight command (sudo-aware), so the stream ends promptly; a `TerminateOutcome.DEGRADED` return means the escalated command can't be signalled and the current step is being waited out (tell the user). Do **not** bare-`return` out of the loop to cancel: abandoning the generator (GeneratorExit) is *safe* — the engine drains the bridge, lets the in-flight step finish, and still records the audit page — but it **waits out** the in-flight step instead of killing it (killing is `cancel()`'s semantics), and your UI would stop rendering while apt keeps running.
 
 ---
 

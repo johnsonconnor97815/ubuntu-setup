@@ -76,7 +76,7 @@ Contract for every provider:
 
 | `ctx` member | What it provides |
 |--------------|------------------|
-| `ctx.run(argv, *, sudo=False, **kw)` | the one subprocess boundary (`core/runner.py`): non-interactive env, `LC_ALL=C`, logging, timeout |
+| `ctx.run(argv, *, sudo=False, **kw)` | the one subprocess boundary (`core/runner.py`): non-interactive env, `LC_ALL=C`, logging, timeout. For a mutating op the executor binds it to the **streaming** variant (`run_streaming`): each output line is forwarded live as an `OutputLine` event, and the running command's terminate handle is published so the consumer's `cancel()` can kill the current step — the provider still just calls `ctx.run` and gets the same aggregated result (`returncode`/`stdout`/`stderr`/`duration`). `check()` uses the plain capturing runner |
 | `ctx.priv` | privilege helper: `real_user()`, `real_home()`, sudo validation — see [privilege-and-safety.md](./privilege-and-safety.md) |
 | `ctx.log` | the run logger (audit trail) — see [error-and-logging.md](./error-and-logging.md) |
 | `ctx.check_mode: bool` | **dry-run guard** — when `True`, the operation must make **zero** changes (see below) |

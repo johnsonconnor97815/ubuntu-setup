@@ -18,7 +18,8 @@ from ubuntu_setup.core.events import OutputLine, RunFinished, StepFinished, Step
 from ubuntu_setup.core.models import Action, CatalogEntry, Manifest, Op, Plan
 from ubuntu_setup.core.privilege import Privilege
 from ubuntu_setup.core.providers.base import State
-from tests._fakes import FakeRun, register_provider, status_query
+from ubuntu_setup.core.runner import TerminateOutcome
+from tests._fakes import FakeKillableCommand, FakeRun, register_provider, status_query
 
 _LOG = logging.getLogger("test.service")
 
@@ -254,6 +255,68 @@ class TestApply(unittest.TestCase):
         self.assertEqual(tx["actions"],
                          [{"id": "one", "op": "install", "outcome": "changed"}])
 
+    def _cancel_while_in_flight(self, cmd: FakeKillableCommand):
+        """Drive an apply of ["one", "two"] and cancel() while step one's
+        command is provably in flight (sync primitive, no sleeps)."""
+        run = FakeRun().when(status_query, returncode=1)  # both absent
+        prepared = self._prepared(_plan("one", "two"))
+        handle = self._apply(prepared, run, stream_run=cmd.stream_run)
+        outcomes: "list[TerminateOutcome]" = []
+
+        def canceller():
+            assert cmd.started.wait(timeout=10.0)
+            outcomes.append(handle.cancel())
+            if not cmd.was_killed:
+                cmd.finish()  # degraded path: natural completion is the only way out
+
+        t = threading.Thread(target=canceller)
+        t.start()
+        events = list(handle)
+        t.join()
+        return events, outcomes
+
+    def test_cancel_kills_in_flight_step_and_records(self):
+        """ApplyHandle.cancel() reaches the in-flight command's terminate
+        handle: the command dies at once, the killed step is recorded failed,
+        and the audit page carries exit 3 (cancelled, not fail-fast)."""
+        cmd = FakeKillableCommand()
+        events, outcomes = self._cancel_while_in_flight(cmd)
+
+        self.assertEqual(outcomes, [TerminateOutcome.TERMINATED])
+        self.assertTrue(cmd.was_killed)
+        fin = events[-1]
+        self.assertIsInstance(fin, RunFinished)
+        self.assertTrue(fin.cancelled)
+        self.assertEqual(fin.exit_code, 3)
+        started = [e for e in events if isinstance(e, StepStarted)]
+        self.assertEqual([s.entry_id for s in started], ["one"])  # "two" never starts
+
+        data = json.loads(self.path.read_text(encoding="utf-8"))
+        tx = data["history"][0]
+        self.assertEqual(tx["exit_code"], 3)
+        self.assertEqual(tx["actions"],
+                         [{"id": "one", "op": "install", "outcome": "failed"}])
+
+    def test_cancel_degraded_is_visible_and_waits_out_the_step(self):
+        """The degraded path (escalated command not killable) is perceivable:
+        cancel() returns DEGRADED, the step finishes with its true outcome,
+        and the run still stops with exit 3."""
+        cmd = FakeKillableCommand(degraded=True)
+        events, outcomes = self._cancel_while_in_flight(cmd)
+
+        self.assertEqual(outcomes, [TerminateOutcome.DEGRADED])
+        self.assertFalse(cmd.was_killed)
+        fin = events[-1]
+        self.assertTrue(fin.cancelled)
+        self.assertEqual(fin.exit_code, 3)
+
+        data = json.loads(self.path.read_text(encoding="utf-8"))
+        tx = data["history"][0]
+        self.assertEqual(tx["exit_code"], 3)
+        # the step ran to completion: its TRUE outcome is on the page
+        self.assertEqual(tx["actions"],
+                         [{"id": "one", "op": "install", "outcome": "changed"}])
+
     def test_close_still_records_audit_and_leaks_no_thread(self):
         """Abandoning the stream (close()) still records what happened so far —
         including the in-flight step, which runs to completion during the drain
@@ -300,6 +363,40 @@ class TestApply(unittest.TestCase):
         tx = data["history"][0]
         self.assertEqual(tx["exit_code"], 3)  # interrupted before RunFinished
         # the in-flight step's true outcome is on the page; "two" never started
+        self.assertEqual(tx["actions"],
+                         [{"id": "one", "op": "install", "outcome": "changed"}])
+
+    def test_user_interrupt_through_the_stream_still_records(self):
+        """KeyboardInterrupt unwinding the generator (SIGINT landing in the
+        consumer thread inside the stream) is a user interrupt, not an engine
+        bug: the steps that already happened are still recorded, with the
+        interrupted exit code (3) — audit never misses a page."""
+
+        class Interrupted:
+            type = "fake-ki"
+
+            def check(self, entry):
+                return State.ABSENT
+
+            def install(self, entry, ctx):
+                if entry.id == "two":
+                    raise KeyboardInterrupt
+
+        one = CatalogEntry(id="one", description="x", type="fake-ki", fields={})
+        two = CatalogEntry(id="two", description="x", type="fake-ki", fields={})
+        prepared = self._prepared(Plan(actions=(
+            Action(entry=one, op=Op.INSTALL),
+            Action(entry=two, op=Op.INSTALL),
+        )))
+        threads_before = set(threading.enumerate())
+        with register_provider(Interrupted()):
+            handle = self._apply(prepared, FakeRun())
+            with self.assertRaises(KeyboardInterrupt):
+                list(handle)
+        self.assertEqual(set(threading.enumerate()), threads_before)  # joined
+        data = json.loads(self.path.read_text(encoding="utf-8"))
+        tx = data["history"][0]
+        self.assertEqual(tx["exit_code"], 3)  # interrupted
         self.assertEqual(tx["actions"],
                          [{"id": "one", "op": "install", "outcome": "changed"}])
 

@@ -13,7 +13,10 @@ Seams provided:
 - :func:`prepare_install` / :func:`prepare_apply` — resolve manifest + desired
   state into a :class:`PreparedRun` (plan + where/what to record).
 - :func:`apply` — run a :class:`PreparedRun`; returns an :class:`ApplyHandle`:
-  an iterable event stream (see ``core/events.py``) plus ``cancel()``.
+  an iterable event stream (see ``core/events.py``) plus ``cancel()`` — one
+  consumer call that stops the run *and* kills the step in flight (through the
+  :class:`runner.InFlightCommand` slot; sudo-aware, with an explicit degraded
+  outcome when an escalated command cannot be signalled).
   Recording (``record_transaction`` + manifest save) happens when the stream
   finishes — including on cancel and on an abandoned/closed stream, so the
   audit history never misses a page. A dry run (``check_mode=True``) records
@@ -42,7 +45,7 @@ from .models import CatalogEntry, Manifest, Op, Plan, StepResult
 from .planner import build_plan
 from .privilege import Privilege, SudoKeepalive
 from .providers import State, get_provider
-from .runner import RunResult
+from .runner import InFlightCommand, RunResult, TerminateOutcome
 
 
 # --------------------------------------------------------------------------- #
@@ -144,35 +147,45 @@ class ApplyHandle:
     """The apply product: an iterable event stream plus a cancel seam.
 
     - Iterating yields the executor's events (``RunStarted`` ... ``RunFinished``,
-      with provider ``emit`` payloads such as ``OutputLine`` interleaved live).
+      with live per-command ``OutputLine``\\ s and provider ``emit`` payloads
+      interleaved).
     - ``cancel()``: one consumer call terminates the run — no further step
-      starts; the step in flight finishes (killing its command is the streaming
-      runner's handle, a later commit point: ``_terminate`` is the injection
-      seam) and the stream still ends normally with ``RunFinished(cancelled=
-      True)``; the transaction is recorded as usual.
+      starts, and the command in flight is killed through the
+      :class:`runner.InFlightCommand` slot (sudo-aware: an escalated child is
+      killed via ``sudo -n kill``). The killed step finishes ``failed``, the
+      stream still ends normally with ``RunFinished(cancelled=True,
+      exit_code=3)``, and the transaction is recorded as usual. The return
+      value keeps the degraded path visible: :attr:`TerminateOutcome.DEGRADED`
+      means the escalated command could not be signalled (e.g. lapsed sudo
+      credential) — the in-flight step runs to completion before the run
+      stops ("cannot cancel; waiting for the current step"). ``IDLE`` means no
+      command was in flight at that instant; a command started later in this
+      run is killed on arrival, so the cancel still takes effect.
     - ``close()``: abandon the stream early; bridge threads are joined and the
       steps that already happened — including an in-flight step that runs to
       completion during the drain — are still recorded with their true outcome
-      (audit never misses a page).
+      (audit never misses a page). ``close()`` deliberately does **not** kill
+      anything: killing is explicit ``cancel()``'s semantics.
     """
 
     def __init__(
         self,
         events: Iterator[Event],
         cancel_event: threading.Event,
-        terminate: "Callable[[], None] | None" = None,
+        terminate: "Callable[[], TerminateOutcome] | None" = None,
     ) -> None:
         self._events = events
         self._cancel = cancel_event
-        self._terminate = terminate  # commit point c: kill the in-flight command
+        self._terminate = terminate  # InFlightCommand.terminate — kills the current step
 
     def __iter__(self) -> Iterator[Event]:
         return self._events
 
-    def cancel(self) -> None:
+    def cancel(self) -> TerminateOutcome:
         self._cancel.set()
-        if self._terminate is not None:
-            self._terminate()
+        if self._terminate is None:
+            return TerminateOutcome.IDLE
+        return self._terminate()
 
     def close(self) -> None:
         self._events.close()  # type: ignore[attr-defined]  # generator close
@@ -184,10 +197,16 @@ def apply(
     priv: Privilege,
     logger: logging.Logger,
     run: "Callable[..., RunResult] | None" = None,
+    stream_run: "Callable[..., RunResult] | None" = None,
     check_mode: bool = False,
     keepalive: "SudoKeepalive | None" = None,
 ) -> ApplyHandle:
     """Run ``prepared.plan`` and record the transaction (unless ``check_mode``).
+
+    ``stream_run`` is the streaming-runner seam for mutating ops (see
+    :func:`executor.execute`); like ``run`` it defaults to the real runner,
+    and to the injected ``run`` when only that is given (test fakes keep one
+    seam).
 
     Privilege *acquisition* (``priv.ensure_sudo()``) deliberately stays with
     the caller: each surface owns *when* to prompt (the CLI before applying,
@@ -197,16 +216,19 @@ def apply(
     tests; default ``priv.keepalive()``).
     """
     cancel_event = threading.Event()
+    inflight = InFlightCommand()  # the cancel seam into the in-flight command
     events = _apply_events(
         prepared,
         priv=priv,
         logger=logger,
         run=run,
+        stream_run=stream_run,
         check_mode=check_mode,
         cancel=cancel_event,
+        inflight=inflight,
         keepalive=keepalive,
     )
-    return ApplyHandle(events, cancel_event)
+    return ApplyHandle(events, cancel_event, terminate=inflight.terminate)
 
 
 def _apply_events(
@@ -215,8 +237,10 @@ def _apply_events(
     priv: Privilege,
     logger: logging.Logger,
     run: "Callable[..., RunResult] | None",
+    stream_run: "Callable[..., RunResult] | None",
     check_mode: bool,
     cancel: threading.Event,
+    inflight: InFlightCommand,
     keepalive: "SudoKeepalive | None",
 ) -> Iterator[Event]:
     # the executor's out-of-band results channel: each StepResult is appended
@@ -240,8 +264,10 @@ def _apply_events(
         priv=priv,
         logger=logger,
         run=run,
+        stream_run=stream_run,
         check_mode=check_mode,
         cancel=cancel,
+        inflight=inflight,
         results_sink=results,
     )
     try:
@@ -251,8 +277,14 @@ def _apply_events(
             yield event
     except GeneratorExit:
         raise  # abandoned stream: still record below (audit never misses a page)
+    except (KeyboardInterrupt, UserAbort):
+        # a user interrupt unwinding the stream (SIGINT reaching the consumer
+        # thread inside the generator) is not an engine bug: the steps that
+        # already happened really changed the system and are still recorded
+        # (with the interrupted exit code) — audit never misses a page
+        raise
     except BaseException:
-        record = False  # unexpected raise propagates; the boundary reports it
+        record = False  # unexpected raise (a bug) propagates; never a transaction
         raise
     finally:
         try:

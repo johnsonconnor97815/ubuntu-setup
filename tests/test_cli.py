@@ -12,9 +12,13 @@
 
 from __future__ import annotations
 
+import contextlib
+import io
 import json
 import os
+import signal
 import tempfile
+import threading
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -22,7 +26,7 @@ from unittest import mock
 from ubuntu_setup.cli import main
 from ubuntu_setup.core.errors import PrivilegeError
 from ubuntu_setup.core.privilege import CredentialStatus, Privilege
-from tests._fakes import FakeRun, status_query
+from tests._fakes import FakeKillableCommand, FakeRun, apt_install, status_query
 
 
 class TestCliDryRun(unittest.TestCase):
@@ -124,6 +128,110 @@ class TestCliProbeAdaptiveSudo(unittest.TestCase):
                 data["history"][0]["actions"],
                 [{"id": "tree", "op": "install", "outcome": "ok"}],
             )
+
+
+class TestCliStreamsOutputLines(unittest.TestCase):
+    """End-to-end (headless): a multi-entry --apply renders step-by-step
+    events including live per-command OutputLines (faked runner — no sudo)."""
+
+    def test_apply_renders_live_output_lines(self):
+        fake_run = (
+            FakeRun()
+            .when(status_query, returncode=1)  # both absent -> installs run
+            .when(apt_install, lines=["Unpacking ...", ("W: noise", "stderr")])
+        )
+
+        class Cached(Privilege):
+            def __init__(self):
+                super().__init__(run=fake_run)
+
+            def probe_credentials(self):
+                return CredentialStatus.CACHED
+
+        with tempfile.TemporaryDirectory() as tmp:
+            manifest = Path(tmp) / "manifest.json"
+            manifest.write_text(json.dumps({
+                "version": 1,
+                "desired": [{"id": "tree", "op": "install"},
+                            {"id": "ripgrep", "op": "install"}],
+                "history": [],
+            }), encoding="utf-8")
+            out = io.StringIO()
+            # the CLI resolves both runner seams late (module attributes), so
+            # patching the runner module reroutes streaming through the fake
+            with mock.patch("ubuntu_setup.cli.Privilege", Cached), \
+                 mock.patch("ubuntu_setup.core.runner.run", fake_run), \
+                 mock.patch("ubuntu_setup.core.runner.run_streaming", fake_run), \
+                 contextlib.redirect_stdout(out):
+                rc = main(["--apply", str(manifest)])
+
+            self.assertEqual(rc, 0)
+            rendered = out.getvalue()
+            # step-by-step events for BOTH entries, with live lines in between
+            self.assertIn("[1/2] install tree", rendered)
+            self.assertIn("[2/2] install ripgrep", rendered)
+            self.assertEqual(rendered.count("| Unpacking ..."), 2)
+            self.assertEqual(rendered.count("! W: noise"), 2)  # stderr glyph
+            data = json.loads(manifest.read_text(encoding="utf-8"))
+            self.assertEqual(
+                data["history"][0]["actions"],
+                [{"id": "tree", "op": "install", "outcome": "changed"},
+                 {"id": "ripgrep", "op": "install", "outcome": "changed"}],
+            )
+
+
+class TestCliSigintCancels(unittest.TestCase):
+    """End-to-end Ctrl-C: a real SIGINT mid-step must kill the in-flight
+    command through the cancel seam (the child runs in its own session, so
+    the terminal's SIGINT cannot reach it), end the stream with exit 3, and
+    record the partial transaction — deterministic via the fake command's
+    sync primitive, no sleeps."""
+
+    def test_sigint_mid_step_cancels_kills_and_records(self):
+        cmd = FakeKillableCommand()
+        fake_run = FakeRun().when(status_query, returncode=1)  # both absent
+
+        class Cached(Privilege):
+            def __init__(self):
+                super().__init__(run=fake_run)
+
+            def probe_credentials(self):
+                return CredentialStatus.CACHED
+
+        def sniper():
+            # only fire once step one's command is provably in flight
+            assert cmd.started.wait(timeout=10.0)
+            os.kill(os.getpid(), signal.SIGINT)
+
+        with tempfile.TemporaryDirectory() as tmp:
+            manifest = Path(tmp) / "manifest.json"
+            manifest.write_text(json.dumps({
+                "version": 1,
+                "desired": [{"id": "tree", "op": "install"},
+                            {"id": "ripgrep", "op": "install"}],
+                "history": [],
+            }), encoding="utf-8")
+            out, err = io.StringIO(), io.StringIO()
+            handler_before = signal.getsignal(signal.SIGINT)
+            t = threading.Thread(target=sniper)
+            with mock.patch("ubuntu_setup.cli.Privilege", Cached), \
+                 mock.patch("ubuntu_setup.core.runner.run", fake_run), \
+                 mock.patch("ubuntu_setup.core.runner.run_streaming", cmd.stream_run), \
+                 contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+                t.start()
+                rc = main(["--apply", str(manifest)])
+            t.join()
+
+            self.assertEqual(rc, 3)            # interrupted, not fail-fast
+            self.assertTrue(cmd.was_killed)    # the in-flight command died
+            self.assertIn("cancelling", err.getvalue())
+            data = json.loads(manifest.read_text(encoding="utf-8"))
+            tx = data["history"][0]            # the audit page exists
+            self.assertEqual(tx["exit_code"], 3)
+            self.assertEqual(tx["actions"],    # killed step failed; "ripgrep" never started
+                             [{"id": "tree", "op": "install", "outcome": "failed"}])
+            # the handler was restored after main() returned
+            self.assertEqual(signal.getsignal(signal.SIGINT), handler_before)
 
 
 @unittest.skipUnless(
