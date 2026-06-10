@@ -25,7 +25,7 @@ from .core.catalog import DEFAULT_CATALOG_DIR, load_catalog
 from .core.errors import UbuntuSetupError, UserAbort
 from .core.events import Event, OutputLine, RunFinished, RunStarted, StepFinished, StepStarted
 from .core.models import Outcome
-from .core.privilege import Privilege
+from .core.privilege import CredentialStatus, Privilege
 
 _LOG = logging.getLogger("ubuntu_setup")
 
@@ -141,9 +141,14 @@ def main(argv: Sequence[str] | None = None) -> int:
             prepared = service.prepare_apply(args.apply, catalog)
 
         # acquire sudo up front (unless this is a pure preview); kept at this
-        # boundary so each surface owns when to prompt (the TUI suspends later)
+        # boundary so each surface owns when to prompt (the TUI suspends
+        # later). Probe-adaptive (spec privilege Rule 2): a silently-cached
+        # credential (or NOPASSWD) skips the interactive prompt; otherwise
+        # validate interactively (`sudo -v` on the tty) — with no tty and no
+        # credential that fails cleanly to exit 4.
         if not dry_run and len(prepared.plan) > 0:
-            priv.ensure_sudo()
+            if priv.probe_credentials() is not CredentialStatus.CACHED:
+                priv.ensure_sudo()
 
         handle = service.apply(
             prepared, priv=priv, logger=_LOG, run=runner.run, check_mode=dry_run

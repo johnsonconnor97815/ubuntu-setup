@@ -63,8 +63,10 @@ class StepFinished:
 class RunFinished:
     """The run ended. Always the final event, even on fail-fast or cancel.
 
-    ``exit_code`` follows the headless table (0 ok, 1 fail-fast, 3 cancelled);
-    ``cancelled`` is True when ``cancel()`` stopped the run before its last step.
+    ``exit_code`` follows the headless table (0 ok, 1 fail-fast, 3 cancelled,
+    4 sudo credential lapsed mid-run — the "interactive escalation required"
+    signal); ``cancelled`` is True when ``cancel()`` stopped the run before
+    its last step.
     """
 
     results: "tuple[StepResult, ...]"

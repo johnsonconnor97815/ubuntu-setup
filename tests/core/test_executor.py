@@ -138,6 +138,60 @@ class TestExecutor(unittest.TestCase):
         self.assertEqual(run.count(apt_install), 1)        # installed exactly once
 
 
+def _probe(a: "list[str]") -> bool:
+    return a == ["sudo", "-n", "true"]
+
+
+class TestPerStepProbe(unittest.TestCase):
+    """Rule 2's per-step probe: a lapsed credential terminates the run cleanly
+    (exit 4) before mutating — never a surprise password prompt."""
+
+    def test_lapsed_credential_fails_run_with_exit_4_before_mutating(self):
+        run = (
+            FakeRun()
+            .when(status_query, returncode=1)  # absent -> a mutating op is due
+            .when(_probe, returncode=1)        # credential lapsed mid-run
+        )
+        gen = execute(_plan("one", "two"), priv=Privilege(run=run), logger=_LOG, run=run)
+        results, code, events = _drain(gen)
+
+        self.assertEqual(code, 4)  # PrivilegeError semantics, visible in RunFinished
+        self.assertEqual(len(results), 1)  # fail-fast: "two" never reached
+        self.assertEqual(results[0].outcome, Outcome.FAILED)
+        self.assertIn("interactive escalation required", results[0].detail)
+        self.assertFalse(run.ran("apt-get"))  # stopped BEFORE mutating
+        fin = events[-1]
+        self.assertIsInstance(fin, RunFinished)
+        self.assertFalse(fin.cancelled)
+        started = [e for e in events if isinstance(e, StepStarted)]
+        self.assertEqual([s.entry_id for s in started], ["one"])
+
+    def test_dry_run_never_probes_sudo(self):
+        run = (
+            FakeRun()
+            .when(status_query, returncode=1)  # absent -> would change
+            .when(_probe, returncode=1)        # would fail IF probed
+        )
+        gen = execute(_plan("ripgrep"), priv=Privilege(run=run), logger=_LOG,
+                      run=run, check_mode=True)
+        results, code, _ = _drain(gen)
+        self.assertEqual(code, 0)
+        self.assertEqual(results[0].outcome, Outcome.CHANGED)
+        self.assertEqual(run.count(_probe), 0)  # a dry run never touches sudo
+
+    def test_satisfied_step_does_not_probe(self):
+        run = (
+            FakeRun()
+            .when(status_query, returncode=0, stdout="install ok installed")
+            .when(_probe, returncode=1)        # would fail IF probed
+        )
+        gen = execute(_plan("ripgrep"), priv=Privilege(run=run), logger=_LOG, run=run)
+        results, code, _ = _drain(gen)
+        self.assertEqual(code, 0)
+        self.assertEqual(results[0].outcome, Outcome.OK)
+        self.assertEqual(run.count(_probe), 0)  # no-op steps need no credential
+
+
 class TestEventStream(unittest.TestCase):
     """The event vocabulary: shapes, ordering, skip-vs-fail visibility."""
 

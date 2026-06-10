@@ -111,6 +111,83 @@ class TestPrepare(unittest.TestCase):
             self.assertEqual(prepared.record_desired, ())  # desired already in file
 
 
+class _FakeKeepalive:
+    """Duck-typed SudoKeepalive recording its lifecycle (the injection seam)."""
+
+    def __init__(self):
+        self.started = 0
+        self.stopped = 0
+
+    def start(self):
+        self.started += 1
+
+    def stop(self):
+        self.stopped += 1
+
+
+class TestApplyKeepalive(unittest.TestCase):
+    """The keep-alive lifecycle is owned by the engine: started for a real
+    apply, stopped in the stream's finally — incl. close and crash paths;
+    dry runs and empty plans never start it."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.path = Path(self.tmp.name) / "manifest.json"
+
+    def _apply(self, plan, run, ka, **kw) -> service.ApplyHandle:
+        prepared = service.PreparedRun(plan=plan, manifest=Manifest(),
+                                       manifest_path=self.path)
+        return service.apply(prepared, priv=Privilege(run=run), logger=_LOG,
+                             run=run, keepalive=ka, **kw)
+
+    def test_real_apply_starts_then_stops_keepalive(self):
+        ka = _FakeKeepalive()
+        run = FakeRun().when(status_query, returncode=1)
+        list(self._apply(_plan("ripgrep"), run, ka))
+        self.assertEqual((ka.started, ka.stopped), (1, 1))
+
+    def test_dry_run_never_starts_keepalive(self):
+        ka = _FakeKeepalive()
+        run = FakeRun().when(status_query, returncode=1)
+        list(self._apply(_plan("ripgrep"), run, ka, check_mode=True))
+        self.assertEqual((ka.started, ka.stopped), (0, 0))
+
+    def test_empty_plan_never_starts_keepalive(self):
+        ka = _FakeKeepalive()
+        list(self._apply(Plan(actions=()), FakeRun(), ka))
+        self.assertEqual((ka.started, ka.stopped), (0, 0))
+
+    def test_keepalive_stops_on_crash_path(self):
+        class Buggy:
+            type = "fake-buggy"
+
+            def check(self, entry):
+                return State.ABSENT
+
+            def install(self, entry, ctx):
+                raise RuntimeError("bug, not a typed error")
+
+        ka = _FakeKeepalive()
+        entry = CatalogEntry(id="boom", description="x", type="fake-buggy", fields={})
+        plan = Plan(actions=(Action(entry=entry, op=Op.INSTALL),))
+        with register_provider(Buggy()):
+            handle = self._apply(plan, FakeRun(), ka)
+            with self.assertRaises(RuntimeError):
+                list(handle)
+        self.assertEqual((ka.started, ka.stopped), (1, 1))  # finally still ran
+
+    def test_keepalive_stops_when_stream_is_closed(self):
+        ka = _FakeKeepalive()
+        run = FakeRun().when(status_query, returncode=1)
+        handle = self._apply(_plan("one", "two"), run, ka)
+        it = iter(handle)
+        next(it)  # RunStarted: the generator (and the keep-alive) started
+        self.assertEqual((ka.started, ka.stopped), (1, 0))
+        handle.close()  # abandon: finally stops the keep-alive after the drain
+        self.assertEqual((ka.started, ka.stopped), (1, 1))
+
+
 class TestApply(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()

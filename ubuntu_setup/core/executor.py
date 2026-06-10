@@ -9,6 +9,13 @@ recorded ``skipped`` and the run continues (detect-and-skip). The stream always
 terminates with :class:`RunFinished` (see ``core/events.py`` and
 ``.trellis/spec/core/idempotency-and-execution.md``).
 
+Before every mutating op (never in ``check_mode``) the executor probes the sudo
+credential (``priv.ensure_sudo_noninteractive()``, spec privilege Rule 2) so a
+password prompt can never ambush the consumer mid-run: a lapsed credential is a
+clean, recognizable termination — ``StepFinished(failed)`` then
+``RunFinished(exit_code=4)`` (:class:`PrivilegeError` semantics), consistent
+with fail-fast.
+
 Plan mode (``check_mode=True``) is the dry-run mutation guard: every provider op
 must make zero changes; the "would change" signal comes from comparing each
 entry's ``check()`` state to the desired op (no parallel simulation path).
@@ -38,7 +45,7 @@ import queue
 import threading
 from typing import Any, Callable, Iterator
 
-from .errors import PreconditionError, ProviderError, UserAbort
+from .errors import PreconditionError, PrivilegeError, ProviderError, UserAbort
 from .events import Event, RunFinished, RunStarted, StepFinished, StepStarted
 from .models import CatalogEntry, Op, Outcome, Plan, StepResult
 from .privilege import Privilege
@@ -176,6 +183,21 @@ def execute(
             logger.info("ok: %s already %s", entry.id, state.value)
             yield StepFinished(index=index, total=total, result=result)
             continue
+
+        # probe before each privileged step (privilege-and-safety Rule 2): a
+        # lapsed credential fails the run cleanly (exit 4) instead of letting a
+        # password prompt ambush the consumer. Satisfied steps above never
+        # probe; a dry run never touches sudo at all.
+        if not check_mode:
+            try:
+                priv.ensure_sudo_noninteractive()
+            except PrivilegeError as exc:
+                result = StepResult(entry.id, op, Outcome.FAILED, str(exc))
+                results.append(result)
+                logger.error("credential lapsed before %s: %s", entry.id, exc)
+                exit_code = PrivilegeError.exit_code
+                yield StepFinished(index=index, total=total, result=result)
+                break
 
         change = f"{state.value} -> {_TARGET[op].value}"
 

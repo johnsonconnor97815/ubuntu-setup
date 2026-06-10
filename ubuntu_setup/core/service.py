@@ -18,6 +18,12 @@ Seams provided:
   finishes — including on cancel and on an abandoned/closed stream, so the
   audit history never misses a page. A dry run (``check_mode=True``) records
   nothing.
+
+The sudo keep-alive lifecycle is owned here (spec privilege Rule 2): a real
+apply (non-dry-run, non-empty plan) starts the :class:`SudoKeepalive` daemon
+thread with its first event and stops it in the stream's ``finally`` — on
+success, cancel, close, and crash alike. Dry runs and empty plans never touch
+sudo.
 """
 
 from __future__ import annotations
@@ -34,7 +40,7 @@ from .events import Event, RunFinished
 from .executor import execute
 from .models import CatalogEntry, Manifest, Op, Plan, StepResult
 from .planner import build_plan
-from .privilege import Privilege
+from .privilege import Privilege, SudoKeepalive
 from .providers import State, get_provider
 from .runner import RunResult
 
@@ -179,12 +185,16 @@ def apply(
     logger: logging.Logger,
     run: "Callable[..., RunResult] | None" = None,
     check_mode: bool = False,
+    keepalive: "SudoKeepalive | None" = None,
 ) -> ApplyHandle:
     """Run ``prepared.plan`` and record the transaction (unless ``check_mode``).
 
-    Privilege acquisition (``priv.ensure_sudo()``) deliberately stays with the
-    caller: each surface owns *when* to prompt (the CLI before applying, the
-    TUI via its own suspend/prompt flow).
+    Privilege *acquisition* (``priv.ensure_sudo()``) deliberately stays with
+    the caller: each surface owns *when* to prompt (the CLI before applying,
+    the TUI via its own suspend/prompt flow). Keeping the acquired credential
+    *alive* is owned here: a real apply starts a keep-alive thread for the
+    duration of the event stream (``keepalive`` is the injection seam for
+    tests; default ``priv.keepalive()``).
     """
     cancel_event = threading.Event()
     events = _apply_events(
@@ -194,6 +204,7 @@ def apply(
         run=run,
         check_mode=check_mode,
         cancel=cancel_event,
+        keepalive=keepalive,
     )
     return ApplyHandle(events, cancel_event)
 
@@ -206,6 +217,7 @@ def _apply_events(
     run: "Callable[..., RunResult] | None",
     check_mode: bool,
     cancel: threading.Event,
+    keepalive: "SudoKeepalive | None",
 ) -> Iterator[Event]:
     # the executor's out-of-band results channel: each StepResult is appended
     # the moment it forms, so the recording below sees every step that actually
@@ -217,6 +229,12 @@ def _apply_events(
     exit_code = UserAbort.exit_code
     record = not check_mode  # a dry run records nothing
     started_at = state_mod.now_iso()
+    # sudo keep-alive for the duration of a real apply (Rule 2): dry runs and
+    # empty plans never touch sudo
+    ka: "SudoKeepalive | None" = None
+    if not check_mode and len(prepared.plan) > 0:
+        ka = keepalive if keepalive is not None else priv.keepalive()
+        ka.start()
     gen = execute(
         prepared.plan,
         priv=priv,
@@ -237,9 +255,15 @@ def _apply_events(
         record = False  # unexpected raise propagates; the boundary reports it
         raise
     finally:
-        # joins the bridge worker; an in-flight step completes and its outcome
-        # is appended to ``results`` (the sink) before close() returns
-        gen.close()
+        try:
+            # joins the bridge worker; an in-flight step completes and its
+            # outcome is appended to ``results`` (the sink) before close()
+            # returns
+            gen.close()
+        finally:
+            # only after the drain: the in-flight step may still escalate
+            if ka is not None:
+                ka.stop()
         if record:
             manifest = prepared.manifest
             for item in prepared.record_desired:

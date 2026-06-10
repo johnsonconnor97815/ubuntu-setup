@@ -4,9 +4,9 @@
 
 ---
 
-## Status: design-derived, not yet code-backed
+## Status: Rules 2–3 code-backed (`core/privilege.py`); Rules 4–5 still design-derived
 
-Prescriptive, and the highest-stakes spec in the set: the target users are strangers running an open-source tool that executes `sudo` (`design-direction.md`). The idioms below are verified against sudo 1.9.18, sudoers(5), the Python 3 subprocess docs, and the freedesktop polkit reference. Treat every rule here as a hard constraint, not a suggestion.
+The highest-stakes spec in the set: the target users are strangers running an open-source tool that executes `sudo` (`design-direction.md`). Rules 2 and 3 are implemented in `core/privilege.py` (`probe_credentials` / `ensure_sudo` / `ensure_sudo_noninteractive` / `SudoKeepalive`; `real_user` / `real_home`) and covered by the fake-runner matrix in `tests/core/test_privilege.py` — the snippets in those rules show the real API (except Rule 3's drop-privileges child-run snippet, which stays prescriptive until a provider needs to run a child as the real user). Rule 4 (`dotfile-block`) and parts of Rule 5 await their providers. The idioms below are verified against sudo 1.9.18, sudoers(5), the Python 3 subprocess docs, and the freedesktop polkit reference. Treat every rule here as a hard constraint, not a suggestion.
 
 ---
 
@@ -26,22 +26,27 @@ If the app nonetheless finds itself running as root (someone ran it with `sudo` 
 
 In a TUI a hidden password prompt corrupts the screen or appears to hang, because the TUI owns the terminal. So:
 
-1. **Validate up front, while the screen is in a known state:** `sudo -v` (prompts once; caches the credential — sudoers default TTL is **5 minutes**, per-terminal, *not* 15). If the user is not a sudoer this fails early and cleanly.
-2. **Keep-alive during long runs** with a daemon thread that refreshes under the TTL and dies with the app:
+1. **Validate up front, while the screen is in a known state:** `sudo -v` (prompts once; caches the credential — sudoers default TTL is **5 minutes**, per-terminal, *not* 15). If the user is not a sudoer this fails early and cleanly. Implemented as `Privilege.ensure_sudo()` → raises `PrivilegeError` (exit 4); with no tty and no cached credential `sudo -v` cannot prompt and the same clean exit-4 results. The CLI is **probe-adaptive**: it calls `probe_credentials()` first (point 4) and skips the interactive validation entirely when the credential is already cached.
+2. **Keep-alive during long runs** with a daemon thread that refreshes under the TTL and dies with the app. All commands go through the injected runner seam — never bare `subprocess` (non-negotiable ⑤; this is also what makes the fake-run test matrix possible):
 
    ```python
-   # core/privilege.py
-   def _keepalive(stop: threading.Event) -> None:
-       while not stop.wait(50):                       # < the 5-min TTL
-           subprocess.run(["sudo", "-n", "true"],
-                          stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-   subprocess.run(["sudo", "-v"], check=True)         # interactive, up front
-   threading.Thread(target=_keepalive, args=(stop,), daemon=True).start()
+   # core/privilege.py — the real API (every command via the runner seam)
+   priv = Privilege(run=runner.run)                       # `run=` is the injection seam
+
+   if priv.probe_credentials() is not CredentialStatus.CACHED:   # silent — never prompts
+       priv.ensure_sudo()                                 # interactive `sudo -v`, up front
+
+   ka = priv.keepalive()          # SudoKeepalive: daemon thread, `sudo -n true` every 50 s (< the 5-min TTL)
+   ka.start()
+   try:
+       ...                        # consume the executor's event stream
+   finally:
+       ka.stop()                  # set the stop Event + join — exits the wait immediately
    ```
 
-   Lifecycle: set the `stop` `Event` in a `finally`/`atexit` (and on `UserAbort`) so the loop exits cleanly; `daemon=True` guarantees the thread also dies with the process if cleanup is skipped, so a Ctrl-C landing during `stop.wait(50)` never hangs shutdown.
-3. **Probe before each privileged step** with `sudo -n true` (non-interactive). Exit 0 ⇒ it will run silently; non-zero ⇒ re-prompt deliberately (`sudo -v`) or fail with a clear message — never let a password prompt surprise the UI.
-4. To **read** cached state for a status display without resetting the 5-minute timer, use `sudo -Nnv`. Caveat: `-N` was added in sudo 1.9.12 — present on 24.04 (ships ≥ 1.9.13) but **not** on a stock 22.04 (ships 1.9.9). Detect support once (`sudo -h 2>&1 | grep -q -- -N`) and otherwise fall back to the plain `sudo -n true` probe. (Plain `sudo -nv` would silently re-extend the 5-minute timer, which is why `-Nnv` is preferred where available.)
+   Lifecycle is owned by the engine: `core/service.py` starts the keep-alive when a real apply's event stream begins (never for a dry run or an empty plan — those touch sudo not at all) and stops it in the stream's `finally` — on success, cancel, close, and crash alike. `daemon=True` still guarantees the thread dies with the process if cleanup is skipped, so a Ctrl-C landing during the interval wait never hangs shutdown.
+3. **Probe before each privileged step** with `sudo -n true` (non-interactive). Exit 0 ⇒ it will run silently; non-zero ⇒ re-prompt deliberately (`sudo -v`) or fail with a clear message — never let a password prompt surprise the UI. Implemented as `Privilege.ensure_sudo_noninteractive()`: the executor calls it before every mutating step (satisfied no-op steps and dry runs never probe), and a lapsed credential raises `PrivilegeError` — **the clean "interactive escalation required" signal**. The executor converts it into a recognizable termination consistent with fail-fast: `StepFinished(failed)` then `RunFinished(exit_code=4)`, which a consumer (the CLI today, the TUI's suspend-and-prompt flow later) reacts to deliberately. This probe intentionally renews the TTL — desirable mid-apply.
+4. To **read** cached state for a status display without resetting the 5-minute timer, use `sudo -Nnv`. Caveat: `-N` was added in sudo 1.9.12 — present on 24.04 (ships ≥ 1.9.13) but **not** on a stock 22.04 (ships 1.9.9). Detect support once (`sudo -h 2>&1 | grep -q -- -N`) and otherwise fall back to the plain `sudo -n true` probe. (Plain `sudo -nv` would silently re-extend the 5-minute timer, which is why `-Nnv` is preferred where available.) Implemented as `Privilege.probe_credentials() -> CredentialStatus`, an explicit enum — `CACHED` (escalation runs silently; NOPASSWD probes as this too) / `NONE` (interactive validation needed) / `UNAVAILABLE` (sudo itself could not run) — never a bare-bool tri-state. The `-N` detection runs the help command through the runner (reading both output streams) once per `Privilege` instance and caches the result.
 
 `DEBIAN_FRONTEND=noninteractive` must be set in the **escalated** command's environment, not just the parent — `sudo`'s `env_reset` strips it otherwise. **Re-assert it with `env(1)`, not the bare `sudo VAR=val` form:** `sudo VAR=value cmd` is rejected ("not allowed to set the following environment variables: DEBIAN_FRONTEND") unless the sudoers `setenv` option / a `SETENV` tag applies — only *implied* when the matched command is `ALL`, so it breaks under a restricted sudoers. Wrapping as `sudo env DEBIAN_FRONTEND=noninteractive LC_ALL=C apt-get …` passes the variables as arguments to `env`, which is not subject to sudo's env restrictions and works for every sudoers configuration (verified against sudoers(5)/sudo(8)). The runner's privileged variant (`build_argv`) does exactly this; see [error-and-logging.md](./error-and-logging.md).
 
