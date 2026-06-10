@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/index.md", "reason": "把 7 条不可妥协项当验收清单:逐条核对代码是否真落地(尤其 ①无 textual import ⑤无散落 subprocess ⑥分发只在注册表)"}
+{"file": ".trellis/spec/core/directory-structure.md", "reason": "核对包布局与边界:core/ 不 import tui/textual、依赖单向、运行时状态落 XDG 而非包内"}
+{"file": ".trellis/spec/core/error-and-logging.md", "reason": "核对 runner 是唯一 subprocess 边界(无裸 subprocess.run/os.system/shell=True)、非交互 env+LC_ALL=C、异常分类正确、每条命令记 argv"}
+{"file": ".trellis/spec/core/catalog-and-providers.md", "reason": "核对 apt idiom 正确(check 用 dpkg-query ${Status}=='install ok installed'、install 用 apt-get 非 apt)、避开 anti-patterns、类型分发只在 providers/__init__"}
+{"file": ".trellis/spec/core/idempotency-and-execution.md", "reason": "核对 check-before-act/fail-fast、exit codes 0-4 语义、manifest 格式合规、--dry-run 下 check_mode 真正零变更"}
+{"file": ".trellis/spec/core/privilege-and-safety.md", "reason": "核对绝不整体 root、real_home() 不用 ~/$HOME/expanduser、sudo 逐命令提权、无 root 组泄漏"}
+{"file": ".trellis/spec/catalog/authoring-guidelines.md", "reason": "核对示例 apt 条目与 schema.json 合规、字段命名与 spec 一致"}
