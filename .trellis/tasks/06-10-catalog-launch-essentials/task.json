@@ -1,0 +1,30 @@
+{
+  "id": "catalog-launch-essentials",
+  "name": "catalog-launch-essentials",
+  "title": "catalog-launch-essentials",
+  "description": "",
+  "status": "planning",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "Conn",
+  "assignee": "Conn",
+  "createdAt": "2026-06-10",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "dev",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [
+    "06-10-intersection-research",
+    "06-10-engine-prep",
+    "06-10-verify-infra"
+  ],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {}
+}

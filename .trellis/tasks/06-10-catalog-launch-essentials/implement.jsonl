@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/catalog/authoring-guidelines.md", "reason": "条目作者规范：声明式优先、script 逃生口约束（手写幂等 check、无 curl|bash 反模式）、source 信任标记、tags 用法"}
+{"file": ".trellis/spec/core/catalog-and-providers.md", "reason": "provider 协议（check/install 签名、Ctx）、注册表惯用法（不可妥协⑥）、repo 条目与 package 条目经 depends_on 链接的设计"}
+{"file": ".trellis/spec/core/idempotency-and-execution.md", "reason": "check 幂等引擎语义、plan-before-apply、fail-fast、manifest 记账——条目与验证基建的验收依据"}
+{"file": ".trellis/spec/core/directory-structure.md", "reason": "脑/手/脸边界与模块布局——schema/planner/provider 改动的落位依据"}
+{"file": ".trellis/tasks/06-10-catalog-launch-essentials/research/authoritative-sources.md", "reason": "入选标准方案 A 全部参数：5 核心源、N≥3 且核心票 ≥2、辅助源限 1 票、三条兜底规则"}
