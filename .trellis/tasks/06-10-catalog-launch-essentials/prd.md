@@ -99,6 +99,10 @@ schema 无环境字段、planner 无拓扑排序、无集成测试基建。
 
 * [`research/authoritative-sources.md`](research/authoritative-sources.md) — 10 类源逐个盘点；
   方案 A 推荐（已采纳）；兜底规则三条；Caveat：规模是目测，定稿前须脚本实跑交集。
+* [`../06-10-intersection-research/research/conclusion.md`](../06-10-intersection-research/research/conclusion.md) —
+  **交集实跑定稿（2026-06-10）**：110 条入选（+4 依赖引证 −1 合并 ≈113），N 维持不变；
+  provider 缺口 deb 21 / script 14 / snap 6 / ppa 4 / flatpak 1；可验性 container 95 / VM 15；
+  bedrock 评审稿 5 条待用户裁决；apt 63 条可先行落地。
 
 ## Implementation Plan（子任务拆分）
 

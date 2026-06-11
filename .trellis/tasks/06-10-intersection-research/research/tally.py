@@ -27,6 +27,28 @@ AUX_SOURCES = ["jetbrains", "popcon", "awesome"]
 MIN_TOTAL_VOTES = 3
 MIN_CORE_VOTES = 2
 
+# 禁并对：别名并查集会把不同产品撞进一组（共享别名/元包），人工审计后拆开。
+# 见 2026-06-10 合并审计：docker-compose 吞掉 docker、build-essential 桥接 gcc/make 等。
+BLOCKED_PAIRS = {
+    frozenset(p)
+    for p in [
+        ("docker", "docker-compose"),
+        ("mariadb", "mysql"),
+        ("redis", "valkey"),
+        ("terraform", "opentofu"),
+        ("build-essential", "gcc"),
+        ("build-essential", "make"),
+        ("gcc", "make"),
+        ("go-task", "taskwarrior"),
+        ("scala", "sbt"),
+        ("bind", "dnsutils"),
+        ("jupyterlab", "ipython"),
+        ("jupyter", "ipython"),
+        ("openssh-client", "openssh-server"),
+        ("tealdeer", "tldr"),
+    ]
+}
+
 
 def norm(name: str) -> str:
     """归一化工具名做合并键：小写、NFKC、空格/下划线/点转连字符。"""
@@ -37,13 +59,18 @@ def norm(name: str) -> str:
 
 
 class Union:
-    """并查集：canonical 与 aliases 同组合并。"""
+    """并查集：canonical 与 aliases 同组合并；禁并对约束阻止不同产品经共享别名桥接。"""
 
-    def __init__(self) -> None:
+    def __init__(self, canon_names: set[str]) -> None:
         self.parent: dict[str, str] = {}
+        self.canon_names = canon_names
+        self.canons: dict[str, set[str]] = {}  # root -> 组内 canonical 名集合
+        self.skipped: list[tuple[str, str]] = []  # 被禁并对拦下的 join
 
     def find(self, x: str) -> str:
         self.parent.setdefault(x, x)
+        if x in self.canon_names:
+            self.canons.setdefault(x, {x})
         while self.parent[x] != x:
             self.parent[x] = self.parent[self.parent[x]]
             x = self.parent[x]
@@ -51,8 +78,16 @@ class Union:
 
     def join(self, a: str, b: str) -> None:
         ra, rb = self.find(a), self.find(b)
-        if ra != rb:
-            self.parent[rb] = ra
+        if ra == rb:
+            return
+        merged = self.canons.get(ra, set()) | self.canons.get(rb, set())
+        for pair in BLOCKED_PAIRS:
+            if pair <= merged:
+                self.skipped.append((a, b))
+                return
+        self.parent[rb] = ra
+        self.canons[ra] = merged
+        self.canons.pop(rb, None)
 
 
 def load_sources() -> dict[str, dict]:
@@ -65,15 +100,25 @@ def load_sources() -> dict[str, dict]:
 
 
 def tally(snapshots: dict[str, dict]) -> dict:
-    uf = Union()
-    # 第一遍：登记所有名字并按 alias 合并
+    # 第 0 遍：收集全部 canonical 名（禁并对约束的判定域）
+    canon_names = {
+        norm(tool["canonical"])
+        for data in snapshots.values()
+        for tool in data.get("tools", [])
+    }
+    uf = Union(canon_names)
+    # 第一遍：登记所有名字；先做 canonical 间的同名收敛，再按 alias 合并
+    for data in snapshots.values():
+        for tool in data.get("tools", []):
+            uf.find(norm(tool["canonical"]))
     for data in snapshots.values():
         for tool in data.get("tools", []):
             canon = norm(tool["canonical"])
-            uf.find(canon)
             for alias in [tool.get("raw_name", "")] + list(tool.get("aliases", [])):
                 if alias:
                     uf.join(canon, norm(alias))
+    if uf.skipped:
+        print(f"禁并对拦截 {len(uf.skipped)} 次 join（详见 tally.json blocked_joins）")
 
     # 第二遍：按组聚合各源命中
     groups: dict[str, dict] = defaultdict(
@@ -129,6 +174,8 @@ def tally(snapshots: dict[str, dict]) -> dict:
             "aux_cap": 1,
         },
         "sources_loaded": sorted(snapshots.keys()),
+        "blocked_pairs": sorted(sorted(p) for p in BLOCKED_PAIRS),
+        "blocked_joins": uf.skipped,
         "results": results,
     }
 

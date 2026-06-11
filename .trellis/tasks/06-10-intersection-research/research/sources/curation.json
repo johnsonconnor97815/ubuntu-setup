@@ -1,0 +1,176 @@
+{
+  "source_key": "curation",
+  "source_name": "Ubuntu 装机策展聚合（Omakub + It's FOSS + FOSSPost + Ubuntu Portal，4 清单内部 >=2 处提及）",
+  "fetched": "2026-06-10",
+  "urls": [
+    "https://api.github.com/repos/basecamp/omakub/contents/install",
+    "https://github.com/basecamp/omakub",
+    "https://itsfoss.com/things-to-do-after-installing-ubuntu-24-04/",
+    "https://fosspost.org/things-to-do-after-installing-ubuntu/",
+    "https://ubuntuportal.com/guides/ubuntu-2404-post-install-checklist/"
+  ],
+  "method": "GitHub contents API 枚举 Omakub install/ 全部脚本并 curl raw 确认实际安装内容；三篇装机指南经 exa fetch / curl 抓正文，人工提取安装项后对 4 个子清单做命中计票，命中>=2 才进 tools。",
+  "caveats": [
+    "同温层互抄风险：四个清单同属『Ubuntu 装机指南』题材，相互借鉴明显，命中>=2 不等于两份独立信号。",
+    "(b) It's FOSS 与 (c) FOSSPost 强烈偏桌面体验（GNOME 设置、主题、codecs），开发工具几乎不出现，导致 dev 工具命中被系统性低估。",
+    "(a) Omakub 是 DHH/Basecamp 的 web-dev（Rails 系）品味，终端与语言选型个人色彩重，覆盖广但仅 1 票来源。",
+    "firefox 的 2 次命中里 (d) 只是配置预装 Snap 版、(c) 是换装 DEB 版，并非『全新安装』；curl/wget 在 Omakub 侧是 mise.sh 顺带装的安装器依赖，非策展推荐。",
+    "gcc/make 来自两清单共同安装的 build-essential 元包，按 canonical 规范拆成两条计入。",
+    "libfuse2（命中2）按『纯库』排除；显卡驱动（命中2）按 firmware/驱动排除；Ubuntu Pro/Livepatch（命中2）按订阅服务非软件排除——详见 .md 命中矩阵。"
+  ],
+  "tools": [
+    {
+      "canonical": "gnome-tweaks",
+      "raw_name": "gnome-tweak-tool",
+      "aliases": [
+        "gnome-tweaks",
+        "gnome-tweak-tool",
+        "org.gnome.tweaks"
+      ],
+      "metric": 4,
+      "metric_unit": "mentions",
+      "evidence": "命中 a/b/c/d 全部 4 清单：Omakub app-gnome-tweak-tool.sh、It's FOSS 第9条、FOSSPost 'Install GNOME Tweaks'、Ubuntu Portal 第20条 apt install gnome-tweaks。",
+      "source_url": "https://github.com/basecamp/omakub/blob/master/install/desktop/app-gnome-tweak-tool.sh"
+    },
+    {
+      "canonical": "ubuntu-restricted-extras",
+      "raw_name": "ubuntu-restricted-extras",
+      "aliases": [
+        "ubuntu-restricted-addons"
+      ],
+      "metric": 3,
+      "metric_unit": "mentions",
+      "evidence": "命中 b/c/d：It's FOSS 第6条与 Ubuntu Portal 第7条 apt install ubuntu-restricted-extras，FOSSPost 装变体 ubuntu-restricted-addons。",
+      "source_url": "https://itsfoss.com/things-to-do-after-installing-ubuntu-24-04/"
+    },
+    {
+      "canonical": "gnome-extension-manager",
+      "raw_name": "gnome-shell-extension-manager",
+      "aliases": [
+        "gnome-shell-extension-manager",
+        "extension-manager",
+        "com.mattjakeman.ExtensionManager"
+      ],
+      "metric": 3,
+      "metric_unit": "mentions",
+      "evidence": "命中 a/c/d：Omakub set-gnome-extensions.sh 与 Ubuntu Portal 第20条均 apt install gnome-shell-extension-manager，FOSSPost 设 'Install GNOME Extensions' 专节（经 extensions.gnome.org）。",
+      "source_url": "https://github.com/basecamp/omakub/blob/master/install/desktop/set-gnome-extensions.sh"
+    },
+    {
+      "canonical": "docker",
+      "raw_name": "docker-ce",
+      "aliases": [
+        "docker-ce",
+        "docker.io",
+        "docker-compose-plugin",
+        "containerd.io"
+      ],
+      "metric": 2,
+      "metric_unit": "mentions",
+      "evidence": "命中 a/d：Omakub install/terminal/docker.sh 与 Ubuntu Portal 第19条都从 download.docker.com 官方 repo 装 docker-ce/docker-ce-cli/containerd.io。",
+      "source_url": "https://github.com/basecamp/omakub/blob/master/install/terminal/docker.sh"
+    },
+    {
+      "canonical": "git",
+      "raw_name": "git",
+      "aliases": [],
+      "metric": 2,
+      "metric_unit": "mentions",
+      "evidence": "命中 a/d：Omakub boot.sh 'apt-get install -y git'、Ubuntu Portal 第16条 'apt install build-essential git curl wget'。",
+      "source_url": "https://github.com/basecamp/omakub/blob/master/boot.sh"
+    },
+    {
+      "canonical": "flatpak",
+      "raw_name": "flatpak",
+      "aliases": [],
+      "metric": 2,
+      "metric_unit": "mentions",
+      "evidence": "命中 a/b：Omakub install/desktop/a-flatpak.sh、It's FOSS 第3条 'Get Flatpak support'。",
+      "source_url": "https://github.com/basecamp/omakub/blob/master/install/desktop/a-flatpak.sh"
+    },
+    {
+      "canonical": "vlc",
+      "raw_name": "vlc",
+      "aliases": [
+        "org.videolan.VLC"
+      ],
+      "metric": 2,
+      "metric_unit": "mentions",
+      "evidence": "命中 a/c：Omakub app-vlc.sh、FOSSPost 'Install Multimedia Codecs or VLC' 的 apt install vlc。",
+      "source_url": "https://github.com/basecamp/omakub/blob/master/install/desktop/app-vlc.sh"
+    },
+    {
+      "canonical": "steam",
+      "raw_name": "steam",
+      "aliases": [
+        "steam-installer",
+        "com.valvesoftware.Steam"
+      ],
+      "metric": 2,
+      "metric_unit": "mentions",
+      "evidence": "命中 a/c：Omakub desktop/optional/app-steam.sh（可选项）、FOSSPost 'Install Steam' 的 apt install steam。",
+      "source_url": "https://github.com/basecamp/omakub/blob/master/install/desktop/optional/app-steam.sh"
+    },
+    {
+      "canonical": "synaptic",
+      "raw_name": "synaptic",
+      "aliases": [],
+      "metric": 2,
+      "metric_unit": "mentions",
+      "evidence": "命中 b/c：It's FOSS 第4条推荐用 Synaptic 管理 deb 包、FOSSPost 'Install Synaptic' 专节。",
+      "source_url": "https://fosspost.org/things-to-do-after-installing-ubuntu/"
+    },
+    {
+      "canonical": "curl",
+      "raw_name": "curl",
+      "aliases": [],
+      "metric": 2,
+      "metric_unit": "mentions",
+      "evidence": "命中 a/d：Omakub mise.sh 'apt install -y gpg wget curl'（安装器依赖）、Ubuntu Portal 第16条显式安装。",
+      "source_url": "https://github.com/basecamp/omakub/blob/master/install/terminal/mise.sh"
+    },
+    {
+      "canonical": "wget",
+      "raw_name": "wget",
+      "aliases": [],
+      "metric": 2,
+      "metric_unit": "mentions",
+      "evidence": "命中 a/d：Omakub mise.sh 'apt install -y gpg wget curl'（安装器依赖）、Ubuntu Portal 第16条显式安装。",
+      "source_url": "https://github.com/basecamp/omakub/blob/master/install/terminal/mise.sh"
+    },
+    {
+      "canonical": "gcc",
+      "raw_name": "build-essential",
+      "aliases": [
+        "build-essential"
+      ],
+      "metric": 2,
+      "metric_unit": "mentions",
+      "evidence": "命中 a/d：Omakub libraries.sh 与 Ubuntu Portal 第16条均装 build-essential 元包（含 gcc），按规范拆分计入。",
+      "source_url": "https://github.com/basecamp/omakub/blob/master/install/terminal/libraries.sh"
+    },
+    {
+      "canonical": "make",
+      "raw_name": "build-essential",
+      "aliases": [
+        "build-essential"
+      ],
+      "metric": 2,
+      "metric_unit": "mentions",
+      "evidence": "命中 a/d：Omakub libraries.sh 与 Ubuntu Portal 第16条均装 build-essential 元包（含 make），按规范拆分计入。",
+      "source_url": "https://github.com/basecamp/omakub/blob/master/install/terminal/libraries.sh"
+    },
+    {
+      "canonical": "firefox",
+      "raw_name": "firefox",
+      "aliases": [
+        "firefox-esr",
+        "org.mozilla.firefox"
+      ],
+      "metric": 2,
+      "metric_unit": "mentions",
+      "evidence": "命中 c/d：FOSSPost 教改装 Firefox DEB 版替代 Snap、Ubuntu Portal 第10条配置预装 Firefox 的 VA-API；注意均非全新安装（Ubuntu 桌面预装）。",
+      "source_url": "https://fosspost.org/things-to-do-after-installing-ubuntu/"
+    }
+  ]
+}

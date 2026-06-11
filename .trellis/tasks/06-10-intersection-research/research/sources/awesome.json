@@ -1,0 +1,917 @@
+{
+  "source_key": "awesome",
+  "source_name": "Awesome 清单交集（modern-unix ∩ awesome-cli-apps ∩ awesome-shell，≥2 命中）",
+  "fetched": "2026-06-10",
+  "urls": [
+    "https://raw.githubusercontent.com/ibraheemdev/modern-unix/master/README.md",
+    "https://raw.githubusercontent.com/agarrharr/awesome-cli-apps/master/readme.md",
+    "https://raw.githubusercontent.com/alebcay/awesome-shell/master/README.md"
+  ],
+  "method": "curl 抓取三个 awesome 清单 README，正则解析条目名并归一化，取出现在 ≥2 个清单中的工具；用条目 URL 复核同名是否同一项目，剔除假阳性并合并改名/前身项目。",
+  "caveats": [
+    "清单之间互相借鉴、互抄票，三个清单不是独立信源，整源只应合并计 1 票",
+    "收录口味明显偏向 Rust 系新潮 CLI 替代品（bat/eza/fd/ripgrep 一类），对运行时/GUI/老牌工具覆盖差",
+    "收录门槛低（PR 即收），命中 2/3 清单的长尾条目信息量有限，不代表实际安装量",
+    "modern-unix 仅 28 条且已数年未更新（archived 风格快照），3/3 命中天然封顶于其收录范围",
+    "同名碰撞需人工裁定：已剔除 q（两清单为不同项目），yq 为两个同名实现合并计票"
+  ],
+  "tools": [
+    {
+      "canonical": "bat",
+      "raw_name": "bat",
+      "aliases": [
+        "batcat"
+      ],
+      "metric": 3,
+      "metric_unit": "mentions",
+      "evidence": "命中 3/3 清单：modern-unix + awesome-cli-apps + awesome-shell",
+      "source_url": "https://github.com/sharkdp/bat"
+    },
+    {
+      "canonical": "broot",
+      "raw_name": "broot",
+      "aliases": [],
+      "metric": 3,
+      "metric_unit": "mentions",
+      "evidence": "命中 3/3 清单：modern-unix + awesome-cli-apps + awesome-shell",
+      "source_url": "https://github.com/Canop/broot"
+    },
+    {
+      "canonical": "eza",
+      "raw_name": "exa/eza",
+      "aliases": [
+        "exa"
+      ],
+      "metric": 3,
+      "metric_unit": "mentions",
+      "evidence": "命中 3/3 清单：modern-unix + awesome-cli-apps + awesome-shell；awesome-shell 收录的是前身 exa(ogham/exa)，按同一产品并入",
+      "source_url": "https://github.com/eza-community/eza"
+    },
+    {
+      "canonical": "fd",
+      "raw_name": "fd",
+      "aliases": [
+        "fd-find",
+        "fdfind"
+      ],
+      "metric": 3,
+      "metric_unit": "mentions",
+      "evidence": "命中 3/3 清单：modern-unix + awesome-cli-apps + awesome-shell",
+      "source_url": "https://github.com/sharkdp/fd"
+    },
+    {
+      "canonical": "fzf",
+      "raw_name": "fzf",
+      "aliases": [],
+      "metric": 3,
+      "metric_unit": "mentions",
+      "evidence": "命中 3/3 清单：modern-unix + awesome-cli-apps + awesome-shell",
+      "source_url": "https://github.com/junegunn/fzf"
+    },
+    {
+      "canonical": "glances",
+      "raw_name": "glances",
+      "aliases": [],
+      "metric": 3,
+      "metric_unit": "mentions",
+      "evidence": "命中 3/3 清单：modern-unix + awesome-cli-apps + awesome-shell",
+      "source_url": "https://github.com/nicolargo/glances"
+    },
+    {
+      "canonical": "httpie",
+      "raw_name": "httpie",
+      "aliases": [],
+      "metric": 3,
+      "metric_unit": "mentions",
+      "evidence": "命中 3/3 清单：modern-unix + awesome-cli-apps + awesome-shell",
+      "source_url": "https://github.com/httpie/httpie"
+    },
+    {
+      "canonical": "jq",
+      "raw_name": "jq",
+      "aliases": [],
+      "metric": 3,
+      "metric_unit": "mentions",
+      "evidence": "命中 3/3 清单：modern-unix + awesome-cli-apps + awesome-shell",
+      "source_url": "https://github.com/stedolan/jq"
+    },
+    {
+      "canonical": "lsd",
+      "raw_name": "lsd",
+      "aliases": [],
+      "metric": 3,
+      "metric_unit": "mentions",
+      "evidence": "命中 3/3 清单：modern-unix + awesome-cli-apps + awesome-shell",
+      "source_url": "https://github.com/Peltoche/lsd"
+    },
+    {
+      "canonical": "tldr",
+      "raw_name": "tldr",
+      "aliases": [
+        "tldr-pages"
+      ],
+      "metric": 3,
+      "metric_unit": "mentions",
+      "evidence": "命中 3/3 清单：modern-unix + awesome-cli-apps + awesome-shell；awesome-shell 收录的是客户端 tldr-sh-client，同一 tldr-pages 产品生态",
+      "source_url": "https://github.com/tldr-pages/tldr"
+    },
+    {
+      "canonical": "zoxide",
+      "raw_name": "zoxide",
+      "aliases": [],
+      "metric": 3,
+      "metric_unit": "mentions",
+      "evidence": "命中 3/3 清单：modern-unix + awesome-cli-apps + awesome-shell",
+      "source_url": "https://github.com/ajeetdsouza/zoxide"
+    },
+    {
+      "canonical": "add-gitignore",
+      "raw_name": "add-gitignore",
+      "aliases": [],
+      "metric": 2,
+      "metric_unit": "mentions",
+      "evidence": "命中 2/3 清单：awesome-cli-apps + awesome-shell",
+      "source_url": "https://github.com/TejasQ/add-gitignore"
+    },
+    {
+      "canonical": "aria2",
+      "raw_name": "aria2",
+      "aliases": [
+        "aria2c"
+      ],
+      "metric": 2,
+      "metric_unit": "mentions",
+      "evidence": "命中 2/3 清单：awesome-cli-apps + awesome-shell；tatsuhiro-t/aria2 已迁移至 aria2/aria2，同一项目",
+      "source_url": "https://github.com/tatsuhiro-t/aria2"
+    },
+    {
+      "canonical": "arttime",
+      "raw_name": "arttime",
+      "aliases": [],
+      "metric": 2,
+      "metric_unit": "mentions",
+      "evidence": "命中 2/3 清单：awesome-cli-apps + awesome-shell",
+      "source_url": "https://github.com/reportaman/arttime"
+    },
+    {
+      "canonical": "autojump",
+      "raw_name": "autojump",
+      "aliases": [],
+      "metric": 2,
+      "metric_unit": "mentions",
+      "evidence": "命中 2/3 清单：awesome-cli-apps + awesome-shell",
+      "source_url": "https://github.com/wting/autojump"
+    },
+    {
+      "canonical": "await",
+      "raw_name": "await",
+      "aliases": [],
+      "metric": 2,
+      "metric_unit": "mentions",
+      "evidence": "命中 2/3 清单：awesome-cli-apps + awesome-shell",
+      "source_url": "https://github.com/slavaGanzin/await"
+    },
+    {
+      "canonical": "bartib",
+      "raw_name": "Bartib",
+      "aliases": [],
+      "metric": 2,
+      "metric_unit": "mentions",
+      "evidence": "命中 2/3 清单：awesome-cli-apps + awesome-shell",
+      "source_url": "https://github.com/nikolassv/bartib"
+    },
+    {
+      "canonical": "bash-git-prompt",
+      "raw_name": "bash-git-prompt",
+      "aliases": [],
+      "metric": 2,
+      "metric_unit": "mentions",
+      "evidence": "命中 2/3 清单：awesome-cli-apps + awesome-shell",
+      "source_url": "https://github.com/magicmonty/bash-git-prompt"
+    },
+    {
+      "canonical": "bcal",
+      "raw_name": "bcal",
+      "aliases": [],
+      "metric": 2,
+      "metric_unit": "mentions",
+      "evidence": "命中 2/3 清单：awesome-cli-apps + awesome-shell",
+      "source_url": "https://github.com/jarun/bcal"
+    },
+    {
+      "canonical": "beets",
+      "raw_name": "beets",
+      "aliases": [
+        "beet"
+      ],
+      "metric": 2,
+      "metric_unit": "mentions",
+      "evidence": "命中 2/3 清单：awesome-cli-apps + awesome-shell",
+      "source_url": "https://github.com/beetbox/beets"
+    },
+    {
+      "canonical": "bitwise",
+      "raw_name": "bitwise",
+      "aliases": [],
+      "metric": 2,
+      "metric_unit": "mentions",
+      "evidence": "命中 2/3 清单：awesome-cli-apps + awesome-shell",
+      "source_url": "https://github.com/mellowcandle/bitwise"
+    },
+    {
+      "canonical": "boilr",
+      "raw_name": "boilr",
+      "aliases": [],
+      "metric": 2,
+      "metric_unit": "mentions",
+      "evidence": "命中 2/3 清单：awesome-cli-apps + awesome-shell",
+      "source_url": "https://github.com/tmrts/boilr"
+    },
+    {
+      "canonical": "buku",
+      "raw_name": "Buku",
+      "aliases": [],
+      "metric": 2,
+      "metric_unit": "mentions",
+      "evidence": "命中 2/3 清单：awesome-cli-apps + awesome-shell",
+      "source_url": "https://github.com/jarun/Buku"
+    },
+    {
+      "canonical": "carbon-now-cli",
+      "raw_name": "carbon-now-cli",
+      "aliases": [],
+      "metric": 2,
+      "metric_unit": "mentions",
+      "evidence": "命中 2/3 清单：awesome-cli-apps + awesome-shell",
+      "source_url": "https://github.com/mixn/carbon-now-cli"
+    },
+    {
+      "canonical": "cmus",
+      "raw_name": "cmus",
+      "aliases": [],
+      "metric": 2,
+      "metric_unit": "mentions",
+      "evidence": "命中 2/3 清单：awesome-cli-apps + awesome-shell",
+      "source_url": "https://github.com/cmus/cmus"
+    },
+    {
+      "canonical": "cointop",
+      "raw_name": "cointop",
+      "aliases": [],
+      "metric": 2,
+      "metric_unit": "mentions",
+      "evidence": "命中 2/3 清单：awesome-cli-apps + awesome-shell",
+      "source_url": "https://github.com/miguelmota/cointop"
+    },
+    {
+      "canonical": "curlie",
+      "raw_name": "curlie",
+      "aliases": [],
+      "metric": 2,
+      "metric_unit": "mentions",
+      "evidence": "命中 2/3 清单：modern-unix + awesome-cli-apps",
+      "source_url": "https://github.com/rs/curlie"
+    },
+    {
+      "canonical": "dasel",
+      "raw_name": "dasel",
+      "aliases": [],
+      "metric": 2,
+      "metric_unit": "mentions",
+      "evidence": "命中 2/3 清单：awesome-cli-apps + awesome-shell",
+      "source_url": "https://github.com/tomwright/dasel"
+    },
+    {
+      "canonical": "dnote",
+      "raw_name": "dnote",
+      "aliases": [],
+      "metric": 2,
+      "metric_unit": "mentions",
+      "evidence": "命中 2/3 清单：awesome-cli-apps + awesome-shell",
+      "source_url": "https://github.com/dnote/dnote"
+    },
+    {
+      "canonical": "duf",
+      "raw_name": "duf",
+      "aliases": [],
+      "metric": 2,
+      "metric_unit": "mentions",
+      "evidence": "命中 2/3 清单：modern-unix + awesome-cli-apps",
+      "source_url": "https://github.com/muesli/duf"
+    },
+    {
+      "canonical": "dust",
+      "raw_name": "dust",
+      "aliases": [
+        "du-dust"
+      ],
+      "metric": 2,
+      "metric_unit": "mentions",
+      "evidence": "命中 2/3 清单：modern-unix + awesome-cli-apps",
+      "source_url": "https://github.com/bootandy/dust"
+    },
+    {
+      "canonical": "dzr",
+      "raw_name": "dzr",
+      "aliases": [],
+      "metric": 2,
+      "metric_unit": "mentions",
+      "evidence": "命中 2/3 清单：awesome-cli-apps + awesome-shell",
+      "source_url": "https://github.com/yne/dzr"
+    },
+    {
+      "canonical": "editly",
+      "raw_name": "editly",
+      "aliases": [],
+      "metric": 2,
+      "metric_unit": "mentions",
+      "evidence": "命中 2/3 清单：awesome-cli-apps + awesome-shell",
+      "source_url": "https://github.com/mifi/editly"
+    },
+    {
+      "canonical": "eureka",
+      "raw_name": "eureka",
+      "aliases": [],
+      "metric": 2,
+      "metric_unit": "mentions",
+      "evidence": "命中 2/3 清单：awesome-cli-apps + awesome-shell",
+      "source_url": "https://github.com/simeg/eureka"
+    },
+    {
+      "canonical": "fselect",
+      "raw_name": "fselect",
+      "aliases": [],
+      "metric": 2,
+      "metric_unit": "mentions",
+      "evidence": "命中 2/3 清单：awesome-cli-apps + awesome-shell",
+      "source_url": "https://github.com/jhspetersson/fselect"
+    },
+    {
+      "canonical": "fx",
+      "raw_name": "fx",
+      "aliases": [],
+      "metric": 2,
+      "metric_unit": "mentions",
+      "evidence": "命中 2/3 清单：awesome-cli-apps + awesome-shell",
+      "source_url": "https://github.com/antonmedv/fx"
+    },
+    {
+      "canonical": "fz",
+      "raw_name": "fz",
+      "aliases": [
+        "fz.sh"
+      ],
+      "metric": 2,
+      "metric_unit": "mentions",
+      "evidence": "命中 2/3 清单：awesome-cli-apps + awesome-shell；aca 收录 fz.sh 为同作者改名后的同一项目",
+      "source_url": "https://github.com/changyuheng/fz.sh"
+    },
+    {
+      "canonical": "gcalcli",
+      "raw_name": "gcalcli",
+      "aliases": [],
+      "metric": 2,
+      "metric_unit": "mentions",
+      "evidence": "命中 2/3 清单：awesome-cli-apps + awesome-shell",
+      "source_url": "https://github.com/insanum/gcalcli"
+    },
+    {
+      "canonical": "geeknote",
+      "raw_name": "geeknote",
+      "aliases": [],
+      "metric": 2,
+      "metric_unit": "mentions",
+      "evidence": "命中 2/3 清单：awesome-cli-apps + awesome-shell；两清单指向原作者与社区延续 fork，同一产品",
+      "source_url": "https://github.com/vitaly-zdanevich/geeknote"
+    },
+    {
+      "canonical": "gifgen",
+      "raw_name": "gifgen",
+      "aliases": [],
+      "metric": 2,
+      "metric_unit": "mentions",
+      "evidence": "命中 2/3 清单：awesome-cli-apps + awesome-shell",
+      "source_url": "https://github.com/lukechilds/gifgen"
+    },
+    {
+      "canonical": "git-extras",
+      "raw_name": "git-extras",
+      "aliases": [],
+      "metric": 2,
+      "metric_unit": "mentions",
+      "evidence": "命中 2/3 清单：awesome-cli-apps + awesome-shell",
+      "source_url": "https://github.com/tj/git-extras"
+    },
+    {
+      "canonical": "gita",
+      "raw_name": "gita",
+      "aliases": [],
+      "metric": 2,
+      "metric_unit": "mentions",
+      "evidence": "命中 2/3 清单：awesome-cli-apps + awesome-shell",
+      "source_url": "https://github.com/nosarthur/gita"
+    },
+    {
+      "canonical": "goto",
+      "raw_name": "goto",
+      "aliases": [],
+      "metric": 2,
+      "metric_unit": "mentions",
+      "evidence": "命中 2/3 清单：awesome-cli-apps + awesome-shell",
+      "source_url": "https://github.com/iridakos/goto"
+    },
+    {
+      "canonical": "has",
+      "raw_name": "has",
+      "aliases": [],
+      "metric": 2,
+      "metric_unit": "mentions",
+      "evidence": "命中 2/3 清单：awesome-cli-apps + awesome-shell",
+      "source_url": "https://github.com/kdabir/has"
+    },
+    {
+      "canonical": "how2",
+      "raw_name": "how2",
+      "aliases": [],
+      "metric": 2,
+      "metric_unit": "mentions",
+      "evidence": "命中 2/3 清单：awesome-cli-apps + awesome-shell",
+      "source_url": "https://github.com/santinic/how2"
+    },
+    {
+      "canonical": "hub",
+      "raw_name": "hub",
+      "aliases": [
+        "github-hub"
+      ],
+      "metric": 2,
+      "metric_unit": "mentions",
+      "evidence": "命中 2/3 清单：awesome-cli-apps + awesome-shell",
+      "source_url": "https://github.com/github/hub"
+    },
+    {
+      "canonical": "imgp",
+      "raw_name": "imgp",
+      "aliases": [],
+      "metric": 2,
+      "metric_unit": "mentions",
+      "evidence": "命中 2/3 清单：awesome-cli-apps + awesome-shell",
+      "source_url": "https://github.com/jarun/imgp"
+    },
+    {
+      "canonical": "just",
+      "raw_name": "just",
+      "aliases": [],
+      "metric": 2,
+      "metric_unit": "mentions",
+      "evidence": "命中 2/3 清单：awesome-cli-apps + awesome-shell",
+      "source_url": "https://github.com/casey/just"
+    },
+    {
+      "canonical": "kanban.bash",
+      "raw_name": "kanban.bash",
+      "aliases": [
+        "kanban-bash"
+      ],
+      "metric": 2,
+      "metric_unit": "mentions",
+      "evidence": "命中 2/3 清单：awesome-cli-apps + awesome-shell",
+      "source_url": "https://github.com/coderofsalvation/kanban.bash"
+    },
+    {
+      "canonical": "korkut",
+      "raw_name": "korkut",
+      "aliases": [],
+      "metric": 2,
+      "metric_unit": "mentions",
+      "evidence": "命中 2/3 清单：awesome-cli-apps + awesome-shell",
+      "source_url": "https://github.com/oguzhaninan/korkut"
+    },
+    {
+      "canonical": "lazygit",
+      "raw_name": "lazygit",
+      "aliases": [],
+      "metric": 2,
+      "metric_unit": "mentions",
+      "evidence": "命中 2/3 清单：modern-unix + awesome-cli-apps",
+      "source_url": "https://github.com/jesseduffield/lazygit"
+    },
+    {
+      "canonical": "ledger",
+      "raw_name": "ledger",
+      "aliases": [
+        "ledger-cli"
+      ],
+      "metric": 2,
+      "metric_unit": "mentions",
+      "evidence": "命中 2/3 清单：awesome-cli-apps + awesome-shell",
+      "source_url": "https://github.com/ledger/ledger"
+    },
+    {
+      "canonical": "lf",
+      "raw_name": "lf",
+      "aliases": [],
+      "metric": 2,
+      "metric_unit": "mentions",
+      "evidence": "命中 2/3 清单：awesome-cli-apps + awesome-shell",
+      "source_url": "https://github.com/gokcehan/lf"
+    },
+    {
+      "canonical": "lowcharts",
+      "raw_name": "lowcharts",
+      "aliases": [],
+      "metric": 2,
+      "metric_unit": "mentions",
+      "evidence": "命中 2/3 清单：awesome-cli-apps + awesome-shell",
+      "source_url": "https://github.com/juan-leon/lowcharts"
+    },
+    {
+      "canonical": "mcfly",
+      "raw_name": "mcfly",
+      "aliases": [],
+      "metric": 2,
+      "metric_unit": "mentions",
+      "evidence": "命中 2/3 清单：modern-unix + awesome-shell",
+      "source_url": "https://github.com/cantino/mcfly"
+    },
+    {
+      "canonical": "moviemon",
+      "raw_name": "moviemon",
+      "aliases": [],
+      "metric": 2,
+      "metric_unit": "mentions",
+      "evidence": "命中 2/3 清单：awesome-cli-apps + awesome-shell",
+      "source_url": "https://github.com/iCHAIT/moviemon"
+    },
+    {
+      "canonical": "mpv",
+      "raw_name": "mpv",
+      "aliases": [],
+      "metric": 2,
+      "metric_unit": "mentions",
+      "evidence": "命中 2/3 清单：awesome-cli-apps + awesome-shell",
+      "source_url": "https://mpv.io"
+    },
+    {
+      "canonical": "navi",
+      "raw_name": "navi",
+      "aliases": [],
+      "metric": 2,
+      "metric_unit": "mentions",
+      "evidence": "命中 2/3 清单：awesome-cli-apps + awesome-shell",
+      "source_url": "https://github.com/denisidoro/navi"
+    },
+    {
+      "canonical": "ncdu",
+      "raw_name": "NCDu",
+      "aliases": [],
+      "metric": 2,
+      "metric_unit": "mentions",
+      "evidence": "命中 2/3 清单：awesome-cli-apps + awesome-shell",
+      "source_url": "https://dev.yorhel.nl/ncdu"
+    },
+    {
+      "canonical": "nnn",
+      "raw_name": "nnn",
+      "aliases": [],
+      "metric": 2,
+      "metric_unit": "mentions",
+      "evidence": "命中 2/3 清单：awesome-cli-apps + awesome-shell",
+      "source_url": "https://github.com/jarun/nnn"
+    },
+    {
+      "canonical": "nomino",
+      "raw_name": "nomino",
+      "aliases": [],
+      "metric": 2,
+      "metric_unit": "mentions",
+      "evidence": "命中 2/3 清单：awesome-cli-apps + awesome-shell",
+      "source_url": "https://github.com/yaa110/nomino"
+    },
+    {
+      "canonical": "oh-my-posh",
+      "raw_name": "oh-my-posh",
+      "aliases": [],
+      "metric": 2,
+      "metric_unit": "mentions",
+      "evidence": "命中 2/3 清单：awesome-cli-apps + awesome-shell",
+      "source_url": "https://ohmyposh.dev"
+    },
+    {
+      "canonical": "pass",
+      "raw_name": "pass",
+      "aliases": [
+        "password-store"
+      ],
+      "metric": 2,
+      "metric_unit": "mentions",
+      "evidence": "命中 2/3 清单：awesome-cli-apps + awesome-shell",
+      "source_url": "https://www.passwordstore.org"
+    },
+    {
+      "canonical": "pathpicker",
+      "raw_name": "PathPicker",
+      "aliases": [
+        "fpp"
+      ],
+      "metric": 2,
+      "metric_unit": "mentions",
+      "evidence": "命中 2/3 清单：awesome-cli-apps + awesome-shell",
+      "source_url": "https://github.com/facebook/pathpicker/"
+    },
+    {
+      "canonical": "ranger",
+      "raw_name": "ranger",
+      "aliases": [],
+      "metric": 2,
+      "metric_unit": "mentions",
+      "evidence": "命中 2/3 清单：awesome-cli-apps + awesome-shell",
+      "source_url": "https://github.com/ranger/ranger"
+    },
+    {
+      "canonical": "rebound",
+      "raw_name": "rebound",
+      "aliases": [],
+      "metric": 2,
+      "metric_unit": "mentions",
+      "evidence": "命中 2/3 清单：awesome-cli-apps + awesome-shell",
+      "source_url": "https://github.com/shobrook/rebound"
+    },
+    {
+      "canonical": "ripgrep",
+      "raw_name": "ripgrep",
+      "aliases": [
+        "rg"
+      ],
+      "metric": 2,
+      "metric_unit": "mentions",
+      "evidence": "命中 2/3 清单：modern-unix + awesome-cli-apps",
+      "source_url": "https://github.com/BurntSushi/ripgrep"
+    },
+    {
+      "canonical": "saws",
+      "raw_name": "SAWS",
+      "aliases": [],
+      "metric": 2,
+      "metric_unit": "mentions",
+      "evidence": "命中 2/3 清单：awesome-cli-apps + awesome-shell",
+      "source_url": "https://github.com/donnemartin/saws"
+    },
+    {
+      "canonical": "shallow-backup",
+      "raw_name": "shallow-backup",
+      "aliases": [],
+      "metric": 2,
+      "metric_unit": "mentions",
+      "evidence": "命中 2/3 清单：awesome-cli-apps + awesome-shell",
+      "source_url": "https://github.com/alichtman/shallow-backup"
+    },
+    {
+      "canonical": "shell2http",
+      "raw_name": "shell2http",
+      "aliases": [],
+      "metric": 2,
+      "metric_unit": "mentions",
+      "evidence": "命中 2/3 清单：awesome-cli-apps + awesome-shell",
+      "source_url": "https://github.com/msoap/shell2http"
+    },
+    {
+      "canonical": "shellspec",
+      "raw_name": "shellspec",
+      "aliases": [],
+      "metric": 2,
+      "metric_unit": "mentions",
+      "evidence": "命中 2/3 清单：awesome-cli-apps + awesome-shell",
+      "source_url": "https://github.com/shellspec/shellspec"
+    },
+    {
+      "canonical": "sqlline",
+      "raw_name": "sqlline",
+      "aliases": [],
+      "metric": 2,
+      "metric_unit": "mentions",
+      "evidence": "命中 2/3 清单：awesome-cli-apps + awesome-shell",
+      "source_url": "https://github.com/julianhyde/sqlline"
+    },
+    {
+      "canonical": "starship",
+      "raw_name": "starship",
+      "aliases": [],
+      "metric": 2,
+      "metric_unit": "mentions",
+      "evidence": "命中 2/3 清单：awesome-cli-apps + awesome-shell",
+      "source_url": "https://github.com/starship/starship"
+    },
+    {
+      "canonical": "stronghold",
+      "raw_name": "stronghold",
+      "aliases": [],
+      "metric": 2,
+      "metric_unit": "mentions",
+      "evidence": "命中 2/3 清单：awesome-cli-apps + awesome-shell",
+      "source_url": "https://github.com/alichtman/stronghold"
+    },
+    {
+      "canonical": "taskbook",
+      "raw_name": "taskbook",
+      "aliases": [
+        "tb"
+      ],
+      "metric": 2,
+      "metric_unit": "mentions",
+      "evidence": "命中 2/3 清单：awesome-cli-apps + awesome-shell",
+      "source_url": "https://github.com/klaussinani/taskbook"
+    },
+    {
+      "canonical": "taskwarrior",
+      "raw_name": "Taskwarrior",
+      "aliases": [
+        "task"
+      ],
+      "metric": 2,
+      "metric_unit": "mentions",
+      "evidence": "命中 2/3 清单：awesome-cli-apps + awesome-shell",
+      "source_url": "https://taskwarrior.org/"
+    },
+    {
+      "canonical": "td-cli",
+      "raw_name": "td-cli",
+      "aliases": [],
+      "metric": 2,
+      "metric_unit": "mentions",
+      "evidence": "命中 2/3 清单：awesome-cli-apps + awesome-shell",
+      "source_url": "https://github.com/darrikonn/td-cli"
+    },
+    {
+      "canonical": "tere",
+      "raw_name": "tere",
+      "aliases": [],
+      "metric": 2,
+      "metric_unit": "mentions",
+      "evidence": "命中 2/3 清单：awesome-cli-apps + awesome-shell",
+      "source_url": "https://github.com/mgunyho/tere"
+    },
+    {
+      "canonical": "terjira",
+      "raw_name": "terjira",
+      "aliases": [],
+      "metric": 2,
+      "metric_unit": "mentions",
+      "evidence": "命中 2/3 清单：awesome-cli-apps + awesome-shell",
+      "source_url": "https://github.com/keepcosmos/terjira"
+    },
+    {
+      "canonical": "thefuck",
+      "raw_name": "The Fuck/thefuck",
+      "aliases": [
+        "the-fuck"
+      ],
+      "metric": 2,
+      "metric_unit": "mentions",
+      "evidence": "命中 2/3 清单：awesome-cli-apps + awesome-shell",
+      "source_url": "https://github.com/nvbn/thefuck"
+    },
+    {
+      "canonical": "ticker",
+      "raw_name": "ticker",
+      "aliases": [],
+      "metric": 2,
+      "metric_unit": "mentions",
+      "evidence": "命中 2/3 清单：awesome-cli-apps + awesome-shell",
+      "source_url": "https://github.com/achannarasappa/ticker"
+    },
+    {
+      "canonical": "tiptop",
+      "raw_name": "tiptop",
+      "aliases": [],
+      "metric": 2,
+      "metric_unit": "mentions",
+      "evidence": "命中 2/3 清单：awesome-cli-apps + awesome-shell",
+      "source_url": "https://github.com/nschloe/tiptop"
+    },
+    {
+      "canonical": "undollar",
+      "raw_name": "undollar",
+      "aliases": [],
+      "metric": 2,
+      "metric_unit": "mentions",
+      "evidence": "命中 2/3 清单：awesome-cli-apps + awesome-shell；两 URL 为同一 repo 改名前后(ImFeelingDucky→xtyrrell)",
+      "source_url": "https://github.com/ImFeelingDucky/undollar"
+    },
+    {
+      "canonical": "usql",
+      "raw_name": "usql",
+      "aliases": [],
+      "metric": 2,
+      "metric_unit": "mentions",
+      "evidence": "命中 2/3 清单：awesome-cli-apps + awesome-shell",
+      "source_url": "https://github.com/xo/usql"
+    },
+    {
+      "canonical": "visidata",
+      "raw_name": "visidata",
+      "aliases": [
+        "vd"
+      ],
+      "metric": 2,
+      "metric_unit": "mentions",
+      "evidence": "命中 2/3 清单：awesome-cli-apps + awesome-shell",
+      "source_url": "https://github.com/saulpw/visidata"
+    },
+    {
+      "canonical": "wego",
+      "raw_name": "wego",
+      "aliases": [],
+      "metric": 2,
+      "metric_unit": "mentions",
+      "evidence": "命中 2/3 清单：awesome-cli-apps + awesome-shell",
+      "source_url": "https://github.com/schachmat/wego"
+    },
+    {
+      "canonical": "wipe-modules",
+      "raw_name": "wipe-modules",
+      "aliases": [],
+      "metric": 2,
+      "metric_unit": "mentions",
+      "evidence": "命中 2/3 清单：awesome-cli-apps + awesome-shell",
+      "source_url": "https://github.com/bntzio/wipe-modules"
+    },
+    {
+      "canonical": "xh",
+      "raw_name": "xh",
+      "aliases": [],
+      "metric": 2,
+      "metric_unit": "mentions",
+      "evidence": "命中 2/3 清单：modern-unix + awesome-shell",
+      "source_url": "https://github.com/ducaale/xh"
+    },
+    {
+      "canonical": "xiringuito",
+      "raw_name": "xiringuito",
+      "aliases": [],
+      "metric": 2,
+      "metric_unit": "mentions",
+      "evidence": "命中 2/3 清单：awesome-cli-apps + awesome-shell",
+      "source_url": "https://github.com/ivanilves/xiringuito"
+    },
+    {
+      "canonical": "xplr",
+      "raw_name": "xplr",
+      "aliases": [],
+      "metric": 2,
+      "metric_unit": "mentions",
+      "evidence": "命中 2/3 清单：awesome-cli-apps + awesome-shell",
+      "source_url": "https://github.com/sayanarijit/xplr"
+    },
+    {
+      "canonical": "xxh",
+      "raw_name": "xxh",
+      "aliases": [],
+      "metric": 2,
+      "metric_unit": "mentions",
+      "evidence": "命中 2/3 清单：awesome-cli-apps + awesome-shell",
+      "source_url": "https://github.com/xxh/xxh"
+    },
+    {
+      "canonical": "yq",
+      "raw_name": "yq",
+      "aliases": [
+        "go-yq",
+        "python-yq"
+      ],
+      "metric": 2,
+      "metric_unit": "mentions",
+      "evidence": "命中 2/3 清单：awesome-cli-apps + awesome-shell；两清单分别指向 kislyuk/yq 与 mikefarah/yq 两个同名实现，按 CLI 名合并",
+      "source_url": "https://github.com/kislyuk/yq"
+    },
+    {
+      "canonical": "yt-dlp",
+      "raw_name": "yt-dlp",
+      "aliases": [],
+      "metric": 2,
+      "metric_unit": "mentions",
+      "evidence": "命中 2/3 清单：awesome-cli-apps + awesome-shell",
+      "source_url": "https://github.com/yt-dlp/yt-dlp"
+    },
+    {
+      "canonical": "z",
+      "raw_name": "z",
+      "aliases": [],
+      "metric": 2,
+      "metric_unit": "mentions",
+      "evidence": "命中 2/3 清单：awesome-cli-apps + awesome-shell",
+      "source_url": "https://github.com/rupa/z"
+    },
+    {
+      "canonical": "z.lua",
+      "raw_name": "z.lua",
+      "aliases": [
+        "z-lua"
+      ],
+      "metric": 2,
+      "metric_unit": "mentions",
+      "evidence": "命中 2/3 清单：awesome-cli-apps + awesome-shell",
+      "source_url": "https://github.com/skywind3000/z.lua"
+    }
+  ]
+}

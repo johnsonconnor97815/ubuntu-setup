@@ -1,0 +1,1909 @@
+{
+  "source_key": "popcon",
+  "source_name": "Debian Popularity Contest (by_vote)",
+  "fetched": "2026-06-10",
+  "urls": [
+    "https://popcon.debian.org/by_vote",
+    "https://popcon.debian.org/"
+  ],
+  "method": "curl 抓取 popcon.debian.org/by_vote.gz 全表(22 万包),按 vote 排名人工筛选用户态工具:剔除 lib*/firmware/locale/内核/X11 基础件/纯依赖与 Essential 预装件;因 vote 榜头部几乎全是基础库(git 仅第 319 名),实际筛选深度扩展到约前 6100 名(vote>=900)以覆盖任务点名的 vim/htop/tmux/build-essential 等",
+  "caveats": [
+    "样本是 Debian popularity-contest 的 opt-in 志愿者,偏服务器/老派用户,不代表 Ubuntu 桌面开发者整体",
+    "Ubuntu 自家 popcon 已于 2022 年下线,本数据为纯 Debian 视角",
+    "snap/flatpak/手动安装(二进制下载、curl|bash)完全不可见;第三方 apt 仓库包(docker-ce、google-chrome、code 等)可见但被低估",
+    "任务原拟取前 ~200 名,但该区间几乎全是基础库与系统件,实际取 vote>=900(约前 6100 名)中的用户态工具;现代 CLI(shellcheck/zoxide/eza/starship/direnv 等)vote<900 未入选",
+    "vote 统计的是包内文件近期被使用的人数,元包(vlc/libreoffice/postgresql)数值失真,已改用代表性实包并在 evidence 注明;按大版本分包的软件(PostgreSQL/OpenJDK)单包数值偏低",
+    "「用户态工具」甄别为人工判断;随桌面环境自带的应用(gnome-terminal/evince/okular 等)vote 被动偏高"
+  ],
+  "tools": [
+    {
+      "canonical": "openssh-client",
+      "raw_name": "openssh-client",
+      "aliases": [
+        "ssh",
+        "openssh"
+      ],
+      "metric": 253911,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 33 名,vote=253911,inst=278909",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "openssl",
+      "raw_name": "openssl",
+      "aliases": [],
+      "metric": 237788,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 61 名,vote=237788,inst=279298",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "openssh-server",
+      "raw_name": "openssh-server",
+      "aliases": [
+        "openssh",
+        "sshd"
+      ],
+      "metric": 213320,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 84 名,vote=213320,inst=228616",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "sudo",
+      "raw_name": "sudo",
+      "aliases": [],
+      "metric": 207068,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 94 名,vote=207068,inst=242348",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "gnupg",
+      "raw_name": "gpg",
+      "aliases": [
+        "gnupg",
+        "gnupg2"
+      ],
+      "metric": 202805,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 101 名,vote=202805,inst=228463",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "python",
+      "raw_name": "python3",
+      "aliases": [
+        "python3",
+        "python"
+      ],
+      "metric": 200138,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 105 名,vote=200138,inst=272627",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "perl",
+      "raw_name": "perl",
+      "aliases": [],
+      "metric": 189543,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 118 名,vote=189543,inst=277988",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "parted",
+      "raw_name": "parted",
+      "aliases": [],
+      "metric": 125677,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 223 名,vote=125677,inst=159381",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "lsof",
+      "raw_name": "lsof",
+      "aliases": [],
+      "metric": 123936,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 235 名,vote=123936,inst=266105",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "bc",
+      "raw_name": "bc",
+      "aliases": [],
+      "metric": 118987,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 265 名,vote=118987,inst=154217",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "git",
+      "raw_name": "git",
+      "aliases": [],
+      "metric": 113188,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 319 名,vote=113188,inst=171867",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "file",
+      "raw_name": "file",
+      "aliases": [],
+      "metric": 90458,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 491 名,vote=90458,inst=273633",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "xz",
+      "raw_name": "xz-utils",
+      "aliases": [
+        "xz-utils"
+      ],
+      "metric": 89016,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 502 名,vote=89016,inst=275140",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "less",
+      "raw_name": "less",
+      "aliases": [],
+      "metric": 74825,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 593 名,vote=74825,inst=279412",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "smartmontools",
+      "raw_name": "smartmontools",
+      "aliases": [],
+      "metric": 65624,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 685 名,vote=65624,inst=73808",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "curl",
+      "raw_name": "curl",
+      "aliases": [],
+      "metric": 64793,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 690 名,vote=64793,inst=199193",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "firefox",
+      "raw_name": "firefox-esr",
+      "aliases": [
+        "firefox-esr",
+        "org.mozilla.firefox"
+      ],
+      "metric": 55249,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 792 名,vote=55249,inst=119784(Debian 默认 ESR;firefox 包另有 vote=4145)",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "rsync",
+      "raw_name": "rsync",
+      "aliases": [],
+      "metric": 52046,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 830 名,vote=52046,inst=151217",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "wget",
+      "raw_name": "wget",
+      "aliases": [],
+      "metric": 51719,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 836 名,vote=51719,inst=275357",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "docker",
+      "raw_name": "docker-ce",
+      "aliases": [
+        "docker-ce",
+        "docker.io",
+        "docker-engine"
+      ],
+      "metric": 51717,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 837 名,vote=51717,inst=55172(Debian 自带 docker.io 另有 vote=13065)",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "lm-sensors",
+      "raw_name": "lm-sensors",
+      "aliases": [
+        "lm_sensors"
+      ],
+      "metric": 51083,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 841 名,vote=51083,inst=76243",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "apache",
+      "raw_name": "apache2",
+      "aliases": [
+        "apache2",
+        "httpd"
+      ],
+      "metric": 48769,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 868 名,vote=48769,inst=61530",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "bzip2",
+      "raw_name": "bzip2",
+      "aliases": [],
+      "metric": 45762,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 895 名,vote=45762,inst=272513",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "gcc",
+      "raw_name": "gcc",
+      "aliases": [
+        "g++"
+      ],
+      "metric": 44746,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 905 名,vote=44746,inst=158141(g++ 另有 vote=16189)",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "nano",
+      "raw_name": "nano",
+      "aliases": [],
+      "metric": 44294,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 922 名,vote=44294,inst=275355",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "make",
+      "raw_name": "make",
+      "aliases": [
+        "gmake"
+      ],
+      "metric": 42763,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 948 名,vote=42763,inst=158591",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "hdparm",
+      "raw_name": "hdparm",
+      "aliases": [],
+      "metric": 34356,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 1090 名,vote=34356,inst=59839",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "gnome-terminal",
+      "raw_name": "gnome-terminal",
+      "aliases": [],
+      "metric": 34178,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 1098 名,vote=34178,inst=75126(随 GNOME 桌面自带,数值偏高)",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "sysstat",
+      "raw_name": "sysstat",
+      "aliases": [],
+      "metric": 33757,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 1110 名,vote=33757,inst=46178",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "libreoffice",
+      "raw_name": "libreoffice-writer",
+      "aliases": [
+        "libreoffice",
+        "libreoffice-core",
+        "org.libreoffice.LibreOffice"
+      ],
+      "metric": 32140,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 1139 名,vote=32140,inst=119057(元包 vote 失真,取 writer 实包)",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "net-tools",
+      "raw_name": "net-tools",
+      "aliases": [],
+      "metric": 31366,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 1153 名,vote=31366,inst=119329",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "unzip",
+      "raw_name": "unzip",
+      "aliases": [],
+      "metric": 30757,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 1158 名,vote=30757,inst=210144",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "samba",
+      "raw_name": "samba",
+      "aliases": [],
+      "metric": 30245,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 1167 名,vote=30245,inst=34260",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "flatpak",
+      "raw_name": "flatpak",
+      "aliases": [],
+      "metric": 29391,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 1179 名,vote=29391,inst=30942",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "patch",
+      "raw_name": "patch",
+      "aliases": [],
+      "metric": 29176,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 1185 名,vote=29176,inst=202896",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "fail2ban",
+      "raw_name": "fail2ban",
+      "aliases": [],
+      "metric": 27914,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 1219 名,vote=27914,inst=30942",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "socat",
+      "raw_name": "socat",
+      "aliases": [],
+      "metric": 26813,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 1270 名,vote=26813,inst=88163",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "ethtool",
+      "raw_name": "ethtool",
+      "aliases": [],
+      "metric": 26702,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 1274 名,vote=26702,inst=70970",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "tmux",
+      "raw_name": "tmux",
+      "aliases": [],
+      "metric": 25700,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 1322 名,vote=25700,inst=44769",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "dnsutils",
+      "raw_name": "bind9-dnsutils",
+      "aliases": [
+        "bind9-dnsutils",
+        "bind-tools",
+        "bind"
+      ],
+      "metric": 24839,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 1344 名,vote=24839,inst=227666(提供 dig/nslookup)",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "gdb",
+      "raw_name": "gdb",
+      "aliases": [],
+      "metric": 23989,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 1378 名,vote=23989,inst=44316",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "vim",
+      "raw_name": "vim",
+      "aliases": [
+        "vim-tiny",
+        "vim-gtk3"
+      ],
+      "metric": 23730,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 1384 名,vote=23730,inst=96937(vim-tiny 另有 vote=15909)",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "nginx",
+      "raw_name": "nginx",
+      "aliases": [],
+      "metric": 23476,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 1396 名,vote=23476,inst=27867",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "openvpn",
+      "raw_name": "openvpn",
+      "aliases": [],
+      "metric": 22953,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 1424 名,vote=22953,inst=25467",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "ufw",
+      "raw_name": "ufw",
+      "aliases": [],
+      "metric": 22435,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 1445 名,vote=22435,inst=29253",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "postgresql",
+      "raw_name": "postgresql-common",
+      "aliases": [
+        "postgresql",
+        "postgresql-15",
+        "postgresql-17",
+        "postgres"
+      ],
+      "metric": 21786,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 1470 名,vote=21786,inst=23508(各大版本共用包;postgresql-15 单包 vote=6346)",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "7zip",
+      "raw_name": "7zip",
+      "aliases": [
+        "p7zip-full",
+        "p7zip",
+        "7-zip"
+      ],
+      "metric": 20026,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 1560 名,vote=20026,inst=83578",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "mariadb",
+      "raw_name": "mariadb-server",
+      "aliases": [
+        "mariadb-server",
+        "mariadb-server-core"
+      ],
+      "metric": 19886,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 1566 名,vote=19886,inst=32457(mariadb-server-core 另有 vote=28136)",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "ruby",
+      "raw_name": "ruby",
+      "aliases": [],
+      "metric": 19609,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 1578 名,vote=19609,inst=44587",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "htop",
+      "raw_name": "htop",
+      "aliases": [],
+      "metric": 19426,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 1584 名,vote=19426,inst=104673",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "certbot",
+      "raw_name": "certbot",
+      "aliases": [],
+      "metric": 19159,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 1598 名,vote=19159,inst=21141",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "jq",
+      "raw_name": "jq",
+      "aliases": [],
+      "metric": 18622,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 1633 名,vote=18622,inst=127583",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "evince",
+      "raw_name": "evince",
+      "aliases": [],
+      "metric": 17895,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 1664 名,vote=17895,inst=80465(随 GNOME 桌面自带,数值偏高)",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "traceroute",
+      "raw_name": "traceroute",
+      "aliases": [],
+      "metric": 17620,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 1675 名,vote=17620,inst=258924",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "snapd",
+      "raw_name": "snapd",
+      "aliases": [
+        "snap"
+      ],
+      "metric": 17123,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 1710 名,vote=17123,inst=18175",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "konsole",
+      "raw_name": "konsole",
+      "aliases": [],
+      "metric": 16898,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 1737 名,vote=16898,inst=33771(随 KDE 桌面自带,数值偏高)",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "graphviz",
+      "raw_name": "graphviz",
+      "aliases": [],
+      "metric": 16499,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 1771 名,vote=16499,inst=69238",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "nodejs",
+      "raw_name": "nodejs",
+      "aliases": [
+        "node",
+        "npm"
+      ],
+      "metric": 16244,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 1807 名,vote=16244,inst=39395(npm 另有 vote=4994)",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "screen",
+      "raw_name": "screen",
+      "aliases": [
+        "gnu-screen"
+      ],
+      "metric": 14879,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 1942 名,vote=14879,inst=55894",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "chrome",
+      "raw_name": "google-chrome-stable",
+      "aliases": [
+        "google-chrome-stable",
+        "google-chrome",
+        "com.google.Chrome"
+      ],
+      "metric": 14795,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 1946 名,vote=14795,inst=25566(Google 仓库包)",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "qemu",
+      "raw_name": "qemu-system-x86",
+      "aliases": [
+        "qemu-system-x86",
+        "qemu-kvm",
+        "qemu-full"
+      ],
+      "metric": 14426,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 1962 名,vote=14426,inst=25499",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "vlc",
+      "raw_name": "vlc-bin",
+      "aliases": [
+        "vlc",
+        "org.videolan.VLC"
+      ],
+      "metric": 14280,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 1968 名,vote=14280,inst=43800(元包 vlc vote=148 失真,取 vlc-bin)",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "netcat",
+      "raw_name": "netcat-traditional",
+      "aliases": [
+        "netcat-openbsd",
+        "nc",
+        "openbsd-netcat",
+        "gnu-netcat"
+      ],
+      "metric": 14011,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 1988 名,vote=14011,inst=253378(netcat-openbsd 另有 vote=5873)",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "plocate",
+      "raw_name": "plocate",
+      "aliases": [
+        "mlocate",
+        "locate"
+      ],
+      "metric": 13987,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 1990 名,vote=13987,inst=16012",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "zip",
+      "raw_name": "zip",
+      "aliases": [],
+      "metric": 13625,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 2008 名,vote=13625,inst=100863",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "thunderbird",
+      "raw_name": "thunderbird",
+      "aliases": [
+        "org.mozilla.Thunderbird"
+      ],
+      "metric": 12147,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 2104 名,vote=12147,inst=29380",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "ffmpeg",
+      "raw_name": "ffmpeg",
+      "aliases": [],
+      "metric": 12109,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 2107 名,vote=12109,inst=59614",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "gimp",
+      "raw_name": "gimp",
+      "aliases": [
+        "org.gimp.GIMP"
+      ],
+      "metric": 12053,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 2113 名,vote=12053,inst=60831",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "mc",
+      "raw_name": "mc",
+      "aliases": [
+        "midnight-commander"
+      ],
+      "metric": 11685,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 2137 名,vote=11685,inst=51037",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "okular",
+      "raw_name": "okular",
+      "aliases": [],
+      "metric": 11632,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 2141 名,vote=11632,inst=36587(随 KDE 桌面自带,数值偏高)",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "zsh",
+      "raw_name": "zsh",
+      "aliases": [],
+      "metric": 11326,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 2163 名,vote=11326,inst=19622",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "kate",
+      "raw_name": "kate",
+      "aliases": [],
+      "metric": 11293,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 2166 名,vote=11293,inst=33746",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "pip",
+      "raw_name": "python3-pip",
+      "aliases": [
+        "python3-pip",
+        "pip3"
+      ],
+      "metric": 9856,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 2257 名,vote=9856,inst=62957",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "aptitude",
+      "raw_name": "aptitude",
+      "aliases": [],
+      "metric": 9584,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 2282 名,vote=9584,inst=48274",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "powertop",
+      "raw_name": "powertop",
+      "aliases": [],
+      "metric": 9494,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 2286 名,vote=9494,inst=63351",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "xterm",
+      "raw_name": "xterm",
+      "aliases": [],
+      "metric": 9299,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 2303 名,vote=9299,inst=109465",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "synaptic",
+      "raw_name": "synaptic",
+      "aliases": [],
+      "metric": 9161,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 2319 名,vote=9161,inst=79789",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "atop",
+      "raw_name": "atop",
+      "aliases": [],
+      "metric": 9153,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 2320 名,vote=9153,inst=9400",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "chromium",
+      "raw_name": "chromium",
+      "aliases": [
+        "chromium-browser",
+        "org.chromium.Chromium"
+      ],
+      "metric": 8443,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 2408 名,vote=8443,inst=27953",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "podman",
+      "raw_name": "podman",
+      "aliases": [],
+      "metric": 8372,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 2415 名,vote=8372,inst=9321",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "wireguard",
+      "raw_name": "wireguard-tools",
+      "aliases": [
+        "wireguard-tools"
+      ],
+      "metric": 8310,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 2426 名,vote=8310,inst=19202",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "steam",
+      "raw_name": "steam-launcher",
+      "aliases": [
+        "steam-launcher",
+        "steam-installer",
+        "steam",
+        "com.valvesoftware.Steam"
+      ],
+      "metric": 7882,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 2465 名,vote=7882,inst=8426(steam-installer 另有 vote=2932)",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "lynx",
+      "raw_name": "lynx",
+      "aliases": [],
+      "metric": 7813,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 2476 名,vote=7813,inst=126080",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "redis",
+      "raw_name": "redis-server",
+      "aliases": [
+        "redis-server",
+        "valkey"
+      ],
+      "metric": 7785,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 2482 名,vote=7785,inst=12579",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "autoconf",
+      "raw_name": "autoconf",
+      "aliases": [],
+      "metric": 7676,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 2494 名,vote=7676,inst=55851",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "automake",
+      "raw_name": "automake",
+      "aliases": [],
+      "metric": 7670,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 2495 名,vote=7670,inst=55632",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "evolution",
+      "raw_name": "evolution",
+      "aliases": [],
+      "metric": 7519,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 2511 名,vote=7519,inst=64287",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "openjdk",
+      "raw_name": "default-jre",
+      "aliases": [
+        "default-jre",
+        "default-jdk",
+        "openjdk-21-jdk",
+        "openjdk-17-jdk",
+        "jdk-openjdk"
+      ],
+      "metric": 7169,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 2555 名,vote=7169,inst=50027(JDK 按版本分包,openjdk-21-jre vote=348)",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "nmap",
+      "raw_name": "nmap",
+      "aliases": [],
+      "metric": 6976,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 2586 名,vote=6976,inst=51493",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "tree",
+      "raw_name": "tree",
+      "aliases": [],
+      "metric": 6849,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 2600 名,vote=6849,inst=54484",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "nvme-cli",
+      "raw_name": "nvme-cli",
+      "aliases": [],
+      "metric": 6837,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 2601 名,vote=6837,inst=9236",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "vscode",
+      "raw_name": "code",
+      "aliases": [
+        "code",
+        "visual-studio-code",
+        "com.visualstudio.code"
+      ],
+      "metric": 6720,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 2617 名,vote=6720,inst=18938(微软仓库包,popcon 可见)",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "etckeeper",
+      "raw_name": "etckeeper",
+      "aliases": [],
+      "metric": 6720,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 2618 名,vote=6720,inst=7508",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "texlive",
+      "raw_name": "texlive-base",
+      "aliases": [
+        "texlive-base",
+        "texlive"
+      ],
+      "metric": 6420,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 2669 名,vote=6420,inst=22737",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "whois",
+      "raw_name": "whois",
+      "aliases": [],
+      "metric": 6190,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 2738 名,vote=6190,inst=58120",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "syncthing",
+      "raw_name": "syncthing",
+      "aliases": [],
+      "metric": 6133,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 2752 名,vote=6133,inst=7426",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "sqlite",
+      "raw_name": "sqlite3",
+      "aliases": [
+        "sqlite3"
+      ],
+      "metric": 5787,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 2862 名,vote=5787,inst=36242",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "imagemagick",
+      "raw_name": "imagemagick-7.q16",
+      "aliases": [
+        "imagemagick",
+        "magick"
+      ],
+      "metric": 5746,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 2877 名,vote=5746,inst=43095(元包 imagemagick vote=2379,实包更准)",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "gedit",
+      "raw_name": "gedit",
+      "aliases": [],
+      "metric": 5742,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 2879 名,vote=5742,inst=26804",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "mpv",
+      "raw_name": "mpv",
+      "aliases": [
+        "io.mpv.Mpv"
+      ],
+      "metric": 5725,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 2891 名,vote=5725,inst=21275",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "iotop",
+      "raw_name": "iotop",
+      "aliases": [],
+      "metric": 5690,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 2902 名,vote=5690,inst=30925",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "iperf3",
+      "raw_name": "iperf3",
+      "aliases": [
+        "iperf"
+      ],
+      "metric": 5625,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 2917 名,vote=5625,inst=17246",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "cmake",
+      "raw_name": "cmake",
+      "aliases": [],
+      "metric": 5426,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 2970 名,vote=5426,inst=34067",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "emacs",
+      "raw_name": "emacs-common",
+      "aliases": [
+        "emacs",
+        "emacs-gtk",
+        "emacs-nox",
+        "emacs-pgtk"
+      ],
+      "metric": 5294,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 3008 名,vote=5294,inst=15930(emacs-common 为各变体共用包)",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "btop",
+      "raw_name": "btop",
+      "aliases": [],
+      "metric": 5204,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 3037 名,vote=5204,inst=18802",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "brave",
+      "raw_name": "brave-browser",
+      "aliases": [
+        "brave-browser",
+        "brave-bin",
+        "com.brave.Browser"
+      ],
+      "metric": 4943,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 3153 名,vote=4943,inst=8310(Brave 仓库包)",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "tcpdump",
+      "raw_name": "tcpdump",
+      "aliases": [],
+      "metric": 4943,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 3154 名,vote=4943,inst=48400",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "build-essential",
+      "raw_name": "build-essential",
+      "aliases": [],
+      "metric": 4579,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 3273 名,vote=4579,inst=142945(Debian/Ubuntu 元包)",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "fastfetch",
+      "raw_name": "fastfetch",
+      "aliases": [],
+      "metric": 4346,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 3334 名,vote=4346,inst=11998",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "firewalld",
+      "raw_name": "firewalld",
+      "aliases": [],
+      "metric": 4195,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 3387 名,vote=4195,inst=6319",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "remmina",
+      "raw_name": "remmina",
+      "aliases": [
+        "org.remmina.Remmina"
+      ],
+      "metric": 4113,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 3430 名,vote=4113,inst=17296",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "webmin",
+      "raw_name": "webmin",
+      "aliases": [],
+      "metric": 3861,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 3523 名,vote=3861,inst=5987(第三方仓库包)",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "ripgrep",
+      "raw_name": "ripgrep",
+      "aliases": [
+        "rg"
+      ],
+      "metric": 3752,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 3549 名,vote=3752,inst=11395",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "borgbackup",
+      "raw_name": "borgbackup",
+      "aliases": [
+        "borg"
+      ],
+      "metric": 3571,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 3608 名,vote=3571,inst=7716",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "lshw",
+      "raw_name": "lshw",
+      "aliases": [],
+      "metric": 3524,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 3618 名,vote=3524,inst=25219",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "gparted",
+      "raw_name": "gparted",
+      "aliases": [],
+      "metric": 3387,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 3665 名,vote=3387,inst=24341",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "inkscape",
+      "raw_name": "inkscape",
+      "aliases": [
+        "org.inkscape.Inkscape"
+      ],
+      "metric": 3318,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 3694 名,vote=3318,inst=21985",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "docker-compose",
+      "raw_name": "docker-compose",
+      "aliases": [
+        "docker-compose-plugin",
+        "docker-compose-v2"
+      ],
+      "metric": 3282,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 3709 名,vote=3282,inst=13072",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "neovim",
+      "raw_name": "neovim",
+      "aliases": [
+        "nvim"
+      ],
+      "metric": 3276,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 3714 名,vote=3276,inst=10121",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "virt-manager",
+      "raw_name": "virt-manager",
+      "aliases": [],
+      "metric": 3256,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 3721 名,vote=3256,inst=13336",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "tlp",
+      "raw_name": "tlp",
+      "aliases": [],
+      "metric": 3096,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 3797 名,vote=3096,inst=3594",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "mutt",
+      "raw_name": "mutt",
+      "aliases": [],
+      "metric": 3087,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 3800 名,vote=3087,inst=25058",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "transmission",
+      "raw_name": "transmission-gtk",
+      "aliases": [
+        "transmission-gtk",
+        "transmission-qt",
+        "com.transmissionbt.Transmission"
+      ],
+      "metric": 3064,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 3815 名,vote=3064,inst=44492",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "yt-dlp",
+      "raw_name": "yt-dlp",
+      "aliases": [
+        "youtube-dl"
+      ],
+      "metric": 3031,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 3835 名,vote=3031,inst=24189",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "ncdu",
+      "raw_name": "ncdu",
+      "aliases": [],
+      "metric": 3005,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 3851 名,vote=3005,inst=23563",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "fish",
+      "raw_name": "fish",
+      "aliases": [],
+      "metric": 2977,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 3866 名,vote=2977,inst=5673",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "w3m",
+      "raw_name": "w3m",
+      "aliases": [],
+      "metric": 2947,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 3887 名,vote=2947,inst=38504",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "discord",
+      "raw_name": "discord",
+      "aliases": [
+        "com.discordapp.Discord"
+      ],
+      "metric": 2885,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 3923 名,vote=2885,inst=6796(第三方 deb)",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "pandoc",
+      "raw_name": "pandoc",
+      "aliases": [],
+      "metric": 2869,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 3931 名,vote=2869,inst=13144",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "strace",
+      "raw_name": "strace",
+      "aliases": [],
+      "metric": 2744,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 3978 名,vote=2744,inst=28498",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "subversion",
+      "raw_name": "subversion",
+      "aliases": [
+        "svn"
+      ],
+      "metric": 2607,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 4049 名,vote=2607,inst=15820",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "rclone",
+      "raw_name": "rclone",
+      "aliases": [],
+      "metric": 2556,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 4084 名,vote=2556,inst=8114",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "php",
+      "raw_name": "php",
+      "aliases": [
+        "php-cli",
+        "php8.4"
+      ],
+      "metric": 2515,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 4107 名,vote=2515,inst=20463",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "glances",
+      "raw_name": "glances",
+      "aliases": [],
+      "metric": 2491,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 4116 名,vote=2491,inst=3495",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "zoom",
+      "raw_name": "zoom",
+      "aliases": [
+        "zoom-client",
+        "us.zoom.Zoom"
+      ],
+      "metric": 2458,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 4138 名,vote=2458,inst=9313(第三方 deb)",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "gh",
+      "raw_name": "gh",
+      "aliases": [
+        "github-cli"
+      ],
+      "metric": 2452,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 4144 名,vote=2452,inst=5760",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "terminator",
+      "raw_name": "terminator",
+      "aliases": [],
+      "metric": 2393,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 4187 名,vote=2393,inst=3710",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "clamav",
+      "raw_name": "clamav",
+      "aliases": [
+        "clamav-daemon"
+      ],
+      "metric": 2354,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 4215 名,vote=2354,inst=10943",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "fzf",
+      "raw_name": "fzf",
+      "aliases": [],
+      "metric": 2321,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 4237 名,vote=2321,inst=9515",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "audacity",
+      "raw_name": "audacity",
+      "aliases": [
+        "org.audacityteam.Audacity"
+      ],
+      "metric": 2313,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 4241 名,vote=2313,inst=14778",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "qbittorrent",
+      "raw_name": "qbittorrent",
+      "aliases": [
+        "org.qbittorrent.qBittorrent"
+      ],
+      "metric": 2307,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 4246 名,vote=2307,inst=6143",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "ninja",
+      "raw_name": "ninja-build",
+      "aliases": [
+        "ninja-build"
+      ],
+      "metric": 2230,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 4301 名,vote=2230,inst=14734",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "timeshift",
+      "raw_name": "timeshift",
+      "aliases": [],
+      "metric": 2141,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 4358 名,vote=2141,inst=3759",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "filezilla",
+      "raw_name": "filezilla",
+      "aliases": [
+        "org.filezillaproject.Filezilla"
+      ],
+      "metric": 2108,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 4387 名,vote=2108,inst=9967",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "flameshot",
+      "raw_name": "flameshot",
+      "aliases": [
+        "org.flameshot.Flameshot"
+      ],
+      "metric": 2083,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 4411 名,vote=2083,inst=4782",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "sox",
+      "raw_name": "sox",
+      "aliases": [],
+      "metric": 1942,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 4579 名,vote=1942,inst=13577",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "pipx",
+      "raw_name": "pipx",
+      "aliases": [],
+      "metric": 1887,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 4634 名,vote=1887,inst=12903",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "geany",
+      "raw_name": "geany",
+      "aliases": [],
+      "metric": 1883,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 4640 名,vote=1883,inst=5922",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "spotify",
+      "raw_name": "spotify-client",
+      "aliases": [
+        "spotify-client",
+        "com.spotify.Client"
+      ],
+      "metric": 1831,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 4696 名,vote=1831,inst=4807(Spotify 仓库包)",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "neofetch",
+      "raw_name": "neofetch",
+      "aliases": [],
+      "metric": 1828,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 4702 名,vote=1828,inst=9763",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "restic",
+      "raw_name": "restic",
+      "aliases": [],
+      "metric": 1789,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 4751 名,vote=1789,inst=3418",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "exiftool",
+      "raw_name": "libimage-exiftool-perl",
+      "aliases": [
+        "libimage-exiftool-perl",
+        "perl-image-exiftool"
+      ],
+      "metric": 1781,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 4757 名,vote=1781,inst=10439",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "obs-studio",
+      "raw_name": "obs-studio",
+      "aliases": [
+        "com.obsproject.Studio"
+      ],
+      "metric": 1765,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 4785 名,vote=1765,inst=8135",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "calibre",
+      "raw_name": "calibre",
+      "aliases": [
+        "com.calibre_ebook.calibre"
+      ],
+      "metric": 1651,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 4903 名,vote=1651,inst=6774",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "meson",
+      "raw_name": "meson",
+      "aliases": [],
+      "metric": 1646,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 4909 名,vote=1646,inst=7902",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "inxi",
+      "raw_name": "inxi",
+      "aliases": [],
+      "metric": 1636,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 4917 名,vote=1636,inst=25416",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "kitty",
+      "raw_name": "kitty",
+      "aliases": [],
+      "metric": 1565,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 5001 名,vote=1565,inst=3752",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "signal",
+      "raw_name": "signal-desktop",
+      "aliases": [
+        "signal-desktop",
+        "org.signal.Signal"
+      ],
+      "metric": 1500,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 5081 名,vote=1500,inst=6224(Signal 仓库包)",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "meld",
+      "raw_name": "meld",
+      "aliases": [],
+      "metric": 1448,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 5149 名,vote=1448,inst=6699",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "pass",
+      "raw_name": "pass",
+      "aliases": [
+        "password-store"
+      ],
+      "metric": 1351,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 5272 名,vote=1351,inst=4805",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "alacritty",
+      "raw_name": "alacritty",
+      "aliases": [],
+      "metric": 1328,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 5301 名,vote=1328,inst=2609",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "valgrind",
+      "raw_name": "valgrind",
+      "aliases": [],
+      "metric": 1316,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 5314 名,vote=1316,inst=9091",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "keepassxc",
+      "raw_name": "keepassxc",
+      "aliases": [
+        "org.keepassxc.KeePassXC"
+      ],
+      "metric": 1288,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 5353 名,vote=1288,inst=9092",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "rust",
+      "raw_name": "rustc",
+      "aliases": [
+        "rustc",
+        "cargo",
+        "rustup"
+      ],
+      "metric": 1265,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 5391 名,vote=1265,inst=5218(cargo 另有 vote=505)",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "bat",
+      "raw_name": "bat",
+      "aliases": [
+        "batcat"
+      ],
+      "metric": 1262,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 5394 名,vote=1262,inst=5857(Debian 下二进制名 batcat)",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "vivaldi",
+      "raw_name": "vivaldi-stable",
+      "aliases": [
+        "vivaldi-stable",
+        "com.vivaldi.Vivaldi"
+      ],
+      "metric": 1226,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 5458 名,vote=1226,inst=2367",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "go",
+      "raw_name": "golang-go",
+      "aliases": [
+        "golang-go",
+        "golang"
+      ],
+      "metric": 1216,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 5473 名,vote=1216,inst=9115",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "slack",
+      "raw_name": "slack-desktop",
+      "aliases": [
+        "slack-desktop",
+        "com.slack.Slack"
+      ],
+      "metric": 1189,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 5516 名,vote=1189,inst=2105(Slack 仓库包)",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "mtr",
+      "raw_name": "mtr",
+      "aliases": [
+        "mtr-tiny"
+      ],
+      "metric": 1183,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 5531 名,vote=1183,inst=11413(mtr-tiny 另有 vote=1179)",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "byobu",
+      "raw_name": "byobu",
+      "aliases": [],
+      "metric": 1167,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 5569 名,vote=1167,inst=4354",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "vscodium",
+      "raw_name": "codium",
+      "aliases": [
+        "codium",
+        "com.vscodium.codium"
+      ],
+      "metric": 1164,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 5576 名,vote=1164,inst=2780",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "aria2",
+      "raw_name": "aria2",
+      "aliases": [
+        "aria2c"
+      ],
+      "metric": 1160,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 5590 名,vote=1160,inst=6004",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "krita",
+      "raw_name": "krita",
+      "aliases": [
+        "org.kde.krita"
+      ],
+      "metric": 1094,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 5705 名,vote=1094,inst=5473",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "darktable",
+      "raw_name": "darktable",
+      "aliases": [
+        "org.darktable.Darktable"
+      ],
+      "metric": 1029,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 5828 名,vote=1029,inst=3029",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "fd",
+      "raw_name": "fd-find",
+      "aliases": [
+        "fd-find",
+        "fdfind"
+      ],
+      "metric": 1018,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 5852 名,vote=1018,inst=4930(Debian 包名 fd-find,二进制名 fdfind)",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "wireshark",
+      "raw_name": "wireshark",
+      "aliases": [],
+      "metric": 1001,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 5883 名,vote=1001,inst=10908",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "telegram",
+      "raw_name": "telegram-desktop",
+      "aliases": [
+        "telegram-desktop",
+        "org.telegram.desktop"
+      ],
+      "metric": 995,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 5895 名,vote=995,inst=2406",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "ipython",
+      "raw_name": "ipython3",
+      "aliases": [
+        "ipython3"
+      ],
+      "metric": 993,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 5900 名,vote=993,inst=7090",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "microsoft-edge",
+      "raw_name": "microsoft-edge-stable",
+      "aliases": [
+        "microsoft-edge-stable",
+        "com.microsoft.Edge"
+      ],
+      "metric": 983,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 5922 名,vote=983,inst=2373",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "nvtop",
+      "raw_name": "nvtop",
+      "aliases": [],
+      "metric": 975,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 5947 名,vote=975,inst=3888",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "virtualbox",
+      "raw_name": "virtualbox",
+      "aliases": [
+        "virtualbox-7.1"
+      ],
+      "metric": 950,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 5998 名,vote=950,inst=1150",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "pylint",
+      "raw_name": "pylint",
+      "aliases": [],
+      "metric": 928,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 6044 名,vote=928,inst=5456",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "mercurial",
+      "raw_name": "mercurial",
+      "aliases": [
+        "hg"
+      ],
+      "metric": 915,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 6072 名,vote=915,inst=7063",
+      "source_url": "https://popcon.debian.org/by_vote"
+    },
+    {
+      "canonical": "git-lfs",
+      "raw_name": "git-lfs",
+      "aliases": [],
+      "metric": 904,
+      "metric_unit": "rank",
+      "evidence": "by_vote 第 6096 名,vote=904,inst=4603",
+      "source_url": "https://popcon.debian.org/by_vote"
+    }
+  ]
+}

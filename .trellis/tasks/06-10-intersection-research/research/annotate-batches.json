@@ -1,0 +1,1904 @@
+[
+ [
+  {
+   "key": "docker",
+   "names": [
+    "docker"
+   ],
+   "raw_names": {
+    "curation": "docker-ce",
+    "homebrew": "docker",
+    "pkgstats": "docker",
+    "popcon": "docker-ce",
+    "so-survey": "Docker"
+   },
+   "hits": [
+    "so-survey",
+    "homebrew",
+    "curation",
+    "pkgstats",
+    "popcon"
+   ]
+  },
+  {
+   "key": "gcc",
+   "names": [
+    "gcc"
+   ],
+   "raw_names": {
+    "curation": "build-essential",
+    "homebrew": "gcc",
+    "jetbrains": "C++ / C",
+    "pkgstats": "gcc",
+    "popcon": "gcc",
+    "so-survey": "C++"
+   },
+   "hits": [
+    "so-survey",
+    "homebrew",
+    "curation",
+    "pkgstats",
+    "jetbrains",
+    "popcon"
+   ]
+  },
+  {
+   "key": "git",
+   "names": [
+    "git"
+   ],
+   "raw_names": {
+    "curation": "git",
+    "homebrew": "git",
+    "pkgstats": "git",
+    "popcon": "git",
+    "so-survey": "Git"
+   },
+   "hits": [
+    "so-survey",
+    "homebrew",
+    "curation",
+    "pkgstats",
+    "popcon"
+   ]
+  },
+  {
+   "key": "curl",
+   "names": [
+    "curl"
+   ],
+   "raw_names": {
+    "curation": "curl",
+    "homebrew": "curl",
+    "pkgstats": "curl",
+    "popcon": "curl"
+   },
+   "hits": [
+    "homebrew",
+    "curation",
+    "pkgstats",
+    "popcon"
+   ]
+  },
+  {
+   "key": "firefox",
+   "names": [
+    "firefox"
+   ],
+   "raw_names": {
+    "curation": "firefox",
+    "flathub": "Firefox",
+    "pkgstats": "firefox",
+    "popcon": "firefox-esr"
+   },
+   "hits": [
+    "flathub",
+    "curation",
+    "pkgstats",
+    "popcon"
+   ]
+  },
+  {
+   "key": "gh",
+   "names": [
+    "gh"
+   ],
+   "raw_names": {
+    "homebrew": "gh",
+    "pkgstats": "github-cli",
+    "popcon": "gh",
+    "so-survey": "GitHub"
+   },
+   "hits": [
+    "so-survey",
+    "homebrew",
+    "pkgstats",
+    "popcon"
+   ]
+  },
+  {
+   "key": "go",
+   "names": [
+    "go"
+   ],
+   "raw_names": {
+    "homebrew": "go",
+    "jetbrains": "Go",
+    "pkgstats": "go",
+    "popcon": "golang-go",
+    "so-survey": "Go"
+   },
+   "hits": [
+    "so-survey",
+    "homebrew",
+    "pkgstats",
+    "jetbrains",
+    "popcon"
+   ]
+  },
+  {
+   "key": "jupyterlab",
+   "names": [
+    "jupyter",
+    "jupyterlab"
+   ],
+   "raw_names": {
+    "homebrew": "jupyterlab",
+    "jetbrains": "IPython/Jupyter Notebook",
+    "pkgstats": "jupyterlab",
+    "so-survey": "Jupyter Nb/JupyterLab"
+   },
+   "hits": [
+    "so-survey",
+    "homebrew",
+    "pkgstats",
+    "jetbrains"
+   ]
+  }
+ ],
+ [
+  {
+   "key": "make",
+   "names": [
+    "make"
+   ],
+   "raw_names": {
+    "curation": "build-essential",
+    "pkgstats": "make",
+    "popcon": "make",
+    "so-survey": "Make"
+   },
+   "hits": [
+    "so-survey",
+    "curation",
+    "pkgstats",
+    "popcon"
+   ]
+  },
+  {
+   "key": "mongodb",
+   "names": [
+    "mongodb"
+   ],
+   "raw_names": {
+    "homebrew": "mongodb/brew/mongodb-community",
+    "jetbrains": "MongoDB",
+    "pkgstats": "mongodb-bin",
+    "so-survey": "MongoDB"
+   },
+   "hits": [
+    "so-survey",
+    "homebrew",
+    "pkgstats",
+    "jetbrains"
+   ]
+  },
+  {
+   "key": "neovim",
+   "names": [
+    "neovim"
+   ],
+   "raw_names": {
+    "homebrew": "neovim",
+    "jetbrains": "Neovim",
+    "pkgstats": "neovim",
+    "popcon": "neovim",
+    "so-survey": "Neovim"
+   },
+   "hits": [
+    "so-survey",
+    "homebrew",
+    "pkgstats",
+    "jetbrains",
+    "popcon"
+   ]
+  },
+  {
+   "key": "ninja",
+   "names": [
+    "ninja"
+   ],
+   "raw_names": {
+    "homebrew": "ninja",
+    "pkgstats": "ninja",
+    "popcon": "ninja-build",
+    "so-survey": "Ninja"
+   },
+   "hits": [
+    "so-survey",
+    "homebrew",
+    "pkgstats",
+    "popcon"
+   ]
+  },
+  {
+   "key": "nodejs",
+   "names": [
+    "nodejs",
+    "npm"
+   ],
+   "raw_names": {
+    "homebrew": "node+node@22+node@20",
+    "jetbrains": "JavaScript",
+    "pkgstats": "npm",
+    "popcon": "nodejs",
+    "so-survey": "npm"
+   },
+   "hits": [
+    "so-survey",
+    "homebrew",
+    "pkgstats",
+    "jetbrains",
+    "popcon"
+   ]
+  },
+  {
+   "key": "openjdk",
+   "names": [
+    "java",
+    "openjdk"
+   ],
+   "raw_names": {
+    "homebrew": "openjdk+openjdk@17+openjdk@21+openjdk@11",
+    "jetbrains": "Java",
+    "pkgstats": "jdk-openjdk",
+    "popcon": "default-jre",
+    "so-survey": "Java"
+   },
+   "hits": [
+    "so-survey",
+    "homebrew",
+    "pkgstats",
+    "jetbrains",
+    "popcon"
+   ]
+  },
+  {
+   "key": "php",
+   "names": [
+    "php"
+   ],
+   "raw_names": {
+    "homebrew": "php",
+    "jetbrains": "PHP",
+    "pkgstats": "php",
+    "popcon": "php",
+    "so-survey": "PHP"
+   },
+   "hits": [
+    "so-survey",
+    "homebrew",
+    "pkgstats",
+    "jetbrains",
+    "popcon"
+   ]
+  },
+  {
+   "key": "podman",
+   "names": [
+    "podman"
+   ],
+   "raw_names": {
+    "homebrew": "podman",
+    "pkgstats": "podman",
+    "popcon": "podman",
+    "so-survey": "Podman"
+   },
+   "hits": [
+    "so-survey",
+    "homebrew",
+    "pkgstats",
+    "popcon"
+   ]
+  }
+ ],
+ [
+  {
+   "key": "postgresql",
+   "names": [
+    "postgresql"
+   ],
+   "raw_names": {
+    "homebrew": "postgresql@14+postgresql@16+postgresql@17+postgresql@15+postgresql@18",
+    "jetbrains": "PostgreSQL",
+    "pkgstats": "postgresql",
+    "popcon": "postgresql-common",
+    "so-survey": "PostgreSQL"
+   },
+   "hits": [
+    "so-survey",
+    "homebrew",
+    "pkgstats",
+    "jetbrains",
+    "popcon"
+   ]
+  },
+  {
+   "key": "python",
+   "names": [
+    "python"
+   ],
+   "raw_names": {
+    "homebrew": "python@3.13+python@3.14+python@3.11+python@3.12+python@3.10+python@3.9",
+    "jetbrains": "Python",
+    "pkgstats": "python",
+    "popcon": "python3",
+    "so-survey": "Python"
+   },
+   "hits": [
+    "so-survey",
+    "homebrew",
+    "pkgstats",
+    "jetbrains",
+    "popcon"
+   ]
+  },
+  {
+   "key": "redis",
+   "names": [
+    "redis"
+   ],
+   "raw_names": {
+    "homebrew": "redis",
+    "jetbrains": "Redis",
+    "pkgstats": "redis",
+    "popcon": "redis-server",
+    "so-survey": "Redis"
+   },
+   "hits": [
+    "so-survey",
+    "homebrew",
+    "pkgstats",
+    "jetbrains",
+    "popcon"
+   ]
+  },
+  {
+   "key": "ruby",
+   "names": [
+    "ruby"
+   ],
+   "raw_names": {
+    "homebrew": "ruby",
+    "jetbrains": "Ruby",
+    "pkgstats": "ruby",
+    "popcon": "ruby",
+    "so-survey": "Ruby"
+   },
+   "hits": [
+    "so-survey",
+    "homebrew",
+    "pkgstats",
+    "jetbrains",
+    "popcon"
+   ]
+  },
+  {
+   "key": "rust",
+   "names": [
+    "cargo",
+    "rust",
+    "rustup"
+   ],
+   "raw_names": {
+    "homebrew": "rust",
+    "jetbrains": "Rust",
+    "pkgstats": "rust",
+    "popcon": "rustc",
+    "so-survey": "Rust"
+   },
+   "hits": [
+    "so-survey",
+    "homebrew",
+    "pkgstats",
+    "jetbrains",
+    "popcon"
+   ]
+  },
+  {
+   "key": "sqlite",
+   "names": [
+    "sqlite"
+   ],
+   "raw_names": {
+    "homebrew": "sqlite",
+    "jetbrains": "SQLite",
+    "pkgstats": "sqlite",
+    "popcon": "sqlite3",
+    "so-survey": "SQLite"
+   },
+   "hits": [
+    "so-survey",
+    "homebrew",
+    "pkgstats",
+    "jetbrains",
+    "popcon"
+   ]
+  },
+  {
+   "key": "steam",
+   "names": [
+    "steam"
+   ],
+   "raw_names": {
+    "curation": "steam",
+    "flathub": "Steam",
+    "pkgstats": "steam",
+    "popcon": "steam-launcher"
+   },
+   "hits": [
+    "flathub",
+    "curation",
+    "pkgstats",
+    "popcon"
+   ]
+  },
+  {
+   "key": "vim",
+   "names": [
+    "vim"
+   ],
+   "raw_names": {
+    "homebrew": "vim",
+    "jetbrains": "Vim",
+    "pkgstats": "vim",
+    "popcon": "vim",
+    "so-survey": "Vim"
+   },
+   "hits": [
+    "so-survey",
+    "homebrew",
+    "pkgstats",
+    "jetbrains",
+    "popcon"
+   ]
+  }
+ ],
+ [
+  {
+   "key": "vlc",
+   "names": [
+    "vlc"
+   ],
+   "raw_names": {
+    "curation": "vlc",
+    "flathub": "VLC",
+    "pkgstats": "vlc",
+    "popcon": "vlc-bin"
+   },
+   "hits": [
+    "flathub",
+    "curation",
+    "pkgstats",
+    "popcon"
+   ]
+  },
+  {
+   "key": "vscode",
+   "names": [
+    "vscode"
+   ],
+   "raw_names": {
+    "flathub": "Visual Studio Code",
+    "jetbrains": "Visual Studio Code",
+    "pkgstats": "visual-studio-code-bin + code",
+    "popcon": "code",
+    "so-survey": "Visual Studio Code"
+   },
+   "hits": [
+    "so-survey",
+    "flathub",
+    "pkgstats",
+    "jetbrains",
+    "popcon"
+   ]
+  },
+  {
+   "key": "vscodium",
+   "names": [
+    "vscodium"
+   ],
+   "raw_names": {
+    "flathub": "VSCodium",
+    "pkgstats": "vscodium-bin + vscodium",
+    "popcon": "codium",
+    "so-survey": "VSCodium"
+   },
+   "hits": [
+    "so-survey",
+    "flathub",
+    "pkgstats",
+    "popcon"
+   ]
+  },
+  {
+   "key": "wget",
+   "names": [
+    "wget"
+   ],
+   "raw_names": {
+    "curation": "wget",
+    "homebrew": "wget",
+    "pkgstats": "wget",
+    "popcon": "wget"
+   },
+   "hits": [
+    "homebrew",
+    "curation",
+    "pkgstats",
+    "popcon"
+   ]
+  },
+  {
+   "key": "ansible",
+   "names": [
+    "ansible"
+   ],
+   "raw_names": {
+    "homebrew": "ansible",
+    "pkgstats": "ansible",
+    "so-survey": "Ansible"
+   },
+   "hits": [
+    "so-survey",
+    "homebrew",
+    "pkgstats"
+   ]
+  },
+  {
+   "key": "bun",
+   "names": [
+    "bun"
+   ],
+   "raw_names": {
+    "homebrew": "oven-sh/bun/bun",
+    "pkgstats": "bun + bun-bin",
+    "so-survey": "Bun"
+   },
+   "hits": [
+    "so-survey",
+    "homebrew",
+    "pkgstats"
+   ]
+  },
+  {
+   "key": "deno",
+   "names": [
+    "deno"
+   ],
+   "raw_names": {
+    "homebrew": "deno",
+    "pkgstats": "deno",
+    "so-survey": "Deno"
+   },
+   "hits": [
+    "so-survey",
+    "homebrew",
+    "pkgstats"
+   ]
+  },
+  {
+   "key": "glab",
+   "names": [
+    "glab"
+   ],
+   "raw_names": {
+    "homebrew": "glab",
+    "pkgstats": "glab",
+    "so-survey": "GitLab"
+   },
+   "hits": [
+    "so-survey",
+    "homebrew",
+    "pkgstats"
+   ]
+  }
+ ],
+ [
+  {
+   "key": "gradle",
+   "names": [
+    "gradle"
+   ],
+   "raw_names": {
+    "homebrew": "gradle",
+    "pkgstats": "gradle",
+    "so-survey": "Gradle"
+   },
+   "hits": [
+    "so-survey",
+    "homebrew",
+    "pkgstats"
+   ]
+  },
+  {
+   "key": "kubectl",
+   "names": [
+    "kubectl"
+   ],
+   "raw_names": {
+    "homebrew": "kubernetes-cli",
+    "pkgstats": "kubectl",
+    "so-survey": "Kubernetes"
+   },
+   "hits": [
+    "so-survey",
+    "homebrew",
+    "pkgstats"
+   ]
+  },
+  {
+   "key": "maven",
+   "names": [
+    "maven"
+   ],
+   "raw_names": {
+    "homebrew": "maven",
+    "pkgstats": "maven",
+    "so-survey": "Maven"
+   },
+   "hits": [
+    "so-survey",
+    "homebrew",
+    "pkgstats"
+   ]
+  },
+  {
+   "key": "obsidian",
+   "names": [
+    "obsidian"
+   ],
+   "raw_names": {
+    "flathub": "Obsidian",
+    "pkgstats": "obsidian",
+    "so-survey": "Obsidian"
+   },
+   "hits": [
+    "so-survey",
+    "flathub",
+    "pkgstats"
+   ]
+  },
+  {
+   "key": "ollama",
+   "names": [
+    "ollama"
+   ],
+   "raw_names": {
+    "homebrew": "ollama",
+    "pkgstats": "ollama",
+    "so-survey": "Ollama"
+   },
+   "hits": [
+    "so-survey",
+    "homebrew",
+    "pkgstats"
+   ]
+  },
+  {
+   "key": "pnpm",
+   "names": [
+    "pnpm"
+   ],
+   "raw_names": {
+    "homebrew": "pnpm",
+    "pkgstats": "pnpm",
+    "so-survey": "pnpm"
+   },
+   "hits": [
+    "so-survey",
+    "homebrew",
+    "pkgstats"
+   ]
+  },
+  {
+   "key": "poetry",
+   "names": [
+    "poetry"
+   ],
+   "raw_names": {
+    "homebrew": "poetry",
+    "pkgstats": "python-poetry",
+    "so-survey": "Poetry"
+   },
+   "hits": [
+    "so-survey",
+    "homebrew",
+    "pkgstats"
+   ]
+  },
+  {
+   "key": "terraform",
+   "names": [
+    "terraform"
+   ],
+   "raw_names": {
+    "homebrew": "hashicorp/tap/terraform",
+    "pkgstats": "terraform",
+    "so-survey": "Terraform"
+   },
+   "hits": [
+    "so-survey",
+    "homebrew",
+    "pkgstats"
+   ]
+  }
+ ],
+ [
+  {
+   "key": "uv",
+   "names": [
+    "uv"
+   ],
+   "raw_names": {
+    "homebrew": "uv",
+    "pkgstats": "uv",
+    "so-survey": "uv"
+   },
+   "hits": [
+    "so-survey",
+    "homebrew",
+    "pkgstats"
+   ]
+  },
+  {
+   "key": "yarn",
+   "names": [
+    "yarn"
+   ],
+   "raw_names": {
+    "homebrew": "yarn",
+    "pkgstats": "yarn",
+    "so-survey": "Yarn"
+   },
+   "hits": [
+    "so-survey",
+    "homebrew",
+    "pkgstats"
+   ]
+  },
+  {
+   "key": "aria2",
+   "names": [
+    "aria2"
+   ],
+   "raw_names": {
+    "awesome": "aria2",
+    "homebrew": "aria2",
+    "pkgstats": "aria2",
+    "popcon": "aria2"
+   },
+   "hits": [
+    "homebrew",
+    "pkgstats",
+    "popcon",
+    "awesome"
+   ]
+  },
+  {
+   "key": "audacity",
+   "names": [
+    "audacity"
+   ],
+   "raw_names": {
+    "flathub": "Audacity",
+    "pkgstats": "audacity",
+    "popcon": "audacity"
+   },
+   "hits": [
+    "flathub",
+    "pkgstats",
+    "popcon"
+   ]
+  },
+  {
+   "key": "bat",
+   "names": [
+    "bat"
+   ],
+   "raw_names": {
+    "awesome": "bat",
+    "homebrew": "bat",
+    "pkgstats": "bat",
+    "popcon": "bat"
+   },
+   "hits": [
+    "homebrew",
+    "pkgstats",
+    "popcon",
+    "awesome"
+   ]
+  },
+  {
+   "key": "brave",
+   "names": [
+    "brave"
+   ],
+   "raw_names": {
+    "flathub": "Brave",
+    "pkgstats": "brave-bin",
+    "popcon": "brave-browser"
+   },
+   "hits": [
+    "flathub",
+    "pkgstats",
+    "popcon"
+   ]
+  },
+  {
+   "key": "btop",
+   "names": [
+    "btop"
+   ],
+   "raw_names": {
+    "homebrew": "btop",
+    "pkgstats": "btop",
+    "popcon": "btop"
+   },
+   "hits": [
+    "homebrew",
+    "pkgstats",
+    "popcon"
+   ]
+  },
+  {
+   "key": "chrome",
+   "names": [
+    "chrome"
+   ],
+   "raw_names": {
+    "flathub": "Google Chrome",
+    "pkgstats": "google-chrome",
+    "popcon": "google-chrome-stable"
+   },
+   "hits": [
+    "flathub",
+    "pkgstats",
+    "popcon"
+   ]
+  }
+ ],
+ [
+  {
+   "key": "chromium",
+   "names": [
+    "chromium"
+   ],
+   "raw_names": {
+    "flathub": "Chromium Web Browser",
+    "pkgstats": "chromium",
+    "popcon": "chromium"
+   },
+   "hits": [
+    "flathub",
+    "pkgstats",
+    "popcon"
+   ]
+  },
+  {
+   "key": "cmake",
+   "names": [
+    "cmake"
+   ],
+   "raw_names": {
+    "homebrew": "cmake",
+    "pkgstats": "cmake",
+    "popcon": "cmake"
+   },
+   "hits": [
+    "homebrew",
+    "pkgstats",
+    "popcon"
+   ]
+  },
+  {
+   "key": "discord",
+   "names": [
+    "discord"
+   ],
+   "raw_names": {
+    "flathub": "Discord",
+    "pkgstats": "discord",
+    "popcon": "discord"
+   },
+   "hits": [
+    "flathub",
+    "pkgstats",
+    "popcon"
+   ]
+  },
+  {
+   "key": "docker-compose",
+   "names": [
+    "docker-compose"
+   ],
+   "raw_names": {
+    "homebrew": "docker-compose",
+    "pkgstats": "docker-compose",
+    "popcon": "docker-compose"
+   },
+   "hits": [
+    "homebrew",
+    "pkgstats",
+    "popcon"
+   ]
+  },
+  {
+   "key": "dotnet",
+   "names": [
+    "dotnet"
+   ],
+   "raw_names": {
+    "jetbrains": "C#",
+    "pkgstats": "dotnet-sdk",
+    "so-survey": "C#"
+   },
+   "hits": [
+    "so-survey",
+    "pkgstats",
+    "jetbrains"
+   ]
+  },
+  {
+   "key": "edge",
+   "names": [
+    "edge",
+    "microsoft-edge"
+   ],
+   "raw_names": {
+    "flathub": "Microsoft Edge",
+    "pkgstats": "microsoft-edge-stable-bin",
+    "popcon": "microsoft-edge-stable"
+   },
+   "hits": [
+    "flathub",
+    "pkgstats",
+    "popcon"
+   ]
+  },
+  {
+   "key": "eza",
+   "names": [
+    "eza"
+   ],
+   "raw_names": {
+    "awesome": "exa/eza",
+    "homebrew": "eza",
+    "pkgstats": "eza"
+   },
+   "hits": [
+    "homebrew",
+    "pkgstats",
+    "awesome"
+   ]
+  },
+  {
+   "key": "fastfetch",
+   "names": [
+    "fastfetch"
+   ],
+   "raw_names": {
+    "homebrew": "fastfetch",
+    "pkgstats": "fastfetch",
+    "popcon": "fastfetch"
+   },
+   "hits": [
+    "homebrew",
+    "pkgstats",
+    "popcon"
+   ]
+  }
+ ],
+ [
+  {
+   "key": "fd",
+   "names": [
+    "fd"
+   ],
+   "raw_names": {
+    "awesome": "fd",
+    "homebrew": "fd",
+    "pkgstats": "fd",
+    "popcon": "fd-find"
+   },
+   "hits": [
+    "homebrew",
+    "pkgstats",
+    "popcon",
+    "awesome"
+   ]
+  },
+  {
+   "key": "ffmpeg",
+   "names": [
+    "ffmpeg"
+   ],
+   "raw_names": {
+    "homebrew": "ffmpeg",
+    "pkgstats": "ffmpeg",
+    "popcon": "ffmpeg"
+   },
+   "hits": [
+    "homebrew",
+    "pkgstats",
+    "popcon"
+   ]
+  },
+  {
+   "key": "fish",
+   "names": [
+    "fish"
+   ],
+   "raw_names": {
+    "homebrew": "fish",
+    "pkgstats": "fish",
+    "popcon": "fish"
+   },
+   "hits": [
+    "homebrew",
+    "pkgstats",
+    "popcon"
+   ]
+  },
+  {
+   "key": "flatpak",
+   "names": [
+    "flatpak"
+   ],
+   "raw_names": {
+    "curation": "flatpak",
+    "pkgstats": "flatpak",
+    "popcon": "flatpak"
+   },
+   "hits": [
+    "curation",
+    "pkgstats",
+    "popcon"
+   ]
+  },
+  {
+   "key": "fzf",
+   "names": [
+    "fzf"
+   ],
+   "raw_names": {
+    "awesome": "fzf",
+    "homebrew": "fzf",
+    "pkgstats": "fzf",
+    "popcon": "fzf"
+   },
+   "hits": [
+    "homebrew",
+    "pkgstats",
+    "popcon",
+    "awesome"
+   ]
+  },
+  {
+   "key": "gimp",
+   "names": [
+    "gimp"
+   ],
+   "raw_names": {
+    "flathub": "GNU Image Manipulation Program",
+    "pkgstats": "gimp",
+    "popcon": "gimp"
+   },
+   "hits": [
+    "flathub",
+    "pkgstats",
+    "popcon"
+   ]
+  },
+  {
+   "key": "git-lfs",
+   "names": [
+    "git-lfs"
+   ],
+   "raw_names": {
+    "homebrew": "git-lfs",
+    "pkgstats": "git-lfs",
+    "popcon": "git-lfs"
+   },
+   "hits": [
+    "homebrew",
+    "pkgstats",
+    "popcon"
+   ]
+  },
+  {
+   "key": "gnupg",
+   "names": [
+    "gnupg"
+   ],
+   "raw_names": {
+    "homebrew": "gnupg",
+    "pkgstats": "gnupg",
+    "popcon": "gpg"
+   },
+   "hits": [
+    "homebrew",
+    "pkgstats",
+    "popcon"
+   ]
+  }
+ ],
+ [
+  {
+   "key": "graphviz",
+   "names": [
+    "graphviz"
+   ],
+   "raw_names": {
+    "homebrew": "graphviz",
+    "pkgstats": "graphviz",
+    "popcon": "graphviz"
+   },
+   "hits": [
+    "homebrew",
+    "pkgstats",
+    "popcon"
+   ]
+  },
+  {
+   "key": "htop",
+   "names": [
+    "htop"
+   ],
+   "raw_names": {
+    "homebrew": "htop",
+    "pkgstats": "htop",
+    "popcon": "htop"
+   },
+   "hits": [
+    "homebrew",
+    "pkgstats",
+    "popcon"
+   ]
+  },
+  {
+   "key": "httpie",
+   "names": [
+    "httpie"
+   ],
+   "raw_names": {
+    "awesome": "httpie",
+    "homebrew": "httpie",
+    "pkgstats": "httpie"
+   },
+   "hits": [
+    "homebrew",
+    "pkgstats",
+    "awesome"
+   ]
+  },
+  {
+   "key": "imagemagick",
+   "names": [
+    "imagemagick"
+   ],
+   "raw_names": {
+    "homebrew": "imagemagick",
+    "pkgstats": "imagemagick",
+    "popcon": "imagemagick-7.q16"
+   },
+   "hits": [
+    "homebrew",
+    "pkgstats",
+    "popcon"
+   ]
+  },
+  {
+   "key": "inkscape",
+   "names": [
+    "inkscape"
+   ],
+   "raw_names": {
+    "flathub": "Inkscape",
+    "pkgstats": "inkscape",
+    "popcon": "inkscape"
+   },
+   "hits": [
+    "flathub",
+    "pkgstats",
+    "popcon"
+   ]
+  },
+  {
+   "key": "iperf3",
+   "names": [
+    "iperf3"
+   ],
+   "raw_names": {
+    "homebrew": "iperf3",
+    "pkgstats": "iperf3",
+    "popcon": "iperf3"
+   },
+   "hits": [
+    "homebrew",
+    "pkgstats",
+    "popcon"
+   ]
+  },
+  {
+   "key": "jetbrains-idea",
+   "names": [
+    "jetbrains-idea"
+   ],
+   "raw_names": {
+    "jetbrains": "IntelliJ IDEA",
+    "pkgstats": "intellij-idea-community-edition",
+    "so-survey": "IntelliJ IDEA"
+   },
+   "hits": [
+    "so-survey",
+    "pkgstats",
+    "jetbrains"
+   ]
+  },
+  {
+   "key": "jetbrains-pycharm",
+   "names": [
+    "jetbrains-pycharm",
+    "pycharm"
+   ],
+   "raw_names": {
+    "jetbrains": "PyCharm",
+    "pkgstats": "pycharm-community-edition",
+    "so-survey": "PyCharm"
+   },
+   "hits": [
+    "so-survey",
+    "pkgstats",
+    "jetbrains"
+   ]
+  }
+ ],
+ [
+  {
+   "key": "jq",
+   "names": [
+    "jq"
+   ],
+   "raw_names": {
+    "awesome": "jq",
+    "homebrew": "jq",
+    "pkgstats": "jq",
+    "popcon": "jq"
+   },
+   "hits": [
+    "homebrew",
+    "pkgstats",
+    "popcon",
+    "awesome"
+   ]
+  },
+  {
+   "key": "just",
+   "names": [
+    "just"
+   ],
+   "raw_names": {
+    "awesome": "just",
+    "homebrew": "just",
+    "pkgstats": "just"
+   },
+   "hits": [
+    "homebrew",
+    "pkgstats",
+    "awesome"
+   ]
+  },
+  {
+   "key": "keepassxc",
+   "names": [
+    "keepassxc"
+   ],
+   "raw_names": {
+    "flathub": "KeePassXC",
+    "pkgstats": "keepassxc",
+    "popcon": "keepassxc"
+   },
+   "hits": [
+    "flathub",
+    "pkgstats",
+    "popcon"
+   ]
+  },
+  {
+   "key": "kotlin",
+   "names": [
+    "kotlin"
+   ],
+   "raw_names": {
+    "jetbrains": "Kotlin",
+    "pkgstats": "kotlin",
+    "so-survey": "Kotlin"
+   },
+   "hits": [
+    "so-survey",
+    "pkgstats",
+    "jetbrains"
+   ]
+  },
+  {
+   "key": "krita",
+   "names": [
+    "krita"
+   ],
+   "raw_names": {
+    "flathub": "Krita",
+    "pkgstats": "krita",
+    "popcon": "krita"
+   },
+   "hits": [
+    "flathub",
+    "pkgstats",
+    "popcon"
+   ]
+  },
+  {
+   "key": "lazygit",
+   "names": [
+    "lazygit"
+   ],
+   "raw_names": {
+    "awesome": "lazygit",
+    "homebrew": "lazygit",
+    "pkgstats": "lazygit"
+   },
+   "hits": [
+    "homebrew",
+    "pkgstats",
+    "awesome"
+   ]
+  },
+  {
+   "key": "libreoffice",
+   "names": [
+    "libreoffice"
+   ],
+   "raw_names": {
+    "flathub": "LibreOffice",
+    "pkgstats": "libreoffice-fresh + libreoffice-still",
+    "popcon": "libreoffice-writer"
+   },
+   "hits": [
+    "flathub",
+    "pkgstats",
+    "popcon"
+   ]
+  },
+  {
+   "key": "lua",
+   "names": [
+    "lua"
+   ],
+   "raw_names": {
+    "homebrew": "lua",
+    "jetbrains": "Lua",
+    "so-survey": "Lua"
+   },
+   "hits": [
+    "so-survey",
+    "homebrew",
+    "jetbrains"
+   ]
+  }
+ ],
+ [
+  {
+   "key": "mariadb",
+   "names": [
+    "mariadb"
+   ],
+   "raw_names": {
+    "jetbrains": "MariaDB",
+    "pkgstats": "mariadb",
+    "popcon": "mariadb-server",
+    "so-survey": "MariaDB"
+   },
+   "hits": [
+    "so-survey",
+    "pkgstats",
+    "jetbrains",
+    "popcon"
+   ]
+  },
+  {
+   "key": "mysql",
+   "names": [
+    "mysql"
+   ],
+   "raw_names": {
+    "homebrew": "mysql+mysql@8.0+mysql-client",
+    "jetbrains": "MySQL",
+    "so-survey": "MySQL"
+   },
+   "hits": [
+    "so-survey",
+    "homebrew",
+    "jetbrains"
+   ]
+  },
+  {
+   "key": "nano",
+   "names": [
+    "nano"
+   ],
+   "raw_names": {
+    "pkgstats": "nano",
+    "popcon": "nano",
+    "so-survey": "Nano"
+   },
+   "hits": [
+    "so-survey",
+    "pkgstats",
+    "popcon"
+   ]
+  },
+  {
+   "key": "nginx",
+   "names": [
+    "nginx"
+   ],
+   "raw_names": {
+    "homebrew": "nginx",
+    "pkgstats": "nginx",
+    "popcon": "nginx"
+   },
+   "hits": [
+    "homebrew",
+    "pkgstats",
+    "popcon"
+   ]
+  },
+  {
+   "key": "nmap",
+   "names": [
+    "nmap"
+   ],
+   "raw_names": {
+    "homebrew": "nmap",
+    "pkgstats": "nmap",
+    "popcon": "nmap"
+   },
+   "hits": [
+    "homebrew",
+    "pkgstats",
+    "popcon"
+   ]
+  },
+  {
+   "key": "obs-studio",
+   "names": [
+    "obs-studio"
+   ],
+   "raw_names": {
+    "flathub": "OBS Studio",
+    "pkgstats": "obs-studio",
+    "popcon": "obs-studio"
+   },
+   "hits": [
+    "flathub",
+    "pkgstats",
+    "popcon"
+   ]
+  },
+  {
+   "key": "p7zip",
+   "names": [
+    "7zip",
+    "p7zip"
+   ],
+   "raw_names": {
+    "homebrew": "p7zip",
+    "pkgstats": "7zip",
+    "popcon": "7zip"
+   },
+   "hits": [
+    "homebrew",
+    "pkgstats",
+    "popcon"
+   ]
+  },
+  {
+   "key": "pandoc",
+   "names": [
+    "pandoc"
+   ],
+   "raw_names": {
+    "homebrew": "pandoc",
+    "pkgstats": "pandoc-cli",
+    "popcon": "pandoc"
+   },
+   "hits": [
+    "homebrew",
+    "pkgstats",
+    "popcon"
+   ]
+  }
+ ],
+ [
+  {
+   "key": "pipx",
+   "names": [
+    "pipx"
+   ],
+   "raw_names": {
+    "homebrew": "pipx",
+    "pkgstats": "python-pipx",
+    "popcon": "pipx"
+   },
+   "hits": [
+    "homebrew",
+    "pkgstats",
+    "popcon"
+   ]
+  },
+  {
+   "key": "qbittorrent",
+   "names": [
+    "qbittorrent"
+   ],
+   "raw_names": {
+    "flathub": "qBittorrent",
+    "pkgstats": "qbittorrent",
+    "popcon": "qbittorrent"
+   },
+   "hits": [
+    "flathub",
+    "pkgstats",
+    "popcon"
+   ]
+  },
+  {
+   "key": "qemu",
+   "names": [
+    "qemu"
+   ],
+   "raw_names": {
+    "homebrew": "qemu",
+    "pkgstats": "qemu-base",
+    "popcon": "qemu-system-x86"
+   },
+   "hits": [
+    "homebrew",
+    "pkgstats",
+    "popcon"
+   ]
+  },
+  {
+   "key": "rclone",
+   "names": [
+    "rclone"
+   ],
+   "raw_names": {
+    "homebrew": "rclone",
+    "pkgstats": "rclone",
+    "popcon": "rclone"
+   },
+   "hits": [
+    "homebrew",
+    "pkgstats",
+    "popcon"
+   ]
+  },
+  {
+   "key": "ripgrep",
+   "names": [
+    "ripgrep"
+   ],
+   "raw_names": {
+    "awesome": "ripgrep",
+    "homebrew": "ripgrep",
+    "pkgstats": "ripgrep",
+    "popcon": "ripgrep"
+   },
+   "hits": [
+    "homebrew",
+    "pkgstats",
+    "popcon",
+    "awesome"
+   ]
+  },
+  {
+   "key": "rsync",
+   "names": [
+    "rsync"
+   ],
+   "raw_names": {
+    "homebrew": "rsync",
+    "pkgstats": "rsync",
+    "popcon": "rsync"
+   },
+   "hits": [
+    "homebrew",
+    "pkgstats",
+    "popcon"
+   ]
+  },
+  {
+   "key": "signal",
+   "names": [
+    "signal"
+   ],
+   "raw_names": {
+    "flathub": "Signal Desktop",
+    "pkgstats": "signal-desktop",
+    "popcon": "signal-desktop"
+   },
+   "hits": [
+    "flathub",
+    "pkgstats",
+    "popcon"
+   ]
+  },
+  {
+   "key": "spotify",
+   "names": [
+    "spotify"
+   ],
+   "raw_names": {
+    "flathub": "Spotify",
+    "pkgstats": "spotify",
+    "popcon": "spotify-client"
+   },
+   "hits": [
+    "flathub",
+    "pkgstats",
+    "popcon"
+   ]
+  }
+ ],
+ [
+  {
+   "key": "starship",
+   "names": [
+    "starship"
+   ],
+   "raw_names": {
+    "awesome": "starship",
+    "homebrew": "starship",
+    "pkgstats": "starship"
+   },
+   "hits": [
+    "homebrew",
+    "pkgstats",
+    "awesome"
+   ]
+  },
+  {
+   "key": "sublime-text",
+   "names": [
+    "sublime-text"
+   ],
+   "raw_names": {
+    "jetbrains": "Sublime Text",
+    "pkgstats": "sublime-text-4",
+    "so-survey": "Sublime Text"
+   },
+   "hits": [
+    "so-survey",
+    "pkgstats",
+    "jetbrains"
+   ]
+  },
+  {
+   "key": "telegram",
+   "names": [
+    "telegram"
+   ],
+   "raw_names": {
+    "flathub": "Telegram",
+    "pkgstats": "telegram-desktop",
+    "popcon": "telegram-desktop"
+   },
+   "hits": [
+    "flathub",
+    "pkgstats",
+    "popcon"
+   ]
+  },
+  {
+   "key": "thunderbird",
+   "names": [
+    "thunderbird"
+   ],
+   "raw_names": {
+    "flathub": "Thunderbird ESR",
+    "pkgstats": "thunderbird",
+    "popcon": "thunderbird"
+   },
+   "hits": [
+    "flathub",
+    "pkgstats",
+    "popcon"
+   ]
+  },
+  {
+   "key": "tmux",
+   "names": [
+    "tmux"
+   ],
+   "raw_names": {
+    "homebrew": "tmux",
+    "pkgstats": "tmux",
+    "popcon": "tmux"
+   },
+   "hits": [
+    "homebrew",
+    "pkgstats",
+    "popcon"
+   ]
+  },
+  {
+   "key": "tree",
+   "names": [
+    "tree"
+   ],
+   "raw_names": {
+    "homebrew": "tree",
+    "pkgstats": "tree",
+    "popcon": "tree"
+   },
+   "hits": [
+    "homebrew",
+    "pkgstats",
+    "popcon"
+   ]
+  },
+  {
+   "key": "typescript",
+   "names": [
+    "typescript"
+   ],
+   "raw_names": {
+    "jetbrains": "TypeScript",
+    "pkgstats": "typescript",
+    "so-survey": "TypeScript"
+   },
+   "hits": [
+    "so-survey",
+    "pkgstats",
+    "jetbrains"
+   ]
+  },
+  {
+   "key": "vivaldi",
+   "names": [
+    "vivaldi"
+   ],
+   "raw_names": {
+    "flathub": "Vivaldi",
+    "pkgstats": "vivaldi",
+    "popcon": "vivaldi-stable"
+   },
+   "hits": [
+    "flathub",
+    "pkgstats",
+    "popcon"
+   ]
+  }
+ ],
+ [
+  {
+   "key": "yq",
+   "names": [
+    "yq"
+   ],
+   "raw_names": {
+    "awesome": "yq",
+    "homebrew": "yq",
+    "pkgstats": "yq"
+   },
+   "hits": [
+    "homebrew",
+    "pkgstats",
+    "awesome"
+   ]
+  },
+  {
+   "key": "yt-dlp",
+   "names": [
+    "yt-dlp"
+   ],
+   "raw_names": {
+    "awesome": "yt-dlp",
+    "homebrew": "yt-dlp",
+    "pkgstats": "yt-dlp",
+    "popcon": "yt-dlp"
+   },
+   "hits": [
+    "homebrew",
+    "pkgstats",
+    "popcon",
+    "awesome"
+   ]
+  },
+  {
+   "key": "zed",
+   "names": [
+    "zed"
+   ],
+   "raw_names": {
+    "jetbrains": "Zed",
+    "pkgstats": "zed",
+    "so-survey": "Zed"
+   },
+   "hits": [
+    "so-survey",
+    "pkgstats",
+    "jetbrains"
+   ]
+  },
+  {
+   "key": "zoom",
+   "names": [
+    "zoom"
+   ],
+   "raw_names": {
+    "flathub": "Zoom",
+    "pkgstats": "zoom",
+    "popcon": "zoom"
+   },
+   "hits": [
+    "flathub",
+    "pkgstats",
+    "popcon"
+   ]
+  },
+  {
+   "key": "zoxide",
+   "names": [
+    "zoxide"
+   ],
+   "raw_names": {
+    "awesome": "zoxide",
+    "homebrew": "zoxide",
+    "pkgstats": "zoxide"
+   },
+   "hits": [
+    "homebrew",
+    "pkgstats",
+    "awesome"
+   ]
+  },
+  {
+   "key": "zsh",
+   "names": [
+    "zsh"
+   ],
+   "raw_names": {
+    "homebrew": "zsh",
+    "pkgstats": "zsh",
+    "popcon": "zsh"
+   },
+   "hits": [
+    "homebrew",
+    "pkgstats",
+    "popcon"
+   ]
+  }
+ ]
+]

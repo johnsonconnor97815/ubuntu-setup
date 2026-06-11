@@ -18,10 +18,17 @@
 
 ## Acceptance Criteria
 
-* [ ] `research/sources/*.json` 快照齐全（8 源或显式记录某源不可得的原因）。
-* [ ] 计票脚本重跑可复现同一结果；N 值若调整有书面理由。
-* [ ] 定稿清单（`research/final-list.md` + 机器可读 JSON）逐条标注齐全、可溯源。
-* [ ] 类别空洞复查记录在案；bedrock 白名单单独成节供评审。
+* [x] `research/sources/*.json` 快照齐全（8/8 源，无缺失）。
+* [x] 计票脚本重跑可复现同一结果（`tally.py`，禁并对拦截 24 次误合并）；N 值维持方案 A，理由见 `research/conclusion.md` §1。
+* [x] 定稿清单（`research/final-list.md` + `final-list.json`）110 条逐条标注齐全、可溯源。
+* [x] 类别空洞复查记录在案（conclusion.md §2c）；bedrock 白名单评审稿单独成节（§2b，待用户 PR 评审）。
+
+## 交付物索引
+
+* [`research/conclusion.md`](research/conclusion.md) — 结论：110 条入选 +4 依赖引证 −1 合并；provider 缺口 deb 21/script 14/snap 6/ppa 4；container 95/VM 15。
+* [`research/final-list.md`](research/final-list.md) / `final-list.json` — 定稿清单（按类别分组，含官方装法溯源）。
+* [`research/tally.md`](research/tally.md) / `tally.json` — 计票结果与 134 条观察区。
+* `research/sources/` — 8 源快照；`tally.py` / `assemble.py` — 可重跑管线。
 
 ## Out of Scope
 
