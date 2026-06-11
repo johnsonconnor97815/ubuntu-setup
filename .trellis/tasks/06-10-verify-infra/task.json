@@ -3,7 +3,7 @@
   "name": "verify-infra",
   "title": "验证基建：容器/VM 真装集成测试",
   "description": "",
-  "status": "planning",
+  "status": "in_progress",
   "dev_type": null,
   "scope": null,
   "package": null,

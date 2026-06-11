@@ -141,6 +141,20 @@ JSON, stored at `~/.local/state/ubuntu-setup/manifest.json` (XDG state dir, reso
 
 ---
 
+## Real-install verification (the integration tier)
+
+The unit suite proves the engine against fakes; catalog entries are additionally verified by **really installing them in disposable, clean Ubuntu 24.04 guests** (code-backed: `tests/integration/`). The protocol per entry — fresh `check` (absent; dry-run records nothing) → real install (exit 0, outcome `changed`, the binary runs, transaction recorded) → idempotent re-run (outcome `ok`, no second install) — is this spec's execution model asserted end-to-end: exit codes, stdout and manifest semantics.
+
+Conventions (locked by the verify-infra task):
+
+- **Two tiers** (the intersection-research split): plain **Docker containers** for the apt/dpkg/file class (`tests/integration/test_container.py`; a baked `verify-base` image = ubuntu:24.04 + NOPASSWD sudo for the stock `ubuntu` user + python3-venv + apt-packaged deps + fresh apt lists — the stock OCI image is *too* minimal to stand in for a fresh install), and **LXD/Incus system containers** for the systemd/snap/flatpak class (`tests/integration/test_system.py`; the real-VM escape hatch is the driver's `vm=True`, per-entry `config=` carries e.g. `security.nesting` for the docker entry). Drivers (`launch/exec/push/destroy`) live in `tests/integration/drivers.py` — `lxc` vs `incus` is just the binary name.
+- **Gate**: everything is behind `UBUNTU_SETUP_INTEGRATION=1` (the `UBUNTU_SETUP_SMOKE` convention) — the default `python -m unittest discover -s tests` stays green and fast (gated classes skip instantly). Tiers run separately by module path: `UBUNTU_SETUP_INTEGRATION=1 python -m unittest tests.integration.test_container -v` (resp. `test_system`). Driver unit tests (mock host-run, `test_drivers.py`) are not gated.
+- **Wheel injection**: the project wheel is built on the host (uv, pip fallback) into a temp dir, pushed into the guest, and installed into a `--system-site-packages` venv with `--no-deps` (24.04 is PEP 668 externally-managed; deps come from the guest's apt packages — no PyPI traffic, and headless paths never import textual). No host residue beyond setuptools' gitignored in-repo build byproducts (`build/`, `*.egg-info`); guests are one-per-entry, never reused — unique names are what make parallel entries safe.
+- **Skip, never install, on the host**: a missing docker daemon or lxd/incus is an explicit skip naming the unlock step — the suite must never run sudo/apt/snap on the host.
+- **Diagnostics**: on failure the guest transcript, the tool's in-guest audit log and the manifest snapshot land under `tests/integration/_artifacts/` (gitignored; override via `UBUNTU_SETUP_INTEGRATION_ARTIFACTS`; `UBUNTU_SETUP_INTEGRATION_KEEP=1` keeps the failed guest alive). `UBUNTU_SETUP_VERIFY_BASE_IMAGE` substitutes a byte-identical official base reference for hosts where docker.io sits behind a broken proxy (e.g. `mirror.gcr.io/library/ubuntu:24.04`).
+
+---
+
 ## The apt cache is a special, non-idempotent case
 
 `apt-get update` has no stable end-state (Ansible reports it always "changed"). Treat it as a separate, non-state-bearing step:

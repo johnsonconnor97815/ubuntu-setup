@@ -72,7 +72,9 @@ ubuntu_setup/
 └── llm/                   # POST-MVP. Empty/stub until the LLM phase. See ../catalog/authoring-guidelines.md
     └── __init__.py
 
-tests/                     # mirrors the package: tests/core/, tests/providers/, tests/tui/
+tests/                     # mirrors the package: tests/core/, tests/providers/, tests/tui/;
+                           # plus tests/integration/ — the gated real-install tier
+                           # (see idempotency-and-execution.md, "Real-install verification")
 pyproject.toml             # package metadata, deps (textual>=8,<9, pyyaml, jsonschema), entry point
 ```
 

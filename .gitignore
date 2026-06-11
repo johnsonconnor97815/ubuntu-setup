@@ -219,3 +219,6 @@ __marimo__/
 
 # Codegraph local index (machine-local, rebuilt by `codegraph init`)
 .codegraph/
+
+# Integration-tier failure diagnostics (guest transcripts / audit logs)
+tests/integration/_artifacts/

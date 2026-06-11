@@ -1,1 +1,3 @@
-{"_example": "Fill with {\"file\": \"<path>\", \"reason\": \"<why>\"}. Put spec/research files only — no code paths. Run `python3 .trellis/scripts/get_context.py --mode packages` to list available specs. Delete this line once real entries are added."}
+{"file": ".trellis/tasks/06-10-verify-infra/prd.md", "reason": "复查：AC 逐条——Docker 档两条目全链绿、LXD 优雅 skip、宿主零残留、默认套件不受影响、文档化"}
+{"file": ".trellis/tasks/06-10-verify-infra/research/isolation-tech.md", "reason": "复查：实现与选型一致（镜像、注入方式、并行安全、CI-ready 设计未走样）"}
+{"file": ".trellis/spec/core/idempotency-and-execution.md", "reason": "复查：验证协议断言对齐 spec 语义与退出码表；spec 回写一致"}
