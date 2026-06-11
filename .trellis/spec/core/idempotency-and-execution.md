@@ -26,7 +26,10 @@ Anti-pattern: gating an install on a stored boolean. Always re-derive current st
 
 `core/planner.py` turns a set of desired actions (install/remove/upgrade of selected ids — from the TUI or a `--apply <manifest>` run) into an ordered `Plan`.
 
-- **Dependency expansion + topological sort.** Expand `depends_on` into the full closure, dedupe shared subtrees with a cache, guard against cycles, then topologically sort so each entry is acted on after its dependencies (Homebrew's `Dependency.expand` + `TopologicalHash`). A `ppa`/`deb` repo entry is a dependency of the `apt` entry that needs it.
+- **Dependency expansion + topological sort** (code-backed: `core/planner.py::build_plan`, tests `tests/core/test_planner.py::TestClosureAndTopoSort`). Expand `depends_on` into the full closure, dedupe shared subtrees, guard against cycles, then topologically sort so each entry is acted on after its dependencies (Homebrew's `Dependency.expand` + `TopologicalHash`). A `ppa`/`deb` repo entry is a dependency of the `apt` entry that needs it. The implemented contract:
+  - closure expansion applies to **install/upgrade** (a dependency converges with an implicit `install`; an explicit desired op for the same id wins); a **remove never pulls dependencies in**;
+  - the order is **deterministic and stable**: depth-first in input order, dependencies before dependents, each id once — independent entries keep their listed order;
+  - a dependency cycle (incl. self-dependency) raises `CatalogError` carrying the cycle path (e.g. `a -> b -> a`); the same id desired twice with **conflicting ops** is `CatalogError` (an exact duplicate is deduped); a dependency missing from the planning catalog (only possible against a filtered subset — the loader resolves `depends_on` against the full catalog) fails loudly.
 - **Plan is data.** A `Plan` is a list of `Action(entry, op, predicted_state_change)` — no side effects. It can be rendered, diffed, and unit-tested headless.
 
 ---
@@ -56,7 +59,17 @@ Per-entry outcomes to record and surface: `changed` / `ok` (already satisfied, s
 
 - A **`ProviderError`** — an *applicable* step failed (a command returned non-zero) — triggers **fail-fast**: stop the run, exit `1`.
 - A **`PreconditionError`** — the entry isn't applicable on this host (e.g. `snapd` absent, or `software-properties-common` can't be installed) — is **skipped** (recorded `skipped`) and the run **continues**. This is detect-and-skip, not failure.
-- A dependent of a *skipped* entry will, on its own turn, find its precondition unmet and either skip too or fail with its own `ProviderError` (which then stops the run). So a skip never silently leaves a half-built dependent — the topological order surfaces the consequence at the dependent.
+- A dependent of a *skipped* entry: if its own `check()` says it is already satisfied it stays `ok`; otherwise the executor **skips it too, naming the skipped dependency in the detail** (code-backed: the `skipped_ids` propagation in `core/executor.py`, tests `tests/core/test_executor.py::TestSkipPropagation`) — it never fails just because a dependency skipped. So a skip never silently leaves a half-built dependent — the topological order surfaces the consequence at the dependent.
+
+### The `requires` gate (host applicability)
+
+An entry may declare `requires: [desktop]` (see [catalog-and-providers.md](./catalog-and-providers.md)); the executor judges `entry.requires ⊆ capabilities` via `core/environment.py` **before** `check()` (code-backed, tests `tests/core/test_executor.py::TestRequiresGate`):
+
+- an unmet requirement is an **explicit skip** — a visible `StepFinished(skipped)` with the reason, recorded in the transaction like any outcome, never a silent drop and never an error: a manifest replayed on a no-desktop machine must succeed with visible skips;
+- detection is **lazy and once per run** (`environment.detect_capabilities`, probes through the runner seam): a plan with no `requires` never probes the host; callers may inject `capabilities` (the `service.apply`/`execute` parameter);
+- the same skip **propagates** down the dependency chain per the rule above, and dry runs show the skip too.
+
+The browse/scan surface applies the same judgment as a *filter*: `service.scan` does not yield inapplicable entries at all, and the TUI receives a `service.filter_catalog`-filtered catalog at startup (`cli._run_tui`) — invisibility is decided in the brain, never re-derived in the face (non-negotiable ①).
 
 ### Distinct exit codes (headless mode)
 

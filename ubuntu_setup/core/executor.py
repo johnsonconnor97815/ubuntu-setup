@@ -61,6 +61,7 @@ import queue
 import threading
 from typing import Any, Callable, Iterator
 
+from . import environment
 from . import runner as runner_mod
 from .errors import PreconditionError, PrivilegeError, ProviderError, UserAbort
 from .events import Event, OutputLine, RunFinished, RunStarted, StepFinished, StepStarted
@@ -198,6 +199,7 @@ def execute(
     cancel: "threading.Event | None" = None,
     results_sink: "list[StepResult] | None" = None,
     inflight: "runner_mod.InFlightCommand | None" = None,
+    capabilities: "frozenset[str] | None" = None,
 ) -> Iterator[Event]:
     """Run ``plan``, yielding events; the final event is :class:`RunFinished`.
 
@@ -228,6 +230,17 @@ def execute(
     while the stream was being closed/abandoned (no ``StepFinished`` can be
     yielded then). On a fully consumed stream the sink's content equals
     ``RunFinished.results``.
+
+    ``capabilities`` is the host-capability set the ``requires`` gate judges
+    against (``environment.unmet_requires``): an entry whose requirements are
+    unmet is skipped *explicitly* — a visible ``StepFinished(skipped)`` with
+    the reason, recorded like any other outcome, never a silent drop and never
+    a failure (a manifest replayed on a lesser host must succeed with visible
+    skips). ``None`` means detect lazily via :func:`environment.
+    detect_capabilities` on the first ``requires``-bearing entry — a plan
+    without ``requires`` never probes the host. A skip propagates: a dependent
+    of a skipped entry that would itself need action is skipped too (with the
+    dependency named), instead of failing.
     """
     if stream_run is None:
         stream_run = run if run is not None else runner_mod.run_streaming
@@ -238,6 +251,17 @@ def execute(
     results: list[StepResult] = results_sink if results_sink is not None else []
     exit_code = 0
     cancelled = False
+    #: ids skipped so far this run (requires gate or PreconditionError) — the
+    #: source the dependency-chain skip propagation reads
+    skipped_ids: "set[str]" = set()
+
+    def skip_step(entry: CatalogEntry, op: Op, detail: str) -> StepResult:
+        """Record one explicit skip (visible + recorded + propagating)."""
+        result = StepResult(entry.id, op, Outcome.SKIPPED, detail)
+        results.append(result)
+        skipped_ids.add(entry.id)
+        logger.warning("skipped %s: %s", entry.id, detail)
+        return result
 
     yield RunStarted(total=total)
 
@@ -252,6 +276,20 @@ def execute(
         op = action.op
         provider = get_provider(entry.type, run=run)
         yield StepStarted(index=index, total=total, entry_id=entry.id, op=op)
+
+        # requires gate (host applicability): an entry whose required host
+        # capabilities are unmet is skipped explicitly and the run continues
+        # (detect-and-skip, like a PreconditionError). Detection is lazy: a
+        # plan with no `requires` never probes the host.
+        if entry.requires:
+            if capabilities is None:
+                capabilities = environment.detect_capabilities(run=run)
+            unmet = environment.unmet_requires(entry, capabilities)
+            if unmet:
+                detail = f"requires {', '.join(unmet)}: not available on this host"
+                yield StepFinished(index=index, total=total,
+                                   result=skip_step(entry, op, detail))
+                continue
 
         # check() reads live state; a real check error (not "absent") fails fast
         try:
@@ -269,6 +307,18 @@ def execute(
             results.append(result)
             logger.info("ok: %s already %s", entry.id, state.value)
             yield StepFinished(index=index, total=total, result=result)
+            continue
+
+        # dependency-chain skip propagation (after the satisfied check, so an
+        # entry already in its desired state stays `ok`): a dependent that
+        # would need action while a dependency was skipped skips too — with
+        # the reason — instead of failing (prd: skip on the chain never fails
+        # the dependent).
+        skipped_deps = tuple(d for d in entry.depends_on if d in skipped_ids)
+        if skipped_deps:
+            detail = f"dependency {', '.join(skipped_deps)} was skipped"
+            yield StepFinished(index=index, total=total,
+                               result=skip_step(entry, op, detail))
             continue
 
         # probe before each privileged step (privilege-and-safety Rule 2): a
@@ -348,6 +398,7 @@ def execute(
             verb = f"would {op.value}" if check_mode else op.value
             logger.info("%s: %s (%s)", verb, entry.id, change)
         elif result.outcome is Outcome.SKIPPED:
+            skipped_ids.add(entry.id)  # PreconditionError skips propagate too
             logger.warning("skipped %s: %s", entry.id, result.detail)
         else:  # FAILED — fail-fast below
             logger.error("failed %s: %s", entry.id, result.detail)

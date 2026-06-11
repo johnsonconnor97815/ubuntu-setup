@@ -34,6 +34,12 @@
       "enum": ["official", "community", "ai-generated"],
       "default": "community"
     },
+    "requires": {
+      "type": "array",
+      "items": { "type": "string", "enum": ["desktop"] },
+      "default": [],
+      "description": "host capabilities the entry needs (subset semantics); enum kept in sync with core/environment.py KNOWN_CAPABILITIES"
+    },
     "package": { "type": "string" },
     "version": { "type": "string" },
     "hold": { "type": "boolean" }

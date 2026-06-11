@@ -6,7 +6,7 @@
 
 ## Status: layout code-backed (core slice + TUI loop); some providers still planned
 
-The skeleton below is real: `cli.py` (bare command → TUI; `--install`/`--apply` headless), `core/` (models/catalog/planner/executor/events/service/runner/privilege/state/errors + the `apt` provider), `tui/` (`app.py` + `screens/{browse,confirm,progress}.py`), `catalog/` (schema + `cli-tools.yaml`), `tests/` mirroring it. Entries marked *(planned)* below — the other providers, `tui/widgets/`, the installed screen, `llm/` content — are still prescriptive. Do not silently drop a rule; change the design on purpose.
+The skeleton below is real: `cli.py` (bare command → TUI; `--install`/`--apply` headless), `core/` (models/catalog/planner/executor/environment/events/service/runner/privilege/state/errors + the `apt` provider), `tui/` (`app.py` + `screens/{browse,confirm,progress}.py`), `catalog/` (schema + `cli-tools.yaml`), `tests/` mirroring it. Entries marked *(planned)* below — the other providers, `tui/widgets/`, the installed screen, `llm/` content — are still prescriptive. Do not silently drop a rule; change the design on purpose.
 
 ---
 
@@ -48,8 +48,9 @@ ubuntu_setup/
 │   │   ├── dotfile_block.py   # (planned)
 │   │   ├── service.py         # (planned)
 │   │   └── script.py          # (planned) the escape hatch — see ../catalog/authoring-guidelines.md
-│   ├── planner.py         # desired actions → ordered Plan (dependency sort) + dry-run diff
-│   ├── executor.py        # run a Plan as a generator of events: fail-fast, check-before-act
+│   ├── planner.py         # desired actions → ordered Plan (depends_on closure + stable topological sort)
+│   ├── executor.py        # run a Plan as a generator of events: fail-fast, check-before-act, requires gate
+│   ├── environment.py     # host capability detection (the `requires` judgment: desktop, ...) — injectable probes
 │   ├── events.py          # the progress-event dataclasses the executor yields (RunStarted … RunFinished)
 │   ├── service.py         # orchestration facade: load → plan → apply (+ cancel) → record; full-status scan — shared by CLI & TUI
 │   ├── runner.py          # the ONLY subprocess wrapper: env, logging, capture/streaming, timeout, terminate

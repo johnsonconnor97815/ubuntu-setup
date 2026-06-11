@@ -21,6 +21,7 @@ Each software unit is one YAML mapping, validated against `catalog/schema.json` 
   package: ripgrep       # type-specific
   depends_on: []         # optional (default []): ids that must converge first
   tags: [cli, search]    # optional (default []): grouping / profiles
+  requires: []           # optional (default []): host capabilities needed; enum: desktop
   source: official       # optional (default community): official | community | ai-generated
 ```
 
@@ -28,7 +29,7 @@ Each software unit is one YAML mapping, validated against `catalog/schema.json` 
 
 ## Fields per `type`
 
-Common to all: `id`, `description`, `type`, `depends_on`, `tags`, `source`. Type-specific required fields:
+Common to all: `id`, `description`, `type`, `depends_on`, `tags`, `requires`, `source`. Type-specific required fields:
 
 | `type` | Required type fields | Optional | Notes |
 |--------|----------------------|----------|-------|
@@ -42,6 +43,8 @@ Common to all: `id`, `description`, `type`, `depends_on`, `tags`, `source`. Type
 | `script` | `check`, `install` | `remove`, `upgrade` | **Escape hatch.** `check` is mandatory (idempotency probe). |
 
 `depends_on` lists `id`s that must reach the desired state first; the planner topologically orders them (see [../core/idempotency-and-execution.md](../core/idempotency-and-execution.md)). Don't encode ordering any other way.
+
+`requires` declares host applicability (currently only `desktop`): mark GUI software `requires: [desktop]` so a Server/SSH machine without a desktop stack hides it in browse and *visibly skips* it on a manifest replay instead of erroring. Repo entries (`ppa`/`deb`) a GUI package depends on usually need no `requires` of their own — the dependent carries it.
 
 ---
 

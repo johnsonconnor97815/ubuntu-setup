@@ -19,7 +19,7 @@ from .errors import CatalogError
 from .models import CatalogEntry
 from .providers import known_types
 
-_COMMON_FIELDS = {"id", "description", "type", "depends_on", "tags", "source"}
+_COMMON_FIELDS = {"id", "description", "type", "depends_on", "tags", "requires", "source"}
 
 #: where the shipped catalog lives, relative to the package root
 DEFAULT_CATALOG_DIR = Path(__file__).resolve().parent.parent / "catalog"
@@ -43,6 +43,7 @@ def _to_entry(raw: dict[str, Any]) -> CatalogEntry:
         type=raw["type"],
         depends_on=tuple(raw.get("depends_on", ())),
         tags=tuple(raw.get("tags", ())),
+        requires=tuple(raw.get("requires", ())),
         source=raw.get("source", "community"),
         fields={k: v for k, v in raw.items() if k not in _COMMON_FIELDS},
     )

@@ -25,7 +25,7 @@ import sys
 import threading
 from typing import Iterable, Sequence
 
-from .core import runner, service
+from .core import environment, runner, service
 from .core import state as state_mod
 from .core.catalog import DEFAULT_CATALOG_DIR, load_catalog
 from .core.errors import UbuntuSetupError, UserAbort
@@ -193,6 +193,12 @@ def _run_tui() -> int:
         _LOG.error("%s", exc)
         print(f"error: {exc}", file=sys.stderr)
         return exc.exit_code
+
+    # host applicability, detected once at startup: the TUI only ever sees the
+    # filtered catalog (browse invisibility is decided in the brain — the face
+    # consumes the result and never re-judges, non-negotiable #1)
+    capabilities = environment.detect_capabilities()
+    catalog = service.filter_catalog(catalog, capabilities)
 
     from .tui.app import ManagerApp  # deliberate local import (see module doc)
 

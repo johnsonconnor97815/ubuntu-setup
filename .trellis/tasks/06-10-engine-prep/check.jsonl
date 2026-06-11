@@ -1,1 +1,4 @@
-{"_example": "Fill with {\"file\": \"<path>\", \"reason\": \"<why>\"}. Put spec/research files only — no code paths. Run `python3 .trellis/scripts/get_context.py --mode packages` to list available specs. Delete this line once real entries are added."}
+{"file": ".trellis/spec/core/directory-structure.md", "reason": "复查：core 不 import textual、探测/过滤逻辑全在脑层、依赖方向单向"}
+{"file": ".trellis/spec/core/idempotency-and-execution.md", "reason": "复查：skip 事件显式可见不静默、fail-fast 语义未被破坏、外部命令仍走 runner"}
+{"file": ".trellis/spec/core/catalog-and-providers.md", "reason": "复查：schema 变更向后兼容（旧条目无 requires 照常载入）、类型分发仍只在注册表"}
+{"file": ".trellis/tasks/06-10-engine-prep/prd.md", "reason": "复查：AC 逐条核对——三条探测路径、闭包/拓扑/环/稳定序、skip 传播、全量测试绿"}

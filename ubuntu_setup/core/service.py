@@ -8,8 +8,11 @@ NEVER imports ``textual`` (non-negotiable #1, see
 
 Seams provided:
 
-- :func:`scan` — full-status scan: stream every catalog entry's live
-  ``check()`` state (the browse screen's first call).
+- :func:`scan` — full-status scan: stream every *applicable* catalog entry's
+  live ``check()`` state (the browse screen's first call); entries whose
+  ``requires`` capabilities are unmet on this host are filtered out here.
+- :func:`filter_catalog` — the same applicability filter as a catalog subset
+  (the browse data source on a capability-limited host).
 - :func:`prepare_install` / :func:`prepare_apply` — resolve manifest + desired
   state into a :class:`PreparedRun` (plan + where/what to record).
 - :func:`predict_change` (re-exported from ``core/executor.py``) — the pure
@@ -40,6 +43,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Iterator, Mapping
 
+from . import environment
 from . import state as state_mod
 from .errors import CatalogError, UbuntuSetupError, UserAbort
 from .events import Event, RunFinished
@@ -73,16 +77,44 @@ def scan(
     catalog: Mapping[str, CatalogEntry],
     *,
     run: "Callable[..., RunResult] | None" = None,
+    capabilities: "frozenset[str] | None" = None,
 ) -> Iterator[ScanResult]:
-    """Stream every entry's live state (a generator — consumers render rows as
-    they arrive). Read-only: ``check()`` never mutates."""
+    """Stream every *applicable* entry's live state (a generator — consumers
+    render rows as they arrive). Read-only: ``check()`` never mutates.
+
+    An entry whose ``requires`` capabilities are unmet on this host is not
+    yielded at all — it is invisible to browse surfaces (the judgment lives in
+    ``core/environment.py``; the UI only consumes the filtered stream).
+    ``capabilities`` is injectable; ``None`` detects lazily on the first
+    ``requires``-bearing entry, so a requires-free catalog never probes."""
+    caps = capabilities
     for entry in catalog.values():
+        if entry.requires:
+            if caps is None:
+                caps = environment.detect_capabilities(run=run)
+            if environment.unmet_requires(entry, caps):
+                continue  # not applicable on this host -> invisible
         try:
             state = get_provider(entry.type, run=run).check(entry)
         except UbuntuSetupError as exc:
             yield ScanResult(entry=entry, error=exc)
         else:
             yield ScanResult(entry=entry, state=state)
+
+
+def filter_catalog(
+    catalog: Mapping[str, CatalogEntry],
+    capabilities: frozenset[str],
+) -> "dict[str, CatalogEntry]":
+    """The browse data-source filter: only entries applicable on this host
+    (``requires ⊆ capabilities``). The TUI consumes this result and never
+    re-derives the judgment (non-negotiable #1) — it lives in
+    ``core/environment.py``."""
+    return {
+        entry_id: entry
+        for entry_id, entry in catalog.items()
+        if not environment.unmet_requires(entry, capabilities)
+    }
 
 
 # --------------------------------------------------------------------------- #
@@ -204,13 +236,16 @@ def apply(
     stream_run: "Callable[..., RunResult] | None" = None,
     check_mode: bool = False,
     keepalive: "SudoKeepalive | None" = None,
+    capabilities: "frozenset[str] | None" = None,
 ) -> ApplyHandle:
     """Run ``prepared.plan`` and record the transaction (unless ``check_mode``).
 
     ``stream_run`` is the streaming-runner seam for mutating ops (see
     :func:`executor.execute`); like ``run`` it defaults to the real runner,
     and to the injected ``run`` when only that is given (test fakes keep one
-    seam).
+    seam). ``capabilities`` feeds the executor's ``requires`` gate (entries
+    inapplicable on this host are *explicitly* skipped and recorded, never
+    silently dropped); ``None`` detects lazily — see :func:`executor.execute`.
 
     Privilege *acquisition* (``priv.ensure_sudo()``) deliberately stays with
     the caller: each surface owns *when* to prompt (the CLI before applying,
@@ -231,6 +266,7 @@ def apply(
         cancel=cancel_event,
         inflight=inflight,
         keepalive=keepalive,
+        capabilities=capabilities,
     )
     return ApplyHandle(events, cancel_event, terminate=inflight.terminate)
 
@@ -246,6 +282,7 @@ def _apply_events(
     cancel: threading.Event,
     inflight: InFlightCommand,
     keepalive: "SudoKeepalive | None",
+    capabilities: "frozenset[str] | None",
 ) -> Iterator[Event]:
     # the executor's out-of-band results channel: each StepResult is appended
     # the moment it forms, so the recording below sees every step that actually
@@ -273,6 +310,7 @@ def _apply_events(
         cancel=cancel,
         inflight=inflight,
         results_sink=results,
+        capabilities=capabilities,
     )
     try:
         for event in gen:

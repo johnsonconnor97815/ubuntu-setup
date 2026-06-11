@@ -40,7 +40,9 @@ One software unit = one declarative entry, authored in YAML under `ubuntu_setup/
   source: official
 ```
 
-Common fields on every entry: `id`, `description`, `type`, `depends_on` (default `[]`), `tags` (default `[]`), `source` (default `community`). Type-specific fields are validated per `type` by the schema. See `../catalog/authoring-guidelines.md` for the authoring rules and the full field list per type.
+Common fields on every entry: `id`, `description`, `type`, `depends_on` (default `[]`), `tags` (default `[]`), `requires` (default `[]`), `source` (default `community`). Type-specific fields are validated per `type` by the schema. See `../catalog/authoring-guidelines.md` for the authoring rules and the full field list per type.
+
+`requires` (code-backed) lists host capabilities the entry needs; the schema enum currently allows only `"desktop"` (kept in sync with `core/environment.py::KNOWN_CAPABILITIES` — the list form is the extension point for future conditions like arch). The applicability judgment `requires ⊆ capabilities` lives in `core/environment.py` only: `service.scan`/`service.filter_catalog` hide inapplicable entries from browse surfaces, and the executor skips them explicitly at plan/apply time (see [idempotency-and-execution.md](./idempotency-and-execution.md)). `desktop` means *the machine has a desktop stack installed*, not "the current session is graphical" — `DISPLAY`/`WAYLAND_DISPLAY` set, **or** `systemctl get-default` == `graphical.target`, **or** a non-empty `/usr/share/xsessions` / `/usr/share/wayland-sessions`; any one signal suffices (an SSH login into a desktop machine can still install GUI software).
 
 ---
 

@@ -29,6 +29,11 @@ def _entry(eid: str, **fields) -> CatalogEntry:
                         fields={"package": eid, **fields})
 
 
+def _gui_entry(eid: str) -> CatalogEntry:
+    return CatalogEntry(id=eid, description="x", type="apt",
+                        requires=("desktop",), fields={"package": eid})
+
+
 def _catalog(*ids: str) -> "dict[str, CatalogEntry]":
     return {i: _entry(i) for i in ids}
 
@@ -74,6 +79,45 @@ class TestScan(unittest.TestCase):
         self.assertIsNone(by_id["broken"].state)
         self.assertIsNotNone(by_id["dberr"].error)
         self.assertEqual(by_id["good"].state, State.ABSENT)
+
+
+class TestScanRequiresFilter(unittest.TestCase):
+    """The browse data-source filter: entries with unmet `requires` are
+    invisible — not yielded at all (the judgment lives in core, never the UI)."""
+
+    def test_unmet_requires_entries_are_invisible(self):
+        catalog = {"gimp": _gui_entry("gimp"), "tree": _entry("tree")}
+        run = FakeRun().when(status_query, returncode=1)
+        results = list(service.scan(catalog, run=run, capabilities=frozenset()))
+        self.assertEqual([r.entry.id for r in results], ["tree"])
+
+    def test_met_requires_entries_are_scanned(self):
+        catalog = {"gimp": _gui_entry("gimp"), "tree": _entry("tree")}
+        run = FakeRun().when(status_query, returncode=1)
+        results = list(service.scan(catalog, run=run,
+                                    capabilities=frozenset({"desktop"})))
+        self.assertEqual([r.entry.id for r in results], ["gimp", "tree"])
+
+    def test_detection_is_lazy_and_once(self):
+        run = FakeRun().when(status_query, returncode=1)
+        with mock.patch.object(service.environment, "detect_capabilities",
+                               return_value=frozenset()) as detect:
+            list(service.scan(_catalog("tree", "ripgrep"), run=run))
+            detect.assert_not_called()  # a requires-free catalog never probes
+            catalog = {"gimp": _gui_entry("gimp"), "inkscape": _gui_entry("inkscape")}
+            results = list(service.scan(catalog, run=run))
+            detect.assert_called_once()  # once per scan, not per entry
+        self.assertEqual(results, [])
+
+
+class TestFilterCatalog(unittest.TestCase):
+    def test_filters_unmet_and_keeps_the_rest(self):
+        catalog = {"gimp": _gui_entry("gimp"), "tree": _entry("tree")}
+        self.assertEqual(
+            list(service.filter_catalog(catalog, frozenset())), ["tree"])
+        self.assertEqual(
+            list(service.filter_catalog(catalog, frozenset({"desktop"}))),
+            ["gimp", "tree"])
 
 
 class TestPrepare(unittest.TestCase):
@@ -422,6 +466,29 @@ class TestApply(unittest.TestCase):
                 list(handle)
         self.assertEqual(set(threading.enumerate()), threads_before)  # joined
         self.assertFalse(self.path.exists())  # crash != transaction: nothing recorded
+
+    def test_apply_records_explicit_skip_for_unmet_requires(self):
+        """Replaying a manifest with a GUI entry on a no-desktop host: the
+        entry is visibly skipped (event + audit page), never an error."""
+        plan = Plan(actions=(
+            Action(entry=_gui_entry("gimp"), op=Op.INSTALL),
+            Action(entry=_entry("tree"), op=Op.INSTALL),
+        ))
+        run = FakeRun().when(status_query, returncode=1)  # tree absent
+        prepared = self._prepared(plan)
+        events = list(self._apply(prepared, run, capabilities=frozenset()))
+
+        fin = events[-1]
+        self.assertIsInstance(fin, RunFinished)
+        self.assertEqual(fin.exit_code, 0)  # a skip is not a failure
+        skips = [e for e in events
+                 if isinstance(e, StepFinished) and e.result.entry_id == "gimp"]
+        self.assertEqual(len(skips), 1)  # explicit StepFinished, not silence
+        self.assertIn("desktop", skips[0].result.detail)
+        data = json.loads(self.path.read_text(encoding="utf-8"))
+        self.assertEqual(data["history"][0]["actions"],
+                         [{"id": "gimp", "op": "install", "outcome": "skipped"},
+                          {"id": "tree", "op": "install", "outcome": "changed"}])
 
     def test_failed_run_records_exit_1(self):
         run = (

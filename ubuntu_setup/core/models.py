@@ -39,6 +39,9 @@ class CatalogEntry:
     type: str
     depends_on: tuple[str, ...] = ()
     tags: tuple[str, ...] = ()
+    #: host capabilities the entry needs (e.g. "desktop"); the applicability
+    #: judgment (``requires ⊆ capabilities``) lives in ``core/environment.py``
+    requires: tuple[str, ...] = ()
     source: str = "community"
     #: type-specific fields the provider interprets (e.g. {"package": "ripgrep"})
     fields: dict[str, Any] = field(default_factory=dict)

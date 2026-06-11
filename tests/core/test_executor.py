@@ -34,12 +34,18 @@ from tests._fakes import (
 _LOG = logging.getLogger("test.executor")
 
 
-def _entry(eid: str, type: str = "apt") -> CatalogEntry:
-    return CatalogEntry(id=eid, description="x", type=type, fields={"package": eid})
+def _entry(eid: str, type: str = "apt", *, requires: "tuple[str, ...]" = (),
+           deps: "tuple[str, ...]" = ()) -> CatalogEntry:
+    return CatalogEntry(id=eid, description="x", type=type, depends_on=deps,
+                        requires=requires, fields={"package": eid})
 
 
 def _plan(*ids: str, type: str = "apt") -> Plan:
     return Plan(actions=tuple(Action(entry=_entry(i, type), op=Op.INSTALL) for i in ids))
+
+
+def _plan_of(*entries: CatalogEntry) -> Plan:
+    return Plan(actions=tuple(Action(entry=e, op=Op.INSTALL) for e in entries))
 
 
 def _drain(gen) -> "tuple[list, int, list]":
@@ -445,6 +451,123 @@ class TestCancelAndClose(unittest.TestCase):
 
         self.assertEqual(finished, [True])  # the step ran to completion
         self.assertEqual(set(threading.enumerate()), threads_before)  # no leak
+
+
+class TestRequiresGate(unittest.TestCase):
+    """The host-applicability gate: an entry with unmet `requires` is skipped
+    explicitly (visible event + recorded outcome) and the run continues."""
+
+    def _run(self, plan, run, capabilities, **kw):
+        gen = execute(plan, priv=Privilege(run=run), logger=_LOG, run=run,
+                      capabilities=capabilities, **kw)
+        return _drain(gen)
+
+    def test_unmet_requires_skips_explicitly_and_run_continues(self):
+        plan = _plan_of(_entry("gimp", requires=("desktop",)), _entry("tree"))
+        run = FakeRun().when(status_query, returncode=1)  # tree absent
+        results, code, events = self._run(plan, run, frozenset())
+
+        self.assertEqual(code, 0)  # a skip is never a failure
+        self.assertEqual([r.outcome for r in results],
+                         [Outcome.SKIPPED, Outcome.CHANGED])
+        self.assertIn("desktop", results[0].detail)
+        # the skip is a visible StepFinished, never a silent drop
+        finished = [e for e in events if isinstance(e, StepFinished)]
+        self.assertEqual(finished[0].result.outcome, Outcome.SKIPPED)
+        # the gated entry was never even checked, let alone installed
+        self.assertEqual(
+            run.count(lambda a: status_query(a) and "gimp" in a), 0)
+        self.assertFalse(run.ran("gimp"))
+
+    def test_met_requires_installs_normally(self):
+        plan = _plan_of(_entry("gimp", requires=("desktop",)))
+        run = FakeRun().when(status_query, returncode=1)  # absent
+        results, code, _ = self._run(plan, run, frozenset({"desktop"}))
+        self.assertEqual(code, 0)
+        self.assertEqual(results[0].outcome, Outcome.CHANGED)
+
+    def test_dry_run_shows_the_requires_skip(self):
+        plan = _plan_of(_entry("gimp", requires=("desktop",)))
+        run = FakeRun().when(status_query, returncode=1)
+        results, code, _ = self._run(plan, run, frozenset(), check_mode=True)
+        self.assertEqual(code, 0)
+        self.assertEqual(results[0].outcome, Outcome.SKIPPED)
+        self.assertFalse(run.ran("apt-get"))  # still zero changes
+
+    def test_detection_is_lazy_only_when_requires_present(self):
+        run = FakeRun().when(status_query, returncode=1)
+        with mock.patch.object(executor_mod.environment, "detect_capabilities",
+                               return_value=frozenset()) as detect:
+            self._run(_plan("tree"), run, None)  # no requires anywhere
+            detect.assert_not_called()
+            plan = _plan_of(_entry("gimp", requires=("desktop",)),
+                            _entry("inkscape", requires=("desktop",)))
+            results, _, _ = self._run(plan, run, None)
+            detect.assert_called_once()  # once per run, not per entry
+        self.assertEqual([r.outcome for r in results],
+                         [Outcome.SKIPPED, Outcome.SKIPPED])
+
+
+class TestSkipPropagation(unittest.TestCase):
+    """A dependent of a skipped entry skips too (with the reason), never fails
+    — for requires-gate skips and provider PreconditionError skips alike."""
+
+    def _run(self, plan, run, capabilities=frozenset()):
+        gen = execute(plan, priv=Privilege(run=run), logger=_LOG, run=run,
+                      capabilities=capabilities)
+        return _drain(gen)
+
+    def test_dependent_of_requires_skipped_entry_skips_not_fails(self):
+        plan = _plan_of(_entry("gui-repo", requires=("desktop",)),
+                        _entry("gui-app", deps=("gui-repo",)))
+        run = FakeRun().when(status_query, returncode=1)  # app absent
+        results, code, _ = self._run(plan, run)
+
+        self.assertEqual(code, 0)
+        self.assertEqual([r.outcome for r in results],
+                         [Outcome.SKIPPED, Outcome.SKIPPED])
+        self.assertIn("gui-repo", results[1].detail)  # the reason names the dep
+        self.assertFalse(run.ran("apt-get"))  # neither acted on
+
+    def test_skip_propagates_transitively_down_the_chain(self):
+        plan = _plan_of(_entry("a", requires=("desktop",)),
+                        _entry("b", deps=("a",)),
+                        _entry("c", deps=("b",)))
+        run = FakeRun().when(status_query, returncode=1)  # all absent
+        results, code, _ = self._run(plan, run)
+        self.assertEqual(code, 0)
+        self.assertEqual([r.outcome for r in results],
+                         [Outcome.SKIPPED] * 3)
+        self.assertIn("b", results[2].detail)
+
+    def test_already_satisfied_dependent_stays_ok(self):
+        """check() wins over propagation: an entry already in its desired
+        state is `ok`, not dragged into a skip it does not need."""
+        plan = _plan_of(_entry("gui-repo", requires=("desktop",)),
+                        _entry("gui-app", deps=("gui-repo",)))
+        run = FakeRun().when(
+            lambda a: status_query(a) and "gui-app" in a,
+            returncode=0, stdout="install ok installed")
+        results, code, _ = self._run(plan, run)
+        self.assertEqual(code, 0)
+        self.assertEqual([r.outcome for r in results],
+                         [Outcome.SKIPPED, Outcome.OK])
+
+    def test_dependent_of_precondition_skipped_entry_skips_too(self):
+        class Scripted(_FakeProviderBase):
+            def install(self, entry, ctx) -> None:
+                if entry.id == "repo":
+                    raise PreconditionError("tool unavailable", entry_id=entry.id)
+
+        plan = _plan_of(_entry("repo", type="fake"),
+                        _entry("app", type="fake", deps=("repo",)))
+        with register_provider(Scripted()):
+            results, code, _ = self._run(plan, FakeRun())
+
+        self.assertEqual(code, 0)
+        self.assertEqual([r.outcome for r in results],
+                         [Outcome.SKIPPED, Outcome.SKIPPED])
+        self.assertIn("repo", results[1].detail)
 
 
 class TestPredictChange(unittest.TestCase):

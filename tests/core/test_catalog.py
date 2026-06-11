@@ -66,6 +66,26 @@ class TestCatalogValidation(unittest.TestCase):
         self.assertEqual(entries["foo"].fields["package"], "foo-pkg")
         self.assertEqual(entries["foo"].fields["version"], "1.2")
 
+    def test_requires_parses_and_defaults_empty(self):
+        self._write(
+            "- {id: gui, description: x, type: apt, package: gui, requires: [desktop]}\n"
+            "- {id: cli, description: x, type: apt, package: cli}\n"
+        )
+        entries = load_catalog(self.dir)
+        self.assertEqual(entries["gui"].requires, ("desktop",))
+        self.assertNotIn("requires", entries["gui"].fields)  # common field, not type-specific
+        self.assertEqual(entries["cli"].requires, ())  # old entries: unaffected
+
+    def test_unknown_requires_value_fails_schema(self):
+        self._write("- {id: foo, description: x, type: apt, package: foo, requires: [warp-drive]}\n")
+        with self.assertRaises(CatalogError):
+            load_catalog(self.dir)
+
+    def test_requires_must_be_a_list(self):
+        self._write("- {id: foo, description: x, type: apt, package: foo, requires: desktop}\n")
+        with self.assertRaises(CatalogError):
+            load_catalog(self.dir)
+
 
 if __name__ == "__main__":
     unittest.main()
