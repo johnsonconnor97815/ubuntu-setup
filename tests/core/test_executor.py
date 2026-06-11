@@ -305,7 +305,7 @@ class TestOutputLineWiring(unittest.TestCase):
         )
         lines = [e for e in events if isinstance(e, OutputLine)]
         self.assertEqual(
-            [(l.entry_id, l.line, l.stream) for l in lines],
+            [(ev.entry_id, ev.line, ev.stream) for ev in lines],
             [("ripgrep", "Unpacking ripgrep ...", "stdout"),
              ("ripgrep", "W: noise", "stderr"),
              ("ripgrep", "Setting up ripgrep ...", "stdout")],
@@ -445,6 +445,54 @@ class TestCancelAndClose(unittest.TestCase):
 
         self.assertEqual(finished, [True])  # the step ran to completion
         self.assertEqual(set(threading.enumerate()), threads_before)  # no leak
+
+
+class TestPredictChange(unittest.TestCase):
+    """predict_change: the pure plan-preview signal (would-change / no-change /
+    cannot-fully-simulate) that confirm surfaces render — op-vs-state semantics
+    are derived here, never in the UI."""
+
+    def test_unknown_state_is_never_a_confirmed_change_or_noop(self):
+        # a failed / not-yet-run check() must stay "cannot fully simulate"
+        # (the Ansible check-mode pitfall), for every op
+        for op in Op:
+            would_change, label = executor_mod.predict_change(op, None)
+            self.assertIsNone(would_change, msg=op)
+            self.assertIn("cannot fully simulate", label)
+            self.assertNotIn("would change", label)
+            self.assertNotIn("no change", label)
+
+    def test_satisfied_states_are_no_change(self):
+        cases = [
+            (Op.INSTALL, State.PRESENT),
+            (Op.INSTALL, State.OUTDATED),  # install is satisfied by any presence
+            (Op.UPGRADE, State.PRESENT),
+            (Op.REMOVE, State.ABSENT),
+        ]
+        for op, state in cases:
+            would_change, label = executor_mod.predict_change(op, state)
+            self.assertIs(would_change, False, msg=f"{op} x {state}")
+            self.assertIn("no change", label)
+
+    def test_unsatisfied_states_would_change_toward_the_target(self):
+        cases = [
+            (Op.INSTALL, State.ABSENT, "absent -> present"),
+            (Op.UPGRADE, State.OUTDATED, "present_outdated -> present"),
+            (Op.UPGRADE, State.ABSENT, "absent -> present"),
+            (Op.REMOVE, State.PRESENT, "present -> absent"),
+            (Op.REMOVE, State.OUTDATED, "present_outdated -> absent"),
+        ]
+        for op, state, transition in cases:
+            would_change, label = executor_mod.predict_change(op, state)
+            self.assertIs(would_change, True, msg=f"{op} x {state}")
+            self.assertIn(transition, label)
+            self.assertIn("would change", label)
+
+    def test_service_reexports_the_same_function(self):
+        # the facade seam: surfaces (the confirm screen) import it from service
+        from ubuntu_setup.core import service
+
+        self.assertIs(service.predict_change, executor_mod.predict_change)
 
 
 if __name__ == "__main__":

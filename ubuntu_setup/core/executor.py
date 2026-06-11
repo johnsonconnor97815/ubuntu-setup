@@ -87,6 +87,24 @@ _TARGET: dict[Op, State] = {
 _EMIT_QUEUE_MAX = 64
 
 
+def predict_change(op: Op, state: "State | None") -> "tuple[bool | None, str]":
+    """The plan-preview signal for one action, derived from its ``check()``
+    state (spec idempotency: prediction comes from ``check()`` — no parallel
+    simulation path). Returns ``(would_change, label)``.
+
+    ``would_change`` is ``None`` when ``state`` is unknown (a failed or not yet
+    run ``check()``): the consumer must render that as "cannot fully simulate",
+    never as a confirmed change *or* a confirmed no-op (the Ansible check-mode
+    pitfall). This is presentation-feeding brain logic — it lives here so the
+    TUI/CLI never re-derive op-vs-state semantics themselves.
+    """
+    if state is None:
+        return None, "state unknown (cannot fully simulate)"
+    if state in _SATISFIED.get(op, set()):
+        return False, f"already {state.value} (no change)"
+    return True, f"{state.value} -> {_TARGET[op].value} (would change)"
+
+
 class _StepDone:
     """Worker-thread sentinel: the provider op returned (``exc is None``) or
     raised ``exc`` (marshalled to the generator thread)."""

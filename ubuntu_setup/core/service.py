@@ -12,6 +12,9 @@ Seams provided:
   ``check()`` state (the browse screen's first call).
 - :func:`prepare_install` / :func:`prepare_apply` — resolve manifest + desired
   state into a :class:`PreparedRun` (plan + where/what to record).
+- :func:`predict_change` (re-exported from ``core/executor.py``) — the pure
+  plan-preview signal a confirm surface renders per action: would-change /
+  no-change / cannot-fully-simulate, derived from ``check()`` state.
 - :func:`apply` — run a :class:`PreparedRun`; returns an :class:`ApplyHandle`:
   an iterable event stream (see ``core/events.py``) plus ``cancel()`` — one
   consumer call that stops the run *and* kills the step in flight (through the
@@ -41,6 +44,7 @@ from . import state as state_mod
 from .errors import CatalogError, UbuntuSetupError, UserAbort
 from .events import Event, RunFinished
 from .executor import execute
+from .executor import predict_change as predict_change  # re-export (facade seam)
 from .models import CatalogEntry, Manifest, Op, Plan, StepResult
 from .planner import build_plan
 from .privilege import Privilege, SudoKeepalive
