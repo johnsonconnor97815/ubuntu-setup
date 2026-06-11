@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/tui/ui-guidelines.md", "reason": "复查：worker 内不直接碰 widget、消息向上冒泡、reactive 只存 UI 状态、反模式清单逐条；示例与实现一致"}
+{"file": ".trellis/spec/core/directory-structure.md", "reason": "复查：tui/ 无业务逻辑/subprocess、core 不 import textual、依赖方向单向"}
+{"file": ".trellis/tasks/06-10-tui-three-screen-loop/research/textual-verification.md", "reason": "复查：节流验收（marshal 次数 ≪ 行数）按实测依据执行、suspend 用法符合约束"}
+{"file": ".trellis/spec/core/privilege-and-safety.md", "reason": "复查：sudo 提示只发生在 suspend 内、探测自适应时机正确、绝不 mid-TUI 突袭"}
