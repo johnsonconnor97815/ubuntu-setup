@@ -3,13 +3,17 @@
 This is the brain/UI boundary: it is the one place that converts the brain's
 typed exceptions into user-facing messages and process exit codes. All
 orchestration (load -> plan -> apply -> record) lives in ``core/service.py``
-(the facade the future TUI shares); this module only parses arguments, consumes
-the apply event stream, and renders. It imports ``core`` only — never
-``textual`` (the TUI is a separate, later surface).
+(the facade the TUI shares); this module only parses arguments, consumes the
+apply event stream, and renders.
 
-    python -m ubuntu_setup --install <id> [--dry-run]
+    python -m ubuntu_setup                               # bare: launch the TUI
+    python -m ubuntu_setup --install <id> [--dry-run]    # headless
     python -m ubuntu_setup --apply <manifest.json> [--dry-run]
-"""
+
+The ``textual`` import lives *inside* the bare-command branch
+(:func:`_run_tui`) only: the headless ``--install``/``--apply`` paths never
+load it (works on machines without the TUI extra's terminal, and keeps
+import-time cost zero for scripted runs)."""
 
 from __future__ import annotations
 
@@ -60,14 +64,20 @@ def _build_parser() -> argparse.ArgumentParser:
 # --------------------------------------------------------------------------- #
 # logging
 # --------------------------------------------------------------------------- #
-def _setup_logging(priv: Privilege) -> None:
-    """Stream INFO to stderr and append an audit log under the real user's home."""
+def _setup_logging(priv: Privilege, *, stream: bool = True) -> None:
+    """Stream INFO to stderr and append an audit log under the real user's home.
+
+    ``stream=False`` for the TUI branch: the TUI owns the terminal, so a
+    stderr handler would corrupt the screen — the audit file still gets
+    everything.
+    """
     if _LOG.handlers:  # idempotent across repeated main() calls (tests)
         return
     _LOG.setLevel(logging.INFO)
-    stream = logging.StreamHandler(sys.stderr)
-    stream.setFormatter(logging.Formatter("%(levelname)s %(message)s"))
-    _LOG.addHandler(stream)
+    if stream:
+        stream_handler = logging.StreamHandler(sys.stderr)
+        stream_handler.setFormatter(logging.Formatter("%(levelname)s %(message)s"))
+        _LOG.addHandler(stream_handler)
     try:
         log_dir = state_mod.state_dir(priv)
         log_dir.mkdir(parents=True, exist_ok=True)
@@ -165,10 +175,40 @@ def _consume_with_signals(handle: "service.ApplyHandle", *, dry_run: bool) -> in
 
 
 # --------------------------------------------------------------------------- #
+# the TUI branch (bare command)
+# --------------------------------------------------------------------------- #
+def _run_tui() -> int:
+    """Launch the Textual face. Only this branch imports the ``tui`` package
+    (and therefore ``textual``) — headless runs never load it."""
+    priv = Privilege()
+    _setup_logging(priv, stream=False)  # the TUI owns the terminal
+    if os.geteuid() == 0:
+        _LOG.warning(
+            "running as root: ubuntu-setup is designed to run as the normal user "
+            "and escalate per command. Prefer running without sudo."
+        )
+    try:
+        catalog = load_catalog(None)
+    except UbuntuSetupError as exc:
+        _LOG.error("%s", exc)
+        print(f"error: {exc}", file=sys.stderr)
+        return exc.exit_code
+
+    from .tui.app import ManagerApp  # deliberate local import (see module doc)
+
+    ManagerApp(catalog, priv=priv, logger=_LOG).run()
+    return 0
+
+
+# --------------------------------------------------------------------------- #
 # main
 # --------------------------------------------------------------------------- #
 def main(argv: Sequence[str] | None = None) -> int:
-    args = _build_parser().parse_args(argv)
+    raw_args = list(sys.argv[1:]) if argv is None else list(argv)
+    if not raw_args:
+        return _run_tui()  # bare command -> the TUI (prd: the default surface)
+
+    args = _build_parser().parse_args(raw_args)
     priv = Privilege()
     _setup_logging(priv)
 

@@ -12,8 +12,10 @@ requires-python = ">=3.9"
 dependencies = [
     "pyyaml",
     "jsonschema",
-    # textual>=8,<9 (the Face/TUI) is deliberately NOT a dependency of this
-    # headless MVP slice (prd decision); it lands additively with tui/.
+    # the Face/TUI; pinned to the verified major (see
+    # .trellis/spec/tui/ui-guidelines.md — read the CHANGELOG before a bump).
+    # core/ and the headless CLI paths never import it.
+    "textual>=8,<9",
 ]
 
 [project.scripts]
