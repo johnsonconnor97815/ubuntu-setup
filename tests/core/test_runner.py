@@ -111,7 +111,7 @@ class TestRunStreaming(unittest.TestCase):
         (providers branch on rc and read the stderr tail)."""
         code = "import sys; print('out'); print('err', file=sys.stderr); sys.exit(3)"
         seen: "list[tuple[str, str]]" = []
-        res = run_streaming([PY, "-c", code], on_line=lambda l, s: seen.append((l, s)))
+        res = run_streaming([PY, "-c", code], on_line=lambda ln, st: seen.append((ln, st)))
         self.assertEqual(res.returncode, 3)
         self.assertFalse(res.ok)
         self.assertEqual(res.stdout, "out\n")
@@ -163,7 +163,7 @@ class TestRunStreaming(unittest.TestCase):
         ready = threading.Event()
         handle = StreamingRun(
             [PY, "-c", "import time; print('go', flush=True); time.sleep(30)"],
-            on_line=lambda l, s: ready.set(), grace=5.0,
+            on_line=lambda ln, st: ready.set(), grace=5.0,
         )
         self.assertTrue(ready.wait(timeout=10.0))
         self.assertIs(handle.terminate(), TerminateOutcome.TERMINATED)
@@ -225,7 +225,7 @@ class TestRunStreaming(unittest.TestCase):
         ready = threading.Event()
         handle = StreamingRun(
             [PY, "-c", "import time; print('go', flush=True); time.sleep(30)"],
-            on_line=lambda l, s: ready.set(), grace=0.2,
+            on_line=lambda ln, st: ready.set(), grace=0.2,
         )
         self.assertTrue(ready.wait(timeout=10.0))
         with mock.patch.object(runner.os, "killpg", side_effect=PermissionError):

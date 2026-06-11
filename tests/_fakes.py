@@ -60,8 +60,8 @@ class FakeRun:
         """``lines``: scripted live output — each item a ``str`` (stdout) or a
         ``(line, stream)`` tuple — forwarded to ``on_line`` when the caller
         streams."""
-        norm = tuple((l, "stdout") if isinstance(l, str) else (l[0], l[1])
-                     for l in lines)
+        norm = tuple((item, "stdout") if isinstance(item, str) else (item[0], item[1])
+                     for item in lines)
         self._rules.append((match, (returncode, stdout, stderr, norm)))
         return self
 
