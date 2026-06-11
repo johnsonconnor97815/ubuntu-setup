@@ -1,0 +1,55 @@
+# Declarative catalog — build toolchain (compilers, build systems, task
+# runners). Data, not code; validated against schema.json at load time.
+# Sourcing: upstream install doc URL + intersection-research hits per entry
+# (.trellis/tasks/06-10-intersection-research/research/final-list.json).
+
+# Merged gcc+make per parent prd decision (2026-06-10): the curation sources
+# (Omakub, Ubuntu Portal) install the build-essential meta-package, not the
+# individual tools. https://gcc.gnu.org/install/binaries.html (GCC ships no
+# binaries — the distro package IS the official path) + https://www.gnu.org/software/make/.
+# hits(gcc): so-survey+homebrew+curation+pkgstats (core), jetbrains+popcon (aux);
+# hits(make): so-survey+curation+pkgstats (core), popcon (aux).
+- id: build-essential
+  description: "C/C++ toolchain meta-package (gcc, g++, make, libc dev files)"
+  type: apt
+  package: build-essential
+  tags: [build, bedrock, toolchain]
+  source: official
+
+# https://github.com/ninja-build/ninja — hits: so-survey+homebrew+pkgstats (core), popcon (aux).
+# Package name is ninja-build; the binary is ninja.
+- id: ninja
+  description: "Small build system with a focus on speed (package: ninja-build)"
+  type: apt
+  package: ninja-build
+  tags: [build]
+  source: official
+
+# https://apt.kitware.com/ — hits: homebrew+pkgstats (core), popcon (aux).
+# noble's 3.28 is behind upstream 4.x but fully usable; the Kitware apt repo is
+# the official path to newer versions (future deb-provider candidate).
+- id: cmake
+  description: "Cross-platform build-system generator"
+  type: apt
+  package: cmake
+  tags: [build]
+  source: official
+
+# https://github.com/casey/just#packages — hits: homebrew+pkgstats (core), awesome (aux).
+# README lists apt for Ubuntu 24.04 as an official channel (noble ships 1.21).
+- id: just
+  description: "Command runner for project-local recipes (justfile)"
+  type: apt
+  package: just
+  tags: [build, task-runner]
+  source: official
+
+# https://maven.apache.org/install.html — hits: so-survey+homebrew+pkgstats (core).
+# The official install page's Linux section shows `apt install maven`; the apt
+# dependency chain pulls a default JDK automatically.
+- id: maven
+  description: "Apache Maven — Java build & dependency tool (pulls a default JDK)"
+  type: apt
+  package: maven
+  tags: [build, java]
+  source: official

@@ -1,0 +1,34 @@
+# Declarative catalog — package & environment managers. Data, not code;
+# validated against schema.json at load time.
+# Sourcing: upstream install doc URL + intersection-research hits per entry
+# (.trellis/tasks/06-10-intersection-research/research/final-list.json).
+
+# https://flatpak.org/setup/Ubuntu — hits: curation+pkgstats (core), popcon (aux).
+# Official Ubuntu setup page: `apt install flatpak`. Full setup also adds the
+# flathub remote — that step belongs to the future flatpak provider/config story.
+- id: flatpak
+  description: "Flatpak app framework (add the flathub remote after install)"
+  type: apt
+  package: flatpak
+  tags: [package-manager]
+  source: official
+
+# https://pipx.pypa.io/stable/how-to/install-pipx/ — hits: homebrew+pkgstats
+# (core), popcon (aux). Official doc's first option for Ubuntu 23.04+ is apt
+# (PEP 668 blocks bare pip). Run `pipx ensurepath` once per user afterwards.
+- id: pipx
+  description: "Install Python CLI apps in isolated venvs (run `pipx ensurepath` once)"
+  type: apt
+  package: pipx
+  tags: [package-manager, python]
+  source: official
+
+# https://python-poetry.org/docs/#installation — hits: so-survey+homebrew+pkgstats
+# (core). noble's python3-poetry is 1.8 (Poetry 2.x / PEP 621 projects need the
+# official pipx route instead). Distro packaging is not opposed upstream.
+- id: poetry
+  description: "Python dependency manager (python3-poetry 1.8; Poetry 2.x needs pipx)"
+  type: apt
+  package: python3-poetry
+  tags: [package-manager, python]
+  source: official

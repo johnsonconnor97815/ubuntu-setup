@@ -1,0 +1,52 @@
+# Declarative catalog — shells, terminal workflow & system monitoring.
+# Data, not code; validated against schema.json at load time.
+# Sourcing: upstream install doc URL + intersection-research hits per entry
+# (.trellis/tasks/06-10-intersection-research/research/final-list.json).
+
+# https://github.com/aristocratos/btop#installation — hits: homebrew+pkgstats
+# (core), popcon (aux). README acknowledges distro packages (repology badge);
+# noble's 1.3 trails upstream 1.4 — snap/static binary are the fresh paths.
+- id: btop
+  description: "Resource monitor (btop++)"
+  type: apt
+  package: btop
+  tags: [monitoring, cli]
+  source: official
+
+# https://htop.dev/downloads.html — hits: homebrew+pkgstats (core), popcon (aux).
+# Official downloads page lists distro repositories; apt is the official path.
+- id: htop
+  description: "Interactive process viewer"
+  type: apt
+  package: htop
+  tags: [monitoring, cli]
+  source: official
+
+# https://fishshell.com/ — hits: homebrew+pkgstats (core), popcon (aux).
+# noble ships fish 3.7 (stable); the official ppa:fish-shell/release-4 is the
+# 4.x path (future ppa-provider candidate). chsh is a usage step, not install.
+- id: fish
+  description: "Friendly interactive shell"
+  type: apt
+  package: fish
+  tags: [shell, terminal]
+  source: official
+
+# https://github.com/tmux/tmux/wiki/Installing — hits: homebrew+pkgstats (core),
+# popcon (aux). Official wiki lists `apt install tmux` for Debian/Ubuntu.
+- id: tmux
+  description: "Terminal multiplexer"
+  type: apt
+  package: tmux
+  tags: [terminal, multiplexer]
+  source: official
+
+# https://zsh.sourceforge.io/FAQ/zshfaq01.html — hits: homebrew+pkgstats (core),
+# popcon (aux). Upstream ships source archives only; noble main has the latest
+# stable 5.9. Setting it as login shell (chsh) is config, not install.
+- id: zsh
+  description: "Z shell"
+  type: apt
+  package: zsh
+  tags: [shell, terminal]
+  source: official

@@ -1,0 +1,32 @@
+# Declarative catalog — media & graphics CLI toolkits (no desktop required).
+# Data, not code; validated against schema.json at load time.
+# Sourcing: upstream install doc URL + intersection-research hits per entry
+# (.trellis/tasks/06-10-intersection-research/research/final-list.json).
+
+# https://ffmpeg.org/download.html — hits: homebrew+pkgstats (core), popcon (aux).
+# Official download page links "Ubuntu – Official packages" -> apt install ffmpeg.
+- id: ffmpeg
+  description: "Audio/video converter and toolkit"
+  type: apt
+  package: ffmpeg
+  tags: [cli, media, video]
+  source: official
+
+# https://graphviz.org/download/ — hits: homebrew+pkgstats (core), popcon (aux).
+# Official download page: `sudo apt install graphviz` for Debian/Ubuntu.
+- id: graphviz
+  description: "Graph drawing tools (dot, neato, ...)"
+  type: apt
+  package: graphviz
+  tags: [cli, graphics, diagrams]
+  source: official
+
+# https://imagemagick.org/script/download.php — hits: homebrew+pkgstats (core),
+# popcon (aux). noble packages the IM6 line (commands convert/identify);
+# upstream IM7 (command magick) is AppImage-only — not provider-expressible.
+- id: imagemagick
+  description: "Image manipulation toolkit (IM6 on noble; commands convert/identify)"
+  type: apt
+  package: imagemagick
+  tags: [cli, graphics, images]
+  source: official

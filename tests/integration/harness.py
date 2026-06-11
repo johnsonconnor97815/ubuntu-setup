@@ -316,6 +316,8 @@ def verify_entry(
     entry_id: str,
     binary: str,
     *,
+    probe: "Sequence[str] | None" = None,
+    expect_preinstalled: bool = False,
     include_usage_probe: bool = False,
 ) -> None:
     """Run the full per-entry protocol on a fresh, already-injected guest.
@@ -329,17 +331,34 @@ def verify_entry(
        ``check()`` skip, not a reinstall), a second transaction records ``ok``,
        and ``desired`` is not duplicated.
 
+    ``probe`` overrides the default ``[binary, "--version"]`` landing proof for
+    tools without ``--version`` (e.g. ``["go", "version"]``, ``["test", "-x",
+    "/usr/sbin/sshd"]`` for daemons/GUI apps that can't run headless).
+
+    ``expect_preinstalled`` flips the protocol for entries the base image (or
+    any fresh 24.04) already ships (e.g. ca-certificates, python3): the probe
+    must succeed *before* install, dry-run predicts "already present (no
+    change)", and the install run is the ``check()`` no-op (outcome ``ok``,
+    never ``changed``) — still proving id/package validity and idempotency.
+
     ``include_usage_probe`` adds the exit-code-table probe (unknown id ->
     ``CatalogError`` -> exit 2) — once per tier is enough, so it is opt-in.
     """
     user = session.profile.user
     py = session.profile.python
+    probe_argv = list(probe) if probe is not None else [binary, "--version"]
 
-    # -- 0. truly fresh guest --------------------------------------------------
-    probe = session.exec([binary, "--version"], user=user,
-                         desc=f"pre-probe: {binary} must be absent")
-    _ensure(not probe.ok,
-            f"guest is not fresh: {binary!r} already present before install")
+    # -- 0. fresh guest (or: the preinstalled premise holds) --------------------
+    probe_res = session.exec(probe_argv, user=user,
+                             desc=f"pre-probe: {entry_id} "
+                                  f"({'pre' if expect_preinstalled else 'not '}installed)")
+    if expect_preinstalled:
+        _ensure(probe_res.ok,
+                f"{entry_id}: expected preinstalled in the base image, but the "
+                f"probe failed (exit {probe_res.returncode})")
+    else:
+        _ensure(not probe_res.ok,
+                f"guest is not fresh: {probe_argv!r} already succeeds before install")
 
     if include_usage_probe:
         bogus = session.exec(
@@ -350,39 +369,48 @@ def verify_entry(
         _ensure(bogus.returncode == 2,
                 f"unknown id must exit 2 (CatalogError), got {bogus.returncode}")
 
-    # -- 1. plan-only: predicts the change, mutates nothing ---------------------
+    # -- 1. plan-only: predicts the (no-)change, mutates nothing ----------------
     dry = session.exec(
         [py, "-m", "ubuntu_setup", "--install", entry_id, "--dry-run"],
         user=user, desc=f"dry-run on fresh guest: {entry_id}",
     )
     _ensure(dry.returncode == 0,
             f"--dry-run must exit 0, got {dry.returncode}: {dry.stderr[-500:]}")
-    _ensure("would install (absent -> present)" in dry.stdout,
-            f"dry-run must predict the change; stdout was:\n{dry.stdout}")
+    if expect_preinstalled:
+        _ensure(f"{entry_id} install: ok" in dry.stdout
+                and "already present" in dry.stdout,
+                f"dry-run must report the no-change; stdout was:\n{dry.stdout}")
+    else:
+        _ensure("would install (absent -> present)" in dry.stdout,
+                f"dry-run must predict the change; stdout was:\n{dry.stdout}")
     manifest_exists = session.exec(["test", "-e", session.profile.manifest_path],
                                    user=user, desc="dry-run wrote no manifest?")
     _ensure(not manifest_exists.ok, "a dry run must record nothing")
 
-    # -- 2. real install ---------------------------------------------------------
+    # -- 2. real install (the check() no-op for a preinstalled entry) ------------
+    expected_outcome = "ok" if expect_preinstalled else "changed"
     inst = session.exec(
         [py, "-m", "ubuntu_setup", "--install", entry_id],
         user=user, desc=f"real install: {entry_id}",
     )
     _ensure(inst.returncode == 0,
             f"install must exit 0, got {inst.returncode}: {inst.stderr[-500:]}")
-    _ensure(f"{entry_id} install: changed" in inst.stdout,
-            f"install must report outcome changed; stdout was:\n{inst.stdout}")
-    ran = session.exec([binary, "--version"], user=user,
-                       desc=f"post-install: {binary} runs")
-    _ensure(ran.ok, f"{binary!r} must run after install (exit {ran.returncode})")
+    _ensure(f"{entry_id} install: {expected_outcome}" in inst.stdout,
+            f"install must report outcome {expected_outcome}; stdout was:\n"
+            f"{inst.stdout}")
+    ran = session.exec(probe_argv, user=user,
+                       desc=f"post-install: {entry_id} probe runs")
+    _ensure(ran.ok, f"{probe_argv!r} must succeed after install "
+                    f"(exit {ran.returncode})")
     data = _read_manifest(session)
     _ensure(data["desired"] == [{"id": entry_id, "op": "install"}],
             f"desired must hold the upserted entry, got {data['desired']}")
     tx = data["history"][-1]
     _ensure(tx["exit_code"] == 0, f"transaction exit_code must be 0, got {tx}")
     _ensure(tx["actions"] == [{"id": entry_id, "op": "install",
-                               "outcome": "changed"}],
-            f"transaction must record outcome changed, got {tx['actions']}")
+                               "outcome": expected_outcome}],
+            f"transaction must record outcome {expected_outcome}, "
+            f"got {tx['actions']}")
 
     # -- 3. idempotent re-run ----------------------------------------------------
     rerun = session.exec(

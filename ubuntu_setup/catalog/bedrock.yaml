@@ -1,0 +1,89 @@
+# Declarative catalog — bedrock: bootstrap tools a fresh machine (and other
+# catalog entries' install steps) rely on. Data, not code; validated against
+# schema.json at load time.
+#
+# Sourcing discipline: every entry cites the upstream install doc and its
+# intersection-research hits (see
+# .trellis/tasks/06-10-intersection-research/research/final-list.json).
+# "bedrock whitelist" / "dependency citation" entries were approved in the
+# parent prd decision of 2026-06-10 (06-10-catalog-launch-essentials).
+
+# https://curl.se/download.html — hits: homebrew+curation+pkgstats (core), popcon (aux);
+# also cited as a prerequisite by 22 other researched entries.
+- id: curl
+  description: "Transfer data by URL — the bootstrap tool many installers need"
+  type: apt
+  package: curl
+  tags: [bedrock, network, download]
+  source: official
+
+# dependency citation: prerequisite of 5 researched entries (docker, kubectl, ...);
+# TLS trust store for apt/curl/wget. Preinstalled on standard Ubuntu images.
+- id: ca-certificates
+  description: "Common CA certificates (TLS trust store for apt/curl)"
+  type: apt
+  package: ca-certificates
+  tags: [bedrock, tls]
+  source: official
+
+# https://gnupg.org/download/index.html — hits: homebrew+pkgstats (core), popcon (aux);
+# also cited as prerequisite by 12 entries (gpg x7 + gnupg x5: third-party repo keys).
+# Usually preinstalled on standard Ubuntu; check() will simply find it present.
+- id: gnupg
+  description: "GNU Privacy Guard — OpenPGP tooling (third-party repo keys)"
+  type: apt
+  package: gnupg
+  tags: [bedrock, security, gpg]
+  source: official
+
+# dependency citation: prerequisite of 2 researched entries (redis, nginx official repos).
+- id: lsb-release
+  description: "Linux Standard Base release info (lsb_release)"
+  type: apt
+  package: lsb-release
+  tags: [bedrock, system]
+  source: official
+
+# dependency citation: prerequisite of 4 researched entries (inkscape, yt-dlp,
+# keepassxc, fish PPA routes) — provides add-apt-repository for the ppa provider.
+- id: software-properties-common
+  description: "add-apt-repository and friends (PPA management)"
+  type: apt
+  package: software-properties-common
+  tags: [bedrock, apt, ppa]
+  source: official
+
+# bedrock whitelist (approved 2026-06-10): zip/unzip pair expected by countless
+# install scripts (sdkman, bun, deno require unzip explicitly).
+- id: zip
+  description: "Create .zip archives (Info-ZIP)"
+  type: apt
+  package: zip
+  tags: [bedrock, archive]
+  source: official
+
+# dependency citation: prerequisite of 2 researched entries (bun, deno) + the
+# zip/unzip bedrock pair.
+- id: unzip
+  description: "Extract .zip archives (Info-ZIP)"
+  type: apt
+  package: unzip
+  tags: [bedrock, archive]
+  source: official
+
+# bedrock whitelist (approved 2026-06-10): xz decompression for release tarballs.
+- id: xz-utils
+  description: "XZ/LZMA compression tools (xz)"
+  type: apt
+  package: xz-utils
+  tags: [bedrock, compression]
+  source: official
+
+# bedrock whitelist (approved 2026-06-10): remote access for the Server/SSH
+# audience; Ubuntu Server preinstalls it, Desktop does not.
+- id: openssh-server
+  description: "OpenSSH server (sshd) for remote login"
+  type: apt
+  package: openssh-server
+  tags: [bedrock, ssh, server]
+  source: official

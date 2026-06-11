@@ -1,0 +1,108 @@
+# Declarative catalog — language runtimes & SDKs. Data, not code; validated
+# against schema.json at load time.
+# Sourcing: upstream install doc URL + intersection-research hits per entry
+# (.trellis/tasks/06-10-intersection-research/research/final-list.json).
+
+# https://go.dev/doc/install — hits: so-survey+homebrew+pkgstats (core),
+# jetbrains+popcon (aux). Official doc covers the tarball only and does not
+# oppose distro packages; noble ships Go 1.22 (behind upstream — the tarball
+# is the fresh path for version-sensitive users).
+- id: go
+  description: "Go toolchain (package golang-go; noble ships Go 1.22)"
+  type: apt
+  package: golang-go
+  tags: [languages, go]
+  source: official
+
+# https://nodejs.org/en/download — hits: so-survey+homebrew+pkgstats (core),
+# jetbrains+popcon (aux). noble ships Node 18 (upstream EOL; Ubuntu maintains
+# security fixes through the LTS window). npm is NOT included — it is a
+# separate Ubuntu package (`npm`), install it alongside when needed.
+- id: nodejs
+  description: "Node.js runtime (npm is a separate Ubuntu package)"
+  type: apt
+  package: nodejs
+  tags: [languages, javascript]
+  source: official
+
+# https://openjdk.org/install/ — hits: so-survey+homebrew+pkgstats (core),
+# jetbrains+popcon (aux). Java ecosystem convention: GA builds are distributed
+# by distros; default-jdk on noble resolves to OpenJDK 21 LTS.
+- id: openjdk
+  description: "Default OpenJDK (default-jdk resolves to OpenJDK 21 LTS on noble)"
+  type: apt
+  package: default-jdk
+  tags: [languages, java]
+  source: official
+
+# https://www.php.net/manual/en/install.unix.debian.php — hits:
+# so-survey+homebrew+pkgstats (core), jetbrains+popcon (aux). php.net's
+# Debian/Ubuntu manual recommends apt. The php meta-package pulls the Apache
+# module; CLI-only users may prefer php-cli.
+- id: php
+  description: "PHP interpreter (meta-package; pulls the Apache module)"
+  type: apt
+  package: php
+  tags: [languages, php]
+  source: official
+
+# https://docs.python.org/3/using/unix.html — hits: so-survey+homebrew+pkgstats
+# (core), jetbrains+popcon (aux). Preinstalled on Ubuntu 24.04; this entry
+# anchors the python3 ecosystem (venv/pip below complete it).
+- id: python3
+  description: "Python 3 interpreter (preinstalled on Ubuntu 24.04)"
+  type: apt
+  package: python3
+  tags: [languages, python, bedrock]
+  source: official
+
+# bedrock whitelist (approved 2026-06-10, "python3-venv+pip"): 24.04 is
+# PEP 668 externally-managed — venv is the sanctioned way to install Python
+# software. Split from python3-pip because the apt provider takes one package
+# per entry.
+- id: python3-venv
+  description: "venv module for Python virtual environments (PEP 668 era)"
+  type: apt
+  package: python3-venv
+  tags: [languages, python, bedrock]
+  source: official
+
+# bedrock whitelist (approved 2026-06-10, "python3-venv+pip"): pip inside
+# venvs / --user installs. Second half of the python3-venv+pip decision.
+- id: python3-pip
+  description: "pip — the Python package installer"
+  type: apt
+  package: python3-pip
+  tags: [languages, python, bedrock]
+  source: official
+
+# https://www.ruby-lang.org/en/documentation/installation/ — hits:
+# so-survey+homebrew+pkgstats (core), jetbrains+popcon (aux). Official install
+# page's apt section: `apt-get install ruby-full`.
+- id: ruby
+  description: "Ruby with development headers (ruby-full)"
+  type: apt
+  package: ruby-full
+  tags: [languages, ruby]
+  source: official
+
+# https://learn.microsoft.com/en-us/dotnet/core/install/linux-ubuntu-2404 —
+# hits: so-survey+pkgstats (core), jetbrains (aux). Since 24.04 Microsoft
+# distributes .NET through Ubuntu's own feed (Canonical-maintained) — apt IS
+# the official path. 8.0 is the LTS default.
+- id: dotnet
+  description: ".NET SDK 8.0 LTS (Canonical-maintained Ubuntu feed)"
+  type: apt
+  package: dotnet-sdk-8.0
+  tags: [languages, dotnet, csharp]
+  source: official
+
+# https://www.lua.org/download.html — hits: so-survey+homebrew (core),
+# jetbrains (aux). lua.org ships source only and defers binaries to distros.
+# noble has no unversioned `lua` package — the command is lua5.4.
+- id: lua
+  description: "Lua 5.4 interpreter (command: lua5.4)"
+  type: apt
+  package: lua5.4
+  tags: [languages, lua]
+  source: official

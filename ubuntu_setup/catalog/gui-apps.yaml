@@ -1,0 +1,82 @@
+# Declarative catalog — GUI desktop applications. Data, not code; validated
+# against schema.json at load time.
+#
+# Every entry here carries `requires: [desktop]` (final-list annotation): a
+# Server/SSH machine without a desktop stack hides them in browse and visibly
+# skips them on a manifest replay (core/environment.py judges applicability).
+# Sourcing: upstream install doc URL + intersection-research hits per entry
+# (.trellis/tasks/06-10-intersection-research/research/final-list.json).
+
+# https://www.audacityteam.org/download/linux/ — hits: flathub+pkgstats (core),
+# popcon (aux). Upstream main channel is an AppImage (not provider-expressible);
+# noble's 3.4 is usable, official AppImage is the fresh path.
+- id: audacity
+  description: "Audio editor and recorder"
+  type: apt
+  package: audacity
+  tags: [gui, media, audio]
+  requires: [desktop]
+  source: official
+
+# https://www.gimp.org/downloads/ — hits: flathub+pkgstats (core), popcon (aux).
+# noble ships GIMP 2.10; upstream 3.x is on flatpak/snap/AppImage if needed.
+- id: gimp
+  description: "GNU Image Manipulation Program"
+  type: apt
+  package: gimp
+  tags: [gui, graphics]
+  requires: [desktop]
+  source: official
+
+# https://keepassxc.org/download/ — hits: flathub+pkgstats (core), popcon (aux).
+# noble universe 2.7.6; the official PPA (ppa:phoerious/keepassxc) tracks newer 2.7.x.
+- id: keepassxc
+  description: "Offline password manager"
+  type: apt
+  package: keepassxc
+  tags: [gui, security, passwords]
+  requires: [desktop]
+  source: official
+
+# https://krita.org/en/download/ — hits: flathub+pkgstats (core), popcon (aux).
+# Upstream mainly ships an AppImage; noble's 5.2 is one minor series behind.
+- id: krita
+  description: "Digital painting studio"
+  type: apt
+  package: krita
+  tags: [gui, graphics]
+  requires: [desktop]
+  source: official
+
+# https://www.libreoffice.org/get-help/install-howto/linux/ — hits:
+# flathub+pkgstats (core), popcon (aux). Official install guide: use the
+# distro's recommended way. Large meta-package.
+- id: libreoffice
+  description: "Full office suite (large meta-package)"
+  type: apt
+  package: libreoffice
+  tags: [gui, office, productivity]
+  requires: [desktop]
+  source: official
+
+# https://www.qbittorrent.org/download — hits: flathub+pkgstats (core), popcon (aux).
+# Official download page lists distro apt first; qbittorrent-nox is the
+# headless/WebUI flavor for servers (separate package, not this entry).
+- id: qbittorrent
+  description: "BitTorrent client (Qt GUI; server flavor is qbittorrent-nox)"
+  type: apt
+  package: qbittorrent
+  tags: [gui, network, torrent]
+  requires: [desktop]
+  source: official
+
+# https://www.videolan.org/vlc/download-ubuntu.html — hits:
+# flathub+curation+pkgstats (core), popcon (aux). Official page endorses the
+# APT channel (full security fixes); snap is their CLI-first suggestion.
+- id: vlc
+  description: "VLC media player"
+  type: apt
+  package: vlc
+  tags: [gui, media, video]
+  requires: [desktop]
+  source: official

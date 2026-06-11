@@ -1,0 +1,33 @@
+# Declarative catalog — terminal editors. Data, not code; validated against
+# schema.json at load time.
+# Sourcing: upstream install doc URL + intersection-research hits per entry
+# (.trellis/tasks/06-10-intersection-research/research/final-list.json).
+
+# https://github.com/neovim/neovim/blob/master/INSTALL.md — hits:
+# so-survey+homebrew+pkgstats (core), jetbrains+popcon (aux). INSTALL.md lists
+# `apt install neovim` for Ubuntu; noble's 0.9 is well behind upstream 0.12
+# (some plugin ecosystems want >=0.10) — the official tarball is the fresh path.
+- id: neovim
+  description: "Hyperextensible Vim-based editor (nvim)"
+  type: apt
+  package: neovim
+  tags: [editor, vim]
+  source: official
+
+# https://www.vim.org/download.php — hits: so-survey+homebrew+pkgstats (core),
+# jetbrains+popcon (aux). Ubuntu preinstalls only vim-tiny; this is the full vim.
+- id: vim
+  description: "Vi IMproved — the full vim package (Ubuntu preinstalls only vim-tiny)"
+  type: apt
+  package: vim
+  tags: [editor, vim]
+  source: official
+
+# https://www.nano-editor.org/download.php — hits: so-survey+pkgstats (core),
+# popcon (aux). GNU upstream ships source only; preinstalled on standard Ubuntu.
+- id: nano
+  description: "Simple terminal text editor (usually preinstalled on Ubuntu)"
+  type: apt
+  package: nano
+  tags: [editor]
+  source: official

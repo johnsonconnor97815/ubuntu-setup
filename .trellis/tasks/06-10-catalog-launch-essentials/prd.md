@@ -65,6 +65,13 @@ schema 无环境字段、planner 无拓扑排序、无集成测试基建。
 「信官方」可能被安全敏感用户挑战——以逐条溯源标注回应；容器验不了的条目须 VM，
 基建选型在验证子任务内决定。
 
+**追加决策（2026-06-10，调研定稿后用户裁决）**：
+- bedrock 评审稿 5 条全部批准：build-essential（合并 gcc+make）、zip、xz-utils、
+  openssh-server、python3-venv+pip——随 apt 批次落地，溯源标 bedrock。
+- thunderbird 改走官方 snap（官方顺序第二位）；flatpak provider 记 backlog，首发不建。
+- yarn 落地为独立 script 条目（corepack enable，depends_on nodejs）。
+- 最终分布：apt ≈70 ｜ deb 21 ｜ script 15 ｜ snap 7 ｜ ppa 4 ｜ flatpak 0，总规模 ≈117。
+
 ## Out of Scope
 
 * 服务器运维 / 多场景分组清单（首发只做开发者工作站一份）。

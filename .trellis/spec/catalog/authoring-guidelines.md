@@ -48,6 +48,14 @@ Common to all: `id`, `description`, `type`, `depends_on`, `tags`, `requires`, `s
 
 ---
 
+## File organization & sourcing comments (code-backed)
+
+The shipped catalog is split into **one YAML file per domain** under `ubuntu_setup/catalog/` (`bedrock.yaml`, `build-toolchain.yaml`, `cli-tools.yaml`, `containers-devops.yaml`, `databases.yaml`, `editors.yaml`, `gui-apps.yaml`, `languages.yaml`, `media-graphics.yaml`, `network-tools.yaml`, `package-managers.yaml`, `shell-and-monitoring.yaml`, `vcs.yaml`). The loader globs `*.yaml`, so the split is purely organizational — ids stay globally unique across files (loader-enforced), and a new file needs zero code.
+
+Sourcing discipline (the trust narrative's zero-engineering half): **every shipped entry carries a comment** above it citing (a) the upstream official install doc URL and (b) its intersection-research hits (`.trellis/tasks/06-10-intersection-research/research/final-list.json`), plus any actionable caveat (renamed binaries like `batcat`/`fdfind`/`7zz`, conflicts like mysql↔mariadb, "usually preinstalled" notes). Entries added outside the research pipeline state their provenance instead (e.g. `bedrock whitelist (approved <date>)`, `dependency citation: prerequisite of N entries`). `tests/core/test_catalog_content.py` locks ids/packages/`requires` to the research annotations.
+
+---
+
 ## Authoring rules
 
 1. **Prefer a declarative `type` over `script`.** If a thing can be expressed as `apt`/`snap`/`flatpak`/`deb`/`dotfile-block`/`service`, use it. Reach for `script` only when nothing else fits — it is the one type whose body runs arbitrary commands.

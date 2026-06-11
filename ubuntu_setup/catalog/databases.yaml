@@ -1,0 +1,50 @@
+# Declarative catalog — database servers & engines. Data, not code; validated
+# against schema.json at load time.
+# Sourcing: upstream install doc URL + intersection-research hits per entry
+# (.trellis/tasks/06-10-intersection-research/research/final-list.json).
+#
+# Service-class note: apt installation (this batch's verification scope) works
+# in containers; *service running* assertions need systemd and belong to the
+# VM tier (research testability=vm for postgresql/mariadb/mysql).
+
+# https://www.postgresql.org/download/linux/ubuntu/ — hits:
+# so-survey+homebrew+pkgstats (core), jetbrains+popcon (aux). Official download
+# page first option: "Ubuntu includes PostgreSQL by default" -> apt. PGDG repo
+# is the official multi-version path (future deb-provider candidate).
+- id: postgresql
+  description: "PostgreSQL relational database server (v16 on noble)"
+  type: apt
+  package: postgresql
+  tags: [database, sql]
+  source: official
+
+# https://sqlite.org/download.html — hits: so-survey+homebrew+pkgstats (core),
+# jetbrains+popcon (aux). Upstream ships source/binaries only and does not
+# oppose distro packaging; dev headers are libsqlite3-dev (separate package).
+- id: sqlite
+  description: "SQLite 3 command-line shell"
+  type: apt
+  package: sqlite3
+  tags: [database, sql]
+  source: official
+
+# https://mariadb.com/kb/en/mariadb-package-repository-setup-and-usage/ — hits:
+# so-survey+pkgstats (core), jetbrains+popcon (aux). noble ships 10.11 LTS;
+# MariaDB official repo offers 11.x. Conflicts with mysql-server.
+- id: mariadb
+  description: "MariaDB database server (conflicts with mysql-server)"
+  type: apt
+  package: mariadb-server
+  tags: [database, sql]
+  source: official
+
+# https://dev.mysql.com/doc/mysql-apt-repo-quick-guide/en/ — hits:
+# so-survey+homebrew (core), jetbrains (aux). noble ships 8.0 (Canonical
+# maintained); MySQL's own APT repo defaults to 8.4 LTS. Conflicts with
+# mariadb-server.
+- id: mysql
+  description: "MySQL database server (conflicts with mariadb-server)"
+  type: apt
+  package: mysql-server
+  tags: [database, sql]
+  source: official

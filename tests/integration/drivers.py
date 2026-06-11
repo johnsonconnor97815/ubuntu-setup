@@ -105,8 +105,15 @@ class DockerDriver:
         self._run = run
 
     def launch(self) -> None:
+        # --init: tini as PID 1 to reap zombies. A bare `sleep infinity` PID 1
+        # never wait()s, so a daemonizing maintainer script's process (e.g.
+        # mysqld during mysql-server-8.0's postinst) becomes an unreapable
+        # zombie after shutdown — `kill -0` keeps succeeding and the postinst's
+        # wait loop concludes "Unable to shut down server" (found by the
+        # catalog real-install verification, 2026-06-11). A real machine always
+        # has a reaping init; --init keeps the guest faithful to that.
         res = self._run(
-            ["docker", "run", "-d", "--name", self.name, self.image,
+            ["docker", "run", "-d", "--init", "--name", self.name, self.image,
              "sleep", "infinity"]
         )
         if not res.ok:

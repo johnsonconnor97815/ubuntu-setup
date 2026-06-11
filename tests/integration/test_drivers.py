@@ -53,7 +53,8 @@ class TestDockerDriver(unittest.TestCase):
         d.destroy()
 
         self.assertEqual(fake.calls, [
-            ["docker", "run", "-d", "--name", "g1", "img:tag", "sleep", "infinity"],
+            ["docker", "run", "-d", "--init", "--name", "g1", "img:tag",
+             "sleep", "infinity"],
             ["docker", "cp", "/host/x.whl", "g1:/tmp/x.whl"],
             ["docker", "exec", "g1", "echo", "hi"],
             ["docker", "exec", "-u", "ubuntu", "g1", "id"],

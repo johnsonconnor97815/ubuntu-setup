@@ -65,6 +65,15 @@ class TestAptInstall(unittest.TestCase):
         self.assertIn("--no-install-recommends", apt_calls[0].argv)
         self.assertIn("ripgrep", apt_calls[0].argv)
 
+    def test_install_widens_the_command_timeout(self):
+        # the runner's blanket 600s default dies mid-download on heavy
+        # meta-packages (libreoffice/qemu class — seen in the catalog
+        # real-install verification); install carries its own wider cap
+        run = FakeRun()
+        AptProvider(run=run).install(_entry(), make_ctx(run))
+        apt_calls = [c for c in run.calls if apt_install(c.argv)]
+        self.assertGreater(apt_calls[0].kw.get("timeout", 0), 600.0)
+
     def test_install_pinned_version_targets_pkg_equals_version(self):
         run = FakeRun()
         AptProvider(run=run).install(_entry(version="13.0.0"), make_ctx(run))

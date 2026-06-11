@@ -1,9 +1,9 @@
 {
-  "id": "catalog-launch-essentials",
-  "name": "catalog-launch-essentials",
-  "title": "catalog-launch-essentials",
+  "id": "entries-apt",
+  "name": "entries-apt",
+  "title": "条目落地 apt 批次：~70 条 + 全量真装验证",
   "description": "",
-  "status": "planning",
+  "status": "in_progress",
   "dev_type": null,
   "scope": null,
   "package": null,
@@ -18,13 +18,8 @@
   "commit": null,
   "pr_url": null,
   "subtasks": [],
-  "children": [
-    "06-10-intersection-research",
-    "06-10-engine-prep",
-    "06-10-verify-infra",
-    "06-10-entries-apt"
-  ],
-  "parent": null,
+  "children": [],
+  "parent": "06-10-catalog-launch-essentials",
   "relatedFiles": [],
   "notes": "",
   "meta": {}

@@ -1,0 +1,34 @@
+# Declarative catalog — containers, virtualization & devops automation.
+# Data, not code; validated against schema.json at load time.
+# Sourcing: upstream install doc URL + intersection-research hits per entry
+# (.trellis/tasks/06-10-intersection-research/research/final-list.json).
+
+# https://podman.io/docs/installation — hits: so-survey+homebrew+pkgstats (core),
+# popcon (aux). The official install page's Ubuntu section is plain apt-get.
+- id: podman
+  description: "Daemonless OCI container engine"
+  type: apt
+  package: podman
+  tags: [containers]
+  source: official
+
+# https://www.qemu.org/download/ — hits: homebrew+pkgstats (core), popcon (aux).
+# Official download page: `apt-get install qemu-system`. The meta-package
+# covers emulators for all architectures (large download).
+- id: qemu
+  description: "QEMU system emulators (meta-package qemu-system, all architectures)"
+  type: apt
+  package: qemu-system
+  tags: [virtualization]
+  source: official
+
+# https://docs.ansible.com/ansible/latest/installation_guide/intro_installation.html —
+# hits: so-survey+homebrew+pkgstats (core). Distro packages are officially
+# allowed (installing_distros page); pip/pipx is upstream's only *supported* path,
+# and ppa:ansible/ansible offers newer versions.
+- id: ansible
+  description: "Agentless IT automation (control node)"
+  type: apt
+  package: ansible
+  tags: [devops, automation]
+  source: official

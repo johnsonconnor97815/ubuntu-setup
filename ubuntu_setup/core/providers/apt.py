@@ -25,6 +25,14 @@ from .base import Ctx, State
 
 _INSTALLED_STATUS = "install ok installed"
 
+#: per-command cap for the install op. The runner's blanket DEFAULT_TIMEOUT
+#: (600s) is right for checks/repo ops but provably too tight for heavy
+#: meta-packages: the catalog real-install verification (2026-06-11) saw
+#: libreoffice/qemu/dotnet-class installs exceed 600s on a contended/slow
+#: link and die mid-download with exit 124. Installing is the one op that
+#: legitimately downloads hundreds of MB, so it carries its own wider cap.
+_INSTALL_TIMEOUT = 3600.0
+
 
 class AptProvider:
     type = "apt"
@@ -84,6 +92,7 @@ class AptProvider:
                 target,
             ],
             sudo=True,
+            timeout=_INSTALL_TIMEOUT,
         )
         if res.returncode != 0:
             raise ProviderError(

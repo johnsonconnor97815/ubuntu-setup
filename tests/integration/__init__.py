@@ -19,6 +19,9 @@ How to run:
     # container tier (Docker; the 95-entry apt/dpkg/file class)
     UBUNTU_SETUP_INTEGRATION=1 python -m unittest tests.integration.test_container -v
 
+    # whole shipped apt catalog, one fresh guest per entry (parallel)
+    UBUNTU_SETUP_INTEGRATION=1 python -m unittest tests.integration.test_container_catalog -v
+
     # system tier (LXD/Incus system containers; the 15-entry systemd/snap class)
     UBUNTU_SETUP_INTEGRATION=1 python -m unittest tests.integration.test_system -v
 
@@ -35,6 +38,9 @@ Knobs:
 - ``UBUNTU_SETUP_VERIFY_BASE_IMAGE`` — alternate reference for the official
   ``ubuntu:24.04`` base (proxied/mirrored docker.io hosts; e.g.
   ``mirror.gcr.io/library/ubuntu:24.04``). Must stay byte-identical upstream.
+
+The catalog-wide suite adds its own knobs (parallelism, entry-id filter,
+per-exec timeout) — see the ``test_container_catalog`` module docstring.
 
 Hard rule: this tier NEVER installs software on the host (no sudo / apt /
 snap). A missing docker daemon or lxd/incus is an explicit skip with the
