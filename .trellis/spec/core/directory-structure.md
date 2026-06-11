@@ -4,9 +4,9 @@
 
 ---
 
-## Status: design-derived, not yet code-backed
+## Status: layout code-backed (core slice + TUI loop); some providers still planned
 
-This repository has **no product source code yet** (only `CLAUDE.md`, `README.md`, `LICENSE`). Every rule here is **prescriptive**: it defines the layout the first code must adopt, derived from the approved design in `CLAUDE.md` and the project memory `design-direction.md`. When code lands, reconcile this file with reality and replace planned paths with real ones — but do not silently drop a rule; change the design on purpose.
+The skeleton below is real: `cli.py` (bare command → TUI; `--install`/`--apply` headless), `core/` (models/catalog/planner/executor/events/service/runner/privilege/state/errors + the `apt` provider), `tui/` (`app.py` + `screens/{browse,confirm,progress}.py`), `catalog/` (schema + `cli-tools.yaml`), `tests/` mirroring it. Entries marked *(planned)* below — the other providers, `tui/widgets/`, the installed screen, `llm/` content — are still prescriptive. Do not silently drop a rule; change the design on purpose.
 
 ---
 
@@ -30,7 +30,9 @@ The top-level package is `ubuntu_setup/` (rename consistently if the project is 
 ubuntu_setup/
 ├── __init__.py
 ├── __main__.py            # `python -m ubuntu_setup` → cli.main()
-├── cli.py                 # arg parsing, bootstrap checks, launch TUI or run headless --apply
+├── cli.py                 # bare command → the TUI; --install/--apply → headless apply.
+│                          # `textual` is imported ONLY inside the TUI branch: the
+│                          # headless paths never load it (guarded by tests/tui/test_boundary.py)
 ├── core/                  # THE BRAIN — pure logic, no UI, no direct terminal I/O
 │   ├── __init__.py
 │   ├── models.py          # dataclasses: CatalogEntry, Action, Plan, StepResult, Manifest
@@ -39,13 +41,13 @@ ubuntu_setup/
 │   │   ├── __init__.py    # registry: type string → Provider
 │   │   ├── base.py        # Provider protocol: check / install / remove / upgrade
 │   │   ├── apt.py
-│   │   ├── ppa.py
-│   │   ├── deb.py
-│   │   ├── snap.py
-│   │   ├── flatpak.py
-│   │   ├── dotfile_block.py
-│   │   ├── service.py
-│   │   └── script.py      # the escape hatch — see ../catalog/authoring-guidelines.md
+│   │   ├── ppa.py             # (planned)
+│   │   ├── deb.py             # (planned)
+│   │   ├── snap.py            # (planned)
+│   │   ├── flatpak.py         # (planned)
+│   │   ├── dotfile_block.py   # (planned)
+│   │   ├── service.py         # (planned)
+│   │   └── script.py          # (planned) the escape hatch — see ../catalog/authoring-guidelines.md
 │   ├── planner.py         # desired actions → ordered Plan (dependency sort) + dry-run diff
 │   ├── executor.py        # run a Plan as a generator of events: fail-fast, check-before-act
 │   ├── events.py          # the progress-event dataclasses the executor yields (RunStarted … RunFinished)
@@ -56,9 +58,13 @@ ubuntu_setup/
 │   └── errors.py          # exception taxonomy (see error-and-logging.md)
 ├── tui/                   # THE FACE — Textual only, no business logic
 │   ├── __init__.py
-│   ├── app.py             # the Textual App + key bindings
-│   ├── screens/           # browse, plan-confirm, progress, installed
-│   └── widgets/           # reusable widgets
+│   ├── app.py             # ManagerApp: DI seams (svc/priv/run), CSS, sudo suspend handover
+│   ├── screens/
+│   │   ├── __init__.py
+│   │   ├── browse.py      # two-pane list+detail, live state badges, /-filter, `i` install flow
+│   │   ├── confirm.py     # ConfirmScreen(ModalScreen[bool]): the plan preview (trust primitive)
+│   │   └── progress.py    # header + Log; batch-drain consumer; `c` cancel; dismisses affected ids
+│   └── widgets/           # (planned) reusable widgets — add only when actually reused
 ├── catalog/               # shipped declarative catalog DATA (YAML) + schema
 │   ├── schema.json        # JSON Schema the loader validates every entry against
 │   └── *.yaml             # catalog entries grouped by tag/domain
