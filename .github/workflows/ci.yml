@@ -1,0 +1,40 @@
+# PR/push gate: the exact same invocations as local development
+# (`python -m unittest discover -s tests` + `ruff check ubuntu_setup tests`),
+# minute-level. The full real-install regression lives in catalog-verify.yml.
+#
+# Action pins (verified against the GitHub API 2026-06-11):
+#   actions/checkout@v6      (latest release v6.0.3)
+#   actions/setup-python@v6  (latest release v6.2.0)
+name: CI
+
+on:
+  push:
+    branches: [dev, main]
+  pull_request:
+    branches: [dev, main]
+
+permissions:
+  contents: read
+
+jobs:
+  gate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-python@v6
+        with:
+          # same interpreter line as the repo venv (ubuntu-24.04 ships 3.12)
+          python-version: "3.12"
+
+      - name: Install project (pulls textual/pyyaml/jsonschema for the suite)
+        run: python -m pip install -e .
+
+      - name: Unit suite (same invocation as local)
+        run: python -m unittest discover -s tests
+
+      - name: Ruff lint (same invocation as local)
+        run: |
+          python -m pip install ruff
+          ruff check ubuntu_setup tests

@@ -27,7 +27,8 @@
     "06-11-entries-deb",
     "06-11-provider-script",
     "06-11-provider-ppa",
-    "06-11-provider-snap"
+    "06-11-provider-snap",
+    "06-11-launch-ci"
   ],
   "parent": null,
   "relatedFiles": [],
