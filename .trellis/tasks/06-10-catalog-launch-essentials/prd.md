@@ -29,12 +29,22 @@
 
 ## Acceptance Criteria
 
-* [ ] 交集脚本可重跑，源数据快照与计票结果落盘 research/，入选判定机械可执行。
-* [ ] 每条入选条目可溯源（命中源 + 官方安装方式出处 URL）。
-* [ ] schema `requires` 字段：无桌面环境下 GUI 条目在 browse 隐藏、plan/apply 跳过（含测试）。
-* [ ] planner 拓扑排序：repo 条目先于依赖它的 package 条目执行（含测试）。
-* [ ] 所有条目在干净 24.04 上自动化真装通过：check 幂等、install 成功、重跑不重装。
-* [ ] 不可妥协项①-⑦全部保持（尤其⑥类型分发只在注册表、⑦catalog 是数据）。
+* [x] 交集脚本可重跑，源数据快照与计票结果落盘 research/，入选判定机械可执行。
+* [x] 每条入选条目可溯源（命中源 + 官方安装方式出处 URL）。
+* [x] schema `requires` 字段：无桌面环境下 GUI 条目在 browse 隐藏、plan/apply 跳过（含测试 + 真跑端到端）。
+* [x] planner 拓扑排序：repo 条目先于依赖它的 package 条目执行（含测试 + 真跑步序断言）。
+* [~] 所有条目在干净 24.04 上自动化真装通过：**133/140 已真验全绿**（apt 94、deb 20、ppa 4、script 15）；
+  snap 7 条套件就绪、商店元数据已核实，真装待 LXD 环境（本机装 incus 或 CI setup-lxd）——
+  唯一未收口项，见 06-11-provider-snap prd。
+* [x] 不可妥协项①-⑦全部保持（每个子任务 trellis-check 逐项核查）。
+
+## 收尾账目（2026-06-11，9/9 子任务完成）
+
+* catalog 140 条 = apt 94（含 bedrock 5、依赖引证 7）+ deb 20 + ppa 4 + script 15 + snap 7。
+* 测试 146 → 350（单元）+ 五套集成遍历套件（容器四档全绿、snap LXD 档待环境）。
+* provider 新增 4 个：deb（双模式+AptCache 守卫）、ppa（DebProvider 翻译层）、script（逃生口）、snap。
+* 引擎新增：requires 环境感知、planner 拓扑、依赖链 skip 传播、apt/direct 超时放宽。
+* 后续另立：GHA workflow（首发准备）、flatpak provider（backlog）、镜像源适配（backlog）。
 
 ## Definition of Done
 
