@@ -34,3 +34,33 @@
   package: glab
   tags: [vcs, git, gitlab]
   source: official
+
+# https://github.com/cli/cli/blob/trunk/docs/install_linux.md — repo half of
+# the gh chain (hits on the gh entry below). The official doc marks this repo
+# "Recommended (Official)". Verified 2026-06-11: the signing key
+# githubcli-archive-keyring.gpg is ALREADY a binary keyring (no dearmor —
+# the provider sniffs); suite stable, component main, architectures default
+# to the host's (official line uses $(dpkg --print-architecture)).
+- id: gh-repo
+  description: "GitHub CLI official APT repository (cli.github.com/packages)"
+  type: deb
+  name: github-cli
+  key_url: "https://cli.github.com/packages/githubcli-archive-keyring.gpg"
+  repo_url: "https://cli.github.com/packages"
+  suite: stable
+  components: [main]
+  depends_on: [curl]
+  tags: [vcs, repo]
+  source: official
+
+# https://github.com/cli/cli/blob/trunk/docs/install_linux.md — hits:
+# so-survey+homebrew+pkgstats (core), popcon (aux). noble universe's gh 2.45
+# is well behind upstream and not GitHub-maintained; the official repo above
+# is the doc's only "Recommended (Official)" install path.
+- id: gh
+  description: "GitHub CLI (official cli.github.com apt repo)"
+  type: apt
+  package: gh
+  depends_on: [gh-repo]
+  tags: [vcs, git, github]
+  source: official

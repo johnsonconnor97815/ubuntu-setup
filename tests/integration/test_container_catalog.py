@@ -1,8 +1,11 @@
-"""Catalog-wide container tier: really install EVERY shipped apt entry.
+"""Catalog-wide container tier: really install every ARCHIVE apt entry.
 
 One disposable Docker ``ubuntu:24.04`` guest per catalog entry, the full
 ``verify_entry`` protocol each (fresh check -> install -> idempotent re-run;
-preinstalled entries run the present-state variant). Gated behind
+preinstalled entries run the present-state variant). apt entries that hang off
+a third-party ``deb`` repo (docker, vscode, firefox, ...) are NOT here — the
+deb chain suites (``test_container_deb``, ``test_container_deb_catalog``)
+verify the whole repo->package chain instead. Gated behind
 ``UBUNTU_SETUP_INTEGRATION=1`` like the rest of the tier:
 
     UBUNTU_SETUP_INTEGRATION=1 python -m unittest \\
@@ -159,9 +162,23 @@ def _patient_run(argv: Sequence[str], *, timeout: float = EXEC_TIMEOUT):
     return host_run(argv, timeout=max(timeout, EXEC_TIMEOUT))
 
 
+def _archive_apt_ids() -> "set[str]":
+    """The Ubuntu-archive apt batch: apt entries that do NOT hang off a
+    third-party ``deb`` repo entry. Repo-backed apt packages (docker/vscode/
+    firefox/...) are covered by the deb chain suites (``test_container_deb``,
+    ``test_container_deb_catalog``) — their protocol asserts the whole
+    repo->package chain, which this per-entry suite cannot."""
+    catalog = load_catalog()
+    return {
+        e.id for e in catalog.values()
+        if e.type == "apt"
+        and not any(catalog[dep].type == "deb" for dep in e.depends_on)
+    }
+
+
 def _selected_entries() -> "list[str]":
-    """All shipped apt entry ids, optionally filtered by the ENTRIES knob."""
-    apt_ids = sorted(e.id for e in load_catalog().values() if e.type == "apt")
+    """All archive apt entry ids, optionally filtered by the ENTRIES knob."""
+    apt_ids = sorted(_archive_apt_ids())
     raw = os.environ.get("UBUNTU_SETUP_INTEGRATION_ENTRIES", "").strip()
     if not raw:
         return apt_ids
@@ -192,9 +209,10 @@ class TestCatalogAptEntries(unittest.TestCase):
                 "software itself"
             )
         cls.entries = _selected_entries()
-        # the probe map must cover the apt batch exactly — adding a catalog
-        # entry without deciding its landing proof fails loudly here
-        all_apt = {e.id for e in load_catalog().values() if e.type == "apt"}
+        # the probe map must cover the archive apt batch exactly — adding a
+        # catalog entry without deciding its landing proof fails loudly here
+        # (repo-backed apt packages belong to the deb chain suites instead)
+        all_apt = _archive_apt_ids()
         missing = sorted(all_apt - PROBES.keys())
         stale = sorted(PROBES.keys() - all_apt)
         if missing or stale:

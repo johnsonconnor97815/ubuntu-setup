@@ -390,6 +390,10 @@ class TestDirectMode(DebTestCase):
         self.assertTrue(apt_calls[0].argv[-1].startswith("/"))
         self.assertTrue(apt_calls[0].argv[-1].endswith("chrome.deb"))
         self.assertGreater(apt_calls[0].kw.get("timeout", 0), 600.0)
+        # the DOWNLOAD shares the widened install timeout too: vendor .debs
+        # are 100-200MB and the runner's 600s default provably kills the curl
+        # on slow links (entries-deb full run, 2026-06-12: obsidian exit 124)
+        self.assertGreater(curls[0].kw.get("timeout", 0), 600.0)
 
     def test_install_consumes_a_pending_repo_change_first(self):
         run = FakeRun()

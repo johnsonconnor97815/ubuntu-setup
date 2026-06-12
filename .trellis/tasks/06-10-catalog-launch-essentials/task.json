@@ -23,7 +23,8 @@
     "06-10-engine-prep",
     "06-10-verify-infra",
     "06-10-entries-apt",
-    "06-11-provider-deb"
+    "06-11-provider-deb",
+    "06-11-entries-deb"
   ],
   "parent": null,
   "relatedFiles": [],

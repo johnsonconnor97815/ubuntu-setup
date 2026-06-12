@@ -336,9 +336,14 @@ class DebProvider:
         name = self._name(entry)
         with tempfile.TemporaryDirectory(prefix="ubuntu-setup-deb-") as tmp:
             deb_path = Path(tmp) / f"{name}.deb"
+            # vendor .debs are 100-200MB (chrome/discord/obsidian class): the
+            # download shares the widened install timeout — the runner's 600s
+            # default provably kills it on slow links (entries-deb full run,
+            # 2026-06-12: obsidian's GitHub download died at exit 124)
             self._must(
                 ctx.run(["curl", "-fsSL", "-o", str(deb_path),
-                         self._required(entry, "deb_url")]),
+                         self._required(entry, "deb_url")],
+                        timeout=_INSTALL_TIMEOUT),
                 entry, "download .deb",
             )
             # consume any pending repo change first (the .deb's dependencies

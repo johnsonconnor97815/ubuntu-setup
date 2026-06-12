@@ -80,3 +80,268 @@
   tags: [gui, media, video]
   requires: [desktop]
   source: official
+
+# --------------------------------------------------------------------------- #
+# Browsers (third-party official repos / vendor .debs — entries-deb batch)
+# --------------------------------------------------------------------------- #
+
+# https://support.mozilla.org/en-US/kb/install-firefox-linux — repo half of the
+# firefox chain (hits on the firefox entry below). Official Mozilla APT repo
+# verified 2026-06-11: key https://packages.mozilla.org/apt/repo-signing-key.gpg
+# (armored), suite `mozilla`, component `main`, plus the official pin
+# (Pin-Priority 1000 on origin packages.mozilla.org) so Ubuntu's
+# snap-transition stub never shadows the real deb.
+- id: firefox-repo
+  description: "Mozilla official APT repository (packages.mozilla.org, with the official apt pin)"
+  type: deb
+  name: mozilla
+  key_url: "https://packages.mozilla.org/apt/repo-signing-key.gpg"
+  repo_url: "https://packages.mozilla.org/apt"
+  suite: mozilla
+  components: [main]
+  pin:
+    package: "*"
+    pin: "origin packages.mozilla.org"
+    priority: 1000
+  depends_on: [curl, gnupg]
+  tags: [gui, browser, repo]
+  source: official
+
+# https://support.mozilla.org/en-US/kb/install-firefox-linux — hits:
+# flathub+curation+pkgstats (core), popcon (aux). noble's `firefox` apt package
+# is a snap-transition stub; the real deb is Mozilla's own repo (recommended
+# for Ubuntu by the official doc), made to win by the repo entry's pin.
+- id: firefox
+  description: "Mozilla Firefox (real deb from Mozilla's official APT repo)"
+  type: apt
+  package: firefox
+  depends_on: [firefox-repo]
+  requires: [desktop]
+  tags: [gui, browser]
+  source: official
+
+# https://brave.com/linux/ — repo half of the brave chain (hits on the brave
+# entry below). Official Ubuntu repo verified 2026-06-11: the signing key is
+# ALREADY a binary keyring (no dearmor — the provider sniffs), and the
+# official brave-browser.sources says Suites: stable, Components: main,
+# Architectures: amd64 arm64 (fetched and mirrored here).
+- id: brave-repo
+  description: "Brave official APT repository (brave-browser-apt-release.s3.brave.com)"
+  type: deb
+  name: brave-browser
+  key_url: "https://brave-browser-apt-release.s3.brave.com/brave-browser-archive-keyring.gpg"
+  repo_url: "https://brave-browser-apt-release.s3.brave.com"
+  suite: stable
+  components: [main]
+  architectures: [amd64, arm64]
+  depends_on: [curl]
+  tags: [gui, browser, repo]
+  source: official
+
+# https://brave.com/linux/ — hits: flathub+pkgstats (core), popcon (aux).
+# Official stance: prefer the native apt repo over snap/flatpak (their flatpak
+# alters the Chromium sandbox); the one-line install.sh just configures this
+# same repo on Debian-family systems.
+- id: brave
+  description: "Brave Browser (official apt repo; package brave-browser)"
+  type: apt
+  package: brave-browser
+  depends_on: [brave-repo]
+  requires: [desktop]
+  tags: [gui, browser]
+  source: official
+
+# https://www.google.com/chrome/ — hits: flathub+pkgstats (core), popcon (aux).
+# Official install is the stable direct .deb (URL verified 2026-06-11; always
+# the latest stable, amd64 only — no official Linux arm64 build). The .deb's
+# postinst self-configures Google's apt repo for subsequent upgrades.
+- id: chrome
+  description: "Google Chrome (official .deb; self-configures Google's apt repo for updates)"
+  type: deb
+  deb_url: "https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb"
+  package: google-chrome-stable
+  depends_on: [curl]
+  requires: [desktop]
+  tags: [gui, browser]
+  source: official
+
+# https://learn.microsoft.com/en-us/linux/packages — repo half of the edge
+# chain (hits on the edge entry below). packages.microsoft.com/repos/edge
+# verified 2026-06-11: same microsoft.asc trust root as the vscode repo
+# (separate scoped keyring file per repo), suite stable/main, amd64 only.
+# name MUST NOT be `microsoft-edge`: the edge .deb's postinst hardcodes and
+# REWRITES /etc/apt/sources.list.d/microsoft-edge.sources as its own managed
+# file (verified 2026-06-12 — a same-named entry never converges); with a
+# distinct basename the postinst leaves ours alone and comments out its copy.
+- id: edge-repo
+  description: "Microsoft Edge APT repository (packages.microsoft.com/repos/edge)"
+  type: deb
+  name: edge-repo
+  key_url: "https://packages.microsoft.com/keys/microsoft.asc"
+  repo_url: "https://packages.microsoft.com/repos/edge"
+  suite: stable
+  components: [main]
+  architectures: [amd64]
+  depends_on: [curl, gnupg]
+  tags: [gui, browser, repo]
+  source: official
+
+# https://learn.microsoft.com/en-us/linux/packages — hits: flathub+pkgstats
+# (core), popcon (aux). Not in the Ubuntu archive; Microsoft's repo is the
+# official channel (the website .deb also auto-registers it). amd64 only.
+- id: edge
+  description: "Microsoft Edge (official apt repo; package microsoft-edge-stable)"
+  type: apt
+  package: microsoft-edge-stable
+  depends_on: [edge-repo]
+  requires: [desktop]
+  tags: [gui, browser]
+  source: official
+
+# https://help.vivaldi.com/desktop/install-update/manual-setup-vivaldi-linux-repositories/
+# — hits: flathub+pkgstats (core), popcon (aux). Official path (verified
+# 2026-06-11; the manual-repo instructions were retired from that page): download
+# the versioned .deb and `apt-get install ./vivaldi*.deb`. There is NO
+# unversioned permalink — upgrading this entry means bumping the URL version
+# (maintenance convention, same as obsidian). First install self-configures
+# repo.vivaldi.com so the machine still gets apt upgrades afterwards.
+- id: vivaldi
+  description: "Vivaldi browser (official versioned .deb; self-configures repo.vivaldi.com for updates)"
+  type: deb
+  deb_url: "https://downloads.vivaldi.com/stable/vivaldi-stable_8.0.4033.46-1_amd64.deb"
+  package: vivaldi-stable
+  depends_on: [curl]
+  requires: [desktop]
+  tags: [gui, browser]
+  source: official
+
+# --------------------------------------------------------------------------- #
+# Communication (entries-deb batch)
+# --------------------------------------------------------------------------- #
+
+# https://discord.com/download — hits: flathub+pkgstats (core), popcon (aux).
+# Official Linux channel is the direct .deb behind a stable redirect (always
+# the latest; verified 2026-06-11). No apt repo — upgrades are in-app prompts
+# to re-download (re-running install converges to the then-current version).
+- id: discord
+  description: "Discord (official .deb via the stable download redirect)"
+  type: deb
+  deb_url: "https://discord.com/api/download?platform=linux&format=deb"
+  package: discord
+  depends_on: [curl]
+  requires: [desktop]
+  tags: [gui, communication]
+  source: official
+
+# https://signal.org/download/linux/ — repo half of the signal chain (hits on
+# the signal entry below). The official signal-desktop.sources was fetched and
+# mirrored 2026-06-11: suite `xenial` (their historical, still-current suite
+# name), component main, amd64 only; key keys.asc (armored).
+- id: signal-repo
+  description: "Signal Desktop official APT repository (updates.signal.org)"
+  type: deb
+  name: signal-desktop
+  key_url: "https://updates.signal.org/desktop/apt/keys.asc"
+  repo_url: "https://updates.signal.org/desktop/apt"
+  suite: xenial
+  components: [main]
+  architectures: [amd64]
+  depends_on: [curl, gnupg]
+  tags: [gui, communication, repo]
+  source: official
+
+# https://signal.org/download/linux/ — hits: flathub+pkgstats (core), popcon
+# (aux). Their apt repo is the only official Linux channel (Debian-family,
+# amd64). Runtime pairing with the phone app is a usage step, not install.
+- id: signal
+  description: "Signal Desktop (official apt repo; package signal-desktop)"
+  type: apt
+  package: signal-desktop
+  depends_on: [signal-repo]
+  requires: [desktop]
+  tags: [gui, communication]
+  source: official
+
+# https://support.zoom.com/hc/en/article?id=zm_kb&sysparm_article=KB0063458 —
+# hits: flathub+pkgstats (core), popcon (aux). Official Ubuntu install is the
+# direct .deb (stable latest URL verified 2026-06-11); no apt repo — upgrade =
+# re-install the new .deb. The Snap Store zoom-client is not Zoom-official.
+- id: zoom
+  description: "Zoom (official .deb from zoom.us; no repo, upgrade re-downloads)"
+  type: deb
+  deb_url: "https://zoom.us/client/latest/zoom_amd64.deb"
+  package: zoom
+  depends_on: [curl]
+  requires: [desktop]
+  tags: [gui, communication]
+  source: official
+
+# --------------------------------------------------------------------------- #
+# Media / productivity / gaming (entries-deb batch)
+# --------------------------------------------------------------------------- #
+
+# https://www.spotify.com/download/linux/ — repo half of the spotify chain
+# (hits on the spotify entry below). Official deb repo verified 2026-06-11:
+# repository.spotify.com stable non-free. CAVEAT: the signing key id ROTATES —
+# key_url embeds the current pubkey filename (pubkey_5384CE82BA52C83A.asc,
+# matching the download page today); when Spotify rotates, update key_url from
+# that page. We place it as a scoped signed-by keyring (modern idiom), not
+# their legacy trusted.gpg.d suggestion.
+- id: spotify-repo
+  description: "Spotify official APT repository (repository.spotify.com)"
+  type: deb
+  name: spotify
+  key_url: "https://download.spotify.com/debian/pubkey_5384CE82BA52C83A.asc"
+  repo_url: "https://repository.spotify.com"
+  suite: stable
+  components: [non-free]
+  depends_on: [curl, gnupg]
+  tags: [gui, media, repo]
+  source: official
+
+# https://www.spotify.com/download/linux/ — hits: flathub+pkgstats (core),
+# popcon (aux). deb repo chosen over the also-official snap (project priority
+# deb > snap; snap would need a VM to verify). Linux is not an officially
+# supported Spotify platform (their stated caveat).
+- id: spotify
+  description: "Spotify desktop client (official apt repo; package spotify-client)"
+  type: apt
+  package: spotify-client
+  depends_on: [spotify-repo]
+  requires: [desktop]
+  tags: [gui, media, audio]
+  source: official
+
+# https://obsidian.md/download — hits: so-survey+flathub+pkgstats (core).
+# Official Linux .deb is published per-release on GitHub with a VERSIONED
+# asset name (no latest-permalink possible) — maintenance convention: upgrading
+# this entry means bumping BOTH the tag and filename in deb_url (v1.12.7
+# verified 2026-06-11). No apt repo; the app self-prompts about new versions.
+- id: obsidian
+  description: "Obsidian knowledge base (official versioned .deb from GitHub releases)"
+  type: deb
+  deb_url: "https://github.com/obsidianmd/obsidian-releases/releases/download/v1.12.7/obsidian_1.12.7_amd64.deb"
+  package: obsidian
+  depends_on: [curl]
+  requires: [desktop]
+  tags: [gui, productivity, notes]
+  source: official
+
+# https://store.steampowered.com/about/ — hits: flathub+curation+pkgstats
+# (core), popcon (aux). Official steam.deb (CDN permalink, always current;
+# verified 2026-06-11) installs the launcher; it self-configures
+# repo.steampowered.com for upgrades. i386 NOTE (entries-deb decision): the
+# .deb's hard Depends carry NO i386 packages — steam-libs-i386 is only a
+# Recommends, so installation converges without i386 multiarch under our
+# --no-install-recommends idiom; enabling `dpkg --add-architecture i386` (which
+# the Steam client needs at RUNTIME to actually run games) stays a manual
+# user step outside the deb provider's responsibility.
+- id: steam
+  description: "Steam launcher (official steam.deb; running games needs i386 multiarch enabled manually)"
+  type: deb
+  deb_url: "https://cdn.fastly.steamstatic.com/client/installer/steam.deb"
+  package: steam-launcher
+  depends_on: [curl]
+  requires: [desktop]
+  tags: [gui, gaming]
+  source: official

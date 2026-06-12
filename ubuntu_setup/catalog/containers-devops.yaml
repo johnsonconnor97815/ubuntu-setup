@@ -89,3 +89,62 @@
   package: ansible
   tags: [devops, automation]
   source: official
+
+# https://kubernetes.io/docs/tasks/tools/install-kubectl-linux/ — repo half of
+# the kubectl chain (hits on the kubectl entry below). pkgs.k8s.io verified
+# 2026-06-11: a FLAT repo at the root (deb822 `Suites: /`, no Components),
+# key Release.key (armored). The repo URL is pinned PER MINOR (v1.36, the
+# current stable per the official doc) — Kubernetes' own convention: a minor
+# bump means editing key_url AND repo_url together (kubectl must stay within
+# ±1 minor of the cluster). ca-certificates/curl/gnupg are the official doc's
+# stated prerequisites (apt-transport-https is a dummy package on noble).
+- id: kubectl-repo
+  description: "Kubernetes official APT repository (pkgs.k8s.io, pinned to the v1.36 minor)"
+  type: deb
+  name: kubernetes
+  key_url: "https://pkgs.k8s.io/core:/stable:/v1.36/deb/Release.key"
+  repo_url: "https://pkgs.k8s.io/core:/stable:/v1.36/deb/"
+  suite: "/"
+  depends_on: [ca-certificates, curl, gnupg]
+  tags: [devops, kubernetes, repo]
+  source: official
+
+# https://kubernetes.io/docs/tasks/tools/install-kubectl-linux/ — hits:
+# so-survey+homebrew+pkgstats (core). Not in the Ubuntu archive; the official
+# apt path is pkgs.k8s.io (chosen over the also-official curl-binary and snap).
+- id: kubectl
+  description: "Kubernetes command-line client (official pkgs.k8s.io repo)"
+  type: apt
+  package: kubectl
+  depends_on: [kubectl-repo]
+  tags: [devops, kubernetes]
+  source: official
+
+# https://developer.hashicorp.com/terraform/install — repo half of the
+# terraform chain (hits on the terraform entry below). Official repo verified
+# 2026-06-11: apt.releases.hashicorp.com, suite = host codename, component
+# main, key gpg (armored); architectures default to the host's (the official
+# line uses $(dpkg --print-architecture)).
+- id: terraform-repo
+  description: "HashiCorp official APT repository (apt.releases.hashicorp.com)"
+  type: deb
+  name: hashicorp
+  key_url: "https://apt.releases.hashicorp.com/gpg"
+  repo_url: "https://apt.releases.hashicorp.com"
+  suite: "{codename}"
+  components: [main]
+  depends_on: [curl, gnupg]
+  tags: [devops, repo]
+  source: official
+
+# https://developer.hashicorp.com/terraform/install — hits:
+# so-survey+homebrew+pkgstats (core). BUSL-licensed, never in the Ubuntu
+# archive; the HashiCorp apt repo is the official Ubuntu path (the binary zip
+# is the alternative). The same repo also serves vault/consul/etc. later.
+- id: terraform
+  description: "Infrastructure-as-code CLI (official HashiCorp apt repo)"
+  type: apt
+  package: terraform
+  depends_on: [terraform-repo]
+  tags: [devops, iac]
+  source: official

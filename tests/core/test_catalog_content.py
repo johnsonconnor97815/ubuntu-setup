@@ -16,11 +16,21 @@ parent prd's approved additions (06-10-catalog-launch-essentials, 2026-06-10):
 
 Pure-apt total: 62 + 4 + 4 = 70 list items = 71 catalog entries (venv+pip split).
 
-The deb pilot batch (06-11-provider-deb) adds the docker + vscode chains: two
-``deb`` repo entries (docker-repo, vscode-repo) and four third-party-repo
-``apt`` package entries (docker, docker-buildx, docker-compose, vscode) —
-the repo->package split mandated by authoring rule 4, linked via
-``depends_on``. Total now: 75 apt + 2 deb = 77.
+The deb batch covers all 21 ``provider_type == "deb"`` final-list entries:
+
+- the pilot (06-11-provider-deb) landed the docker + vscode chains — the
+  final-list keys docker, docker-compose AND vscode (3 of 21): two ``deb``
+  repo entries (docker-repo, vscode-repo) and four third-party-repo ``apt``
+  package entries (docker, docker-buildx, docker-compose, vscode);
+- entries-deb (06-11) lands the remaining 18 products: 12 repo-mode chains
+  (firefox incl. the official pin-1000, brave, edge, signal, spotify, mongodb
+  with the mid-path {codename} suite, redis, vscodium, sublime-text flat,
+  kubectl flat `/`, terraform, gh) = 12 ``deb`` repo + 12 ``apt`` package
+  entries, plus 6 direct-mode ``deb`` entries (chrome, vivaldi, discord, zoom,
+  obsidian, steam). final-list's mariadb/mysql/nginx are provider_type=apt
+  (already in the apt batch — re-checked, not duplicated here).
+
+Totals: 71 + 4 + 12 = 87 apt, 14 repo-deb + 6 direct-deb = 20 deb, 107 entries.
 
 id renames vs final-list keys (kept minimal, mapping recorded here):
 ``gcc``+``make`` -> ``build-essential``, ``p7zip`` -> ``7zip``,
@@ -34,7 +44,8 @@ import unittest
 from ubuntu_setup.core.catalog import load_catalog
 
 #: catalog id -> Ubuntu package (the final-list `ubuntu_apt_package` column,
-#: verified per-entry against packages.ubuntu.com during the research task).
+#: verified per-entry against packages.ubuntu.com during the research task;
+#: third-party-repo packages follow the vendor's official package name).
 EXPECTED_APT_PACKAGES = {
     # bedrock (final-list `curl` + prd-approved additions)
     "curl": "curl",
@@ -67,11 +78,24 @@ EXPECTED_APT_PACKAGES = {
     "podman": "podman",
     "qemu": "qemu-system",
     "ansible": "ansible",
-    # deb pilot: third-party-repo apt packages (docker + vscode chains)
+    # third-party-repo apt packages: deb pilot (docker + vscode chains)
     "docker": "docker-ce",
     "docker-buildx": "docker-buildx-plugin",
     "docker-compose": "docker-compose-plugin",
     "vscode": "code",
+    # third-party-repo apt packages: entries-deb batch (repo-mode chains)
+    "firefox": "firefox",
+    "brave": "brave-browser",
+    "edge": "microsoft-edge-stable",
+    "signal": "signal-desktop",
+    "spotify": "spotify-client",
+    "mongodb": "mongodb-org",
+    "redis": "redis",
+    "vscodium": "codium",
+    "sublime-text": "sublime-text",
+    "kubectl": "kubectl",
+    "terraform": "terraform",
+    "gh": "gh",
     # databases
     "postgresql": "postgresql",
     "sqlite": "sqlite3",
@@ -129,19 +153,49 @@ EXPECTED_APT_PACKAGES = {
 
 #: the final-list `requires: [desktop]` annotations (gui == true entries);
 #: repo entries a GUI package depends on carry no requires of their own —
-#: the dependent does (authoring-guidelines)
+#: the dependent does; a DIRECT-mode deb entry IS the package, so it carries
+#: requires itself (authoring-guidelines)
 EXPECTED_DESKTOP_IDS = frozenset({
+    # apt batch
     "audacity", "gimp", "keepassxc", "krita", "libreoffice",
-    "qbittorrent", "vlc", "vscode",
+    "qbittorrent", "vlc",
+    # deb pilot
+    "vscode",
+    # entries-deb: repo-mode GUI packages
+    "firefox", "brave", "edge", "signal", "spotify", "vscodium",
+    "sublime-text",
+    # entries-deb: direct-mode GUI entries
+    "chrome", "vivaldi", "discord", "zoom", "obsidian", "steam",
 })
 
-#: the shipped deb (third-party repo) entries — the deb pilot batch
-EXPECTED_DEB_REPO_IDS = frozenset({"docker-repo", "vscode-repo"})
+#: the shipped deb REPO-mode entries (third-party APT repositories)
+EXPECTED_DEB_REPO_IDS = frozenset({
+    # pilot
+    "docker-repo", "vscode-repo",
+    # entries-deb batch
+    "firefox-repo", "brave-repo", "edge-repo", "signal-repo", "spotify-repo",
+    "mongodb-repo", "redis-repo", "vscodium-repo", "sublime-text-repo",
+    "kubectl-repo", "terraform-repo", "gh-repo",
+})
+
+#: the shipped deb DIRECT-mode entries: id -> the binary package the vendor
+#: .deb provides (the dpkg idempotency probe)
+EXPECTED_DEB_DIRECT_PACKAGES = {
+    "chrome": "google-chrome-stable",
+    "vivaldi": "vivaldi-stable",
+    "discord": "discord",
+    "zoom": "zoom",
+    "obsidian": "obsidian",
+    "steam": "steam-launcher",
+}
 
 #: the full cross-entry ordering graph: every shipped depends_on edge. apt
 #: resolves real package dependencies itself — depends_on exists only for the
-#: repo->package chains (and the repo entries' bootstrap-tool prerequisites).
+#: repo->package chains and the bootstrap-tool prerequisites (curl downloads
+#: every key/.deb; gnupg dearmors armored keys — binary-keyring repos
+#: (brave, gh) need no gnupg).
 EXPECTED_DEPENDS_ON = {
+    # pilot chains
     "docker-repo": ("ca-certificates", "curl", "gnupg"),
     # docker's official install is five packages; cli+containerd.io arrive via
     # dpkg-level Depends of docker-ce, the two plugins via depends_on so that
@@ -151,11 +205,43 @@ EXPECTED_DEPENDS_ON = {
     "docker-compose": ("docker-repo",),
     "vscode-repo": ("curl", "gnupg"),
     "vscode": ("vscode-repo",),
+    # entries-deb: repo-mode chains
+    "firefox-repo": ("curl", "gnupg"),
+    "firefox": ("firefox-repo",),
+    "brave-repo": ("curl",),  # binary keyring — no dearmor
+    "brave": ("brave-repo",),
+    "edge-repo": ("curl", "gnupg"),
+    "edge": ("edge-repo",),
+    "signal-repo": ("curl", "gnupg"),
+    "signal": ("signal-repo",),
+    "spotify-repo": ("curl", "gnupg"),
+    "spotify": ("spotify-repo",),
+    "mongodb-repo": ("curl", "gnupg"),
+    "mongodb": ("mongodb-repo",),
+    "redis-repo": ("curl", "gnupg"),
+    "redis": ("redis-repo",),
+    "vscodium-repo": ("curl", "gnupg"),
+    "vscodium": ("vscodium-repo",),
+    "sublime-text-repo": ("curl", "gnupg"),
+    "sublime-text": ("sublime-text-repo",),
+    "kubectl-repo": ("ca-certificates", "curl", "gnupg"),  # official doc's list
+    "kubectl": ("kubectl-repo",),
+    "terraform-repo": ("curl", "gnupg"),
+    "terraform": ("terraform-repo",),
+    "gh-repo": ("curl",),  # binary keyring — no dearmor
+    "gh": ("gh-repo",),
+    # entries-deb: direct-mode entries (curl downloads the .deb)
+    "chrome": ("curl",),
+    "vivaldi": ("curl",),
+    "discord": ("curl",),
+    "zoom": ("curl",),
+    "obsidian": ("curl",),
+    "steam": ("curl",),
 }
 
 
 class TestShippedCatalogContent(unittest.TestCase):
-    """Lock the shipped apt batch to the research final list + prd decisions."""
+    """Lock the shipped catalog to the research final list + prd decisions."""
 
     @classmethod
     def setUpClass(cls) -> None:
@@ -163,17 +249,20 @@ class TestShippedCatalogContent(unittest.TestCase):
         # unique ids, registered types and depends_on closure are loader-enforced.
         cls.catalog = load_catalog()
 
-    def test_apt_entry_count_matches_final_list_arithmetic(self):
+    def test_entry_counts_match_final_list_arithmetic(self):
         apt = [e for e in self.catalog.values() if e.type == "apt"]
         # 63 apt-typed final-list entries - 1 (gcc+make merge) + 5 bedrock
         # (build-essential already counted) - 1 + 4 dependency citations,
         # +1 for the python3-venv/pip split = 71 pure-apt entries; the deb
-        # pilot adds 4 third-party-repo apt packages (docker, docker-buildx,
-        # docker-compose, vscode) = 75, plus the 2 deb repo entries = 77
-        self.assertEqual(len(apt), 75)
+        # batches add 16 third-party-repo apt packages (4 pilot + 12
+        # entries-deb) = 87, plus 14 deb repo entries and 6 deb direct
+        # entries = 107 total — all 21 final-list deb products covered
+        # (18 entries-deb + docker/docker-compose/vscode from the pilot).
+        self.assertEqual(len(apt), 87)
         deb = {e.id for e in self.catalog.values() if e.type == "deb"}
-        self.assertEqual(deb, EXPECTED_DEB_REPO_IDS)
-        self.assertEqual(len(self.catalog), 77)
+        self.assertEqual(
+            deb, EXPECTED_DEB_REPO_IDS | set(EXPECTED_DEB_DIRECT_PACKAGES))
+        self.assertEqual(len(self.catalog), 107)
 
     def test_apt_ids_and_packages_match_annotations(self):
         apt = {e.id: e for e in self.catalog.values() if e.type == "apt"}
@@ -215,7 +304,7 @@ class TestShippedCatalogContent(unittest.TestCase):
     def test_depends_on_edges_match_the_recorded_graph(self):
         # apt resolves real package dependencies itself; catalog depends_on is
         # ONLY the cross-entry ordering of the repo->package chains (plus the
-        # repo entries' bootstrap prerequisites) — locked edge-for-edge
+        # bootstrap-tool prerequisites) — locked edge-for-edge
         for entry in self.catalog.values():
             self.assertEqual(
                 entry.depends_on, EXPECTED_DEPENDS_ON.get(entry.id, ()),
@@ -233,6 +322,42 @@ class TestShippedCatalogContent(unittest.TestCase):
             self.assertIn("name", fields, entry_id)
             self.assertNotIn("package", fields, entry_id)
             self.assertNotIn("deb_url", fields, entry_id)
+
+    def test_deb_repo_entries_never_carry_requires(self):
+        # the GUI dependent carries requires; the repo entry stays applicable
+        # everywhere (authoring-guidelines)
+        for entry_id in EXPECTED_DEB_REPO_IDS:
+            self.assertEqual(self.catalog[entry_id].requires, (), entry_id)
+
+    def test_deb_direct_entries_follow_the_field_contract(self):
+        # direct mode: https deb_url + the dpkg probe package, and never any
+        # repo-mode field (schema-enforced too; locked here content-wise)
+        for entry_id, package in EXPECTED_DEB_DIRECT_PACKAGES.items():
+            fields = self.catalog[entry_id].fields
+            self.assertTrue(fields["deb_url"].startswith("https://"), entry_id)
+            self.assertEqual(fields.get("package"), package, entry_id)
+            for repo_field in ("repo_url", "key_url", "suite", "components",
+                               "architectures", "pin"):
+                self.assertNotIn(repo_field, fields, entry_id)
+
+    def test_flat_repos_omit_components(self):
+        # the two flat repos of the batch (kubectl `Suites: /`, sublime
+        # `Suites: apt/stable/`) must not declare Components — the provider
+        # omits the deb822 line entirely for flat layouts
+        for entry_id in ("kubectl-repo", "sublime-text-repo"):
+            self.assertNotIn("components", self.catalog[entry_id].fields,
+                             entry_id)
+        self.assertEqual(self.catalog["kubectl-repo"].fields["suite"], "/")
+        self.assertTrue(
+            self.catalog["sublime-text-repo"].fields["suite"].endswith("/"))
+
+    def test_firefox_repo_carries_the_official_pin(self):
+        # the Firefox official-doc pin: priority 1000 on origin
+        # packages.mozilla.org, or Ubuntu's snap-transition stub wins
+        pin = self.catalog["firefox-repo"].fields["pin"]
+        self.assertEqual(pin["priority"], 1000)
+        self.assertEqual(pin["pin"], "origin packages.mozilla.org")
+        self.assertEqual(pin["package"], "*")
 
 
 if __name__ == "__main__":

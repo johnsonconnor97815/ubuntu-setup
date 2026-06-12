@@ -48,3 +48,67 @@
   package: mysql-server
   tags: [database, sql]
   source: official
+
+# https://www.mongodb.com/docs/manual/tutorial/install-mongodb-on-ubuntu/ —
+# repo half of the mongodb chain (hits on the mongodb entry below). Official
+# repo verified 2026-06-11: key pgp.mongodb.com/server-8.0.asc (armored),
+# suite embeds the codename MID-PATH (`noble/mongodb-org/8.0` — the dists tree
+# is dists/<codename>/mongodb-org/8.0/), component multiverse, amd64+arm64.
+# Pinning the 8.0 series in the suite is MongoDB's own convention; a major
+# bump means editing key_url AND suite together.
+- id: mongodb-repo
+  description: "MongoDB 8.0 official APT repository (repo.mongodb.org)"
+  type: deb
+  name: mongodb-org-8.0
+  key_url: "https://pgp.mongodb.com/server-8.0.asc"
+  repo_url: "https://repo.mongodb.org/apt/ubuntu"
+  suite: "{codename}/mongodb-org/8.0"
+  components: [multiverse]
+  architectures: [amd64, arm64]
+  depends_on: [curl, gnupg]
+  tags: [database, repo]
+  source: official
+
+# https://www.mongodb.com/docs/manual/tutorial/install-mongodb-on-ubuntu/ —
+# hits: so-survey+homebrew+pkgstats (core), jetbrains (aux). Removed from
+# Debian/Ubuntu archives after the SSPL relicense — the vendor repo is the
+# only official channel (meta-package mongodb-org). Service start needs
+# systemd (research testability: vm) and mongod 5.0+ needs an AVX-capable CPU;
+# installation itself verifies in a container.
+- id: mongodb
+  description: "MongoDB Community Server (official repo meta-package mongodb-org; mongod needs AVX)"
+  type: apt
+  package: mongodb-org
+  depends_on: [mongodb-repo]
+  tags: [database, nosql]
+  source: official
+
+# https://redis.io/docs/latest/operate/oss_and_stack/install/archive/install-redis/install-redis-on-linux/
+# — repo half of the redis chain (hits on the redis entry below). Official repo
+# verified 2026-06-11: key packages.redis.io/gpg (armored), suite = the host
+# codename (their docs use $(lsb_release -cs); our provider resolves
+# {codename} from /etc/os-release instead — no lsb-release prerequisite).
+- id: redis-repo
+  description: "Redis official APT repository (packages.redis.io)"
+  type: deb
+  name: redis
+  key_url: "https://packages.redis.io/gpg"
+  repo_url: "https://packages.redis.io/deb"
+  suite: "{codename}"
+  components: [main]
+  depends_on: [curl, gnupg]
+  tags: [database, repo]
+  source: official
+
+# https://redis.io/docs/latest/operate/oss_and_stack/install/archive/install-redis/install-redis-on-linux/
+# — hits: so-survey+homebrew+pkgstats (core), jetbrains+popcon (aux). noble's
+# redis-server 7.0 lags upstream 8.x; the official docs' first choice for
+# Ubuntu is their own repo (package `redis`). Service enable/start is a
+# systemd step (research testability: vm); install verifies in a container.
+- id: redis
+  description: "Redis in-memory data store (official packages.redis.io repo; package redis)"
+  type: apt
+  package: redis
+  depends_on: [redis-repo]
+  tags: [database, cache]
+  source: official
