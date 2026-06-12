@@ -1,0 +1,3 @@
+{"file": ".trellis/tasks/06-11-provider-snap/prd.md", "reason": "复查：AC 逐条——7 条齐备、商店名/classic 核实、LXD 套件 skip 指引、snapd 前置单测"}
+{"file": ".trellis/spec/core/catalog-and-providers.md", "reason": "复查：snap 字段契约回写一致、注册表分发、check 查活系统"}
+{"file": ".trellis/tasks/06-10-intersection-research/research/final-list.json", "reason": "复查：条目与标注对照（发布者验证状态、classic 需求无凭空编造）"}

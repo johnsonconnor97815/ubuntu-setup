@@ -51,6 +51,20 @@
   tags: [cli, json]
   source: official
 
+# https://github.com/mikefarah/yq#install — hits: homebrew+pkgstats (core),
+# awesome (aux). Disambiguation (research): noble's apt `yq` is kislyuk/yq —
+# a Python jq wrapper with incompatible syntax, NOT this tool — so apt is off
+# the table. The official README lists the snap, published by the upstream
+# author Mike Farah himself (publisher `mikefarah`, the project owner; not a
+# brand-verified account — store verified 2026-06-11: confinement strict,
+# latest/stable v4.49.x). Strict confinement caveat from the README: the snap
+# cannot read files outside the user's home.
+- id: yq
+  description: "yq (mikefarah) — YAML/JSON/XML processor (author-published snap; strict confinement)"
+  type: snap
+  tags: [cli, yaml, json, snap]
+  source: official
+
 # https://www.7-zip.org/download.html — hits: homebrew+pkgstats (core), popcon (aux).
 # final-list key p7zip; on noble the upstream 7-Zip is packaged as `7zip`.
 # Verified against the real package (2026-06-11): it installs /usr/bin/7z

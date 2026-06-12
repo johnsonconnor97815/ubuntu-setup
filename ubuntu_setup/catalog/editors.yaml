@@ -125,6 +125,42 @@
   tags: [editor, gui]
   source: official
 
+# https://www.jetbrains.com/help/idea/installation-guide.html — hits:
+# so-survey+pkgstats (core), jetbrains (aux). Not in the Ubuntu archive; the
+# Toolbox App / tarball (JetBrains' first recommendation) are not
+# provider-expressible, so the snap — published by JetBrains and documented in
+# the same installation guide — is the official channel we can manage. Since
+# 2025.3 Community/Ultimate are merged into the single `IntelliJ IDEA` product
+# (core features free), so the unified `intellij-idea` snap is the right pick
+# for the generic-developer catalog (the old intellij-idea-community name
+# still exists but the current official snap is this one). Store verified
+# 2026-06-11: publisher jetbrains (verified account), confinement classic
+# (--classic is mandatory), latest/stable 2026.1.x.
+- id: jetbrains-idea
+  description: "IntelliJ IDEA (unified product since 2025.3; official JetBrains classic snap intellij-idea)"
+  type: snap
+  snap: intellij-idea
+  classic: true
+  requires: [desktop]
+  tags: [editor, ide, gui, snap]
+  source: official
+
+# https://www.jetbrains.com/help/pycharm/installation-guide.html — hits:
+# so-survey+pkgstats (core), jetbrains (aux). Same posture as IDEA: PyCharm
+# merged Community/Professional into one product (core free); the official
+# install doc's scriptable channel is `sudo snap install pycharm --classic`.
+# Store verified 2026-06-11: name `pycharm`, publisher jetbrains (verified
+# account), confinement classic (--classic is mandatory), latest/stable
+# 2026.1.x (the old pycharm-community snap remains but `pycharm` is current).
+- id: jetbrains-pycharm
+  description: "PyCharm (unified product; official JetBrains classic snap pycharm)"
+  type: snap
+  snap: pycharm
+  classic: true
+  requires: [desktop]
+  tags: [editor, ide, python, gui, snap]
+  source: official
+
 # https://jupyterlab.readthedocs.io/en/stable/getting_started/installation.html
 # — hits: so-survey+homebrew+pkgstats (core), jetbrains (aux). Not packaged on
 # noble (jupyter-notebook is the classic Notebook, a different product). The

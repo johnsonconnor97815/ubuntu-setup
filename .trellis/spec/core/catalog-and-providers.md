@@ -4,9 +4,9 @@
 
 ---
 
-## Status: `apt` + `deb` + `ppa` + `script` (and the `ctx` contract incl. `aptcache`) code-backed; the rest design-derived
+## Status: `apt` + `deb` + `ppa` + `script` + `snap` (and the `ctx` contract incl. `aptcache`) code-backed; the rest design-derived
 
-Prescriptive. Field names and provider keys defined here are the contract the first implementation must follow; the `apt`, `deb`, `ppa` and `script` sections (and the freshness guard) now describe shipped code (`core/providers/apt.py`, `deb.py`, `ppa.py`, `script.py`, `aptcache.py`; tests `tests/providers/`, `tests/core/test_aptcache.py`). The command idioms below were verified against current Ubuntu (22.04 / 24.04+), apt/dpkg, snapd, flatpak, and systemd documentation — keep them current, do not regress to the deprecated forms called out as anti-patterns.
+Prescriptive. Field names and provider keys defined here are the contract the first implementation must follow; the `apt`, `deb`, `ppa`, `script` and `snap` sections (and the freshness guard) now describe shipped code (`core/providers/apt.py`, `deb.py`, `ppa.py`, `script.py`, `snap.py`, `aptcache.py`; tests `tests/providers/`, `tests/core/test_aptcache.py`). The command idioms below were verified against current Ubuntu (22.04 / 24.04+), apt/dpkg, snapd, flatpak, and systemd documentation — keep them current, do not regress to the deprecated forms called out as anti-patterns.
 
 ---
 
@@ -169,13 +169,14 @@ Signed-By: /etc/apt/keyrings/<name>.gpg
 
 **The freshness guard (`providers/aptcache.py`, code-backed):** one `AptCache` per executor run, shared via `ctx.aptcache`. Repo-mode install calls `mark_repo_changed()` and never updates itself; every package-installing op (`apt` install, `deb` direct install) calls `ensure_fresh()` right before `apt-get install` — the update runs **iff a repo change is pending**, once per batch, then clears. N repo entries converging back-to-back cost exactly one `apt-get update`; a repo added later in the run still gets its own update before its first consumer. A failed update raises `ProviderError` with the pending flag intact (a retry updates again). See the apt-cache section in [idempotency-and-execution.md](./idempotency-and-execution.md).
 
-### `snap`
+### `snap` (code-backed: `snap.py`, tests `tests/providers/test_snap.py`)
 
-- **install (strict):** `snap install <name>`; **classic:** `snap install <name> --classic`.
-- **check:** `snap list <name>` (exit 0 = installed). **Install one snap per command** — passing 2+ already-installed snaps in a single command fails with exit 1.
-- **classic detection:** before install, `snap info <name>` and read the `confinement:` line (`classic` vs `strict`); omitting `--classic` on a classic snap fails. Confinement is set by the packager — you cannot change it.
-- **remove:** `snap remove <name>` (add `--purge` to drop data). **upgrade:** `snap refresh <name>` (errors if not installed — there is no install-or-refresh; use the `snap list` guard then refresh-or-install).
-- snap needs `sudo`; there is no per-user snap.
+- **Entry fields** (schema-enforced): `snap` (optional — the store name, defaulting to the entry id; declared only when the two differ, e.g. entry `telegram` -> store `telegram-desktop`), `classic` (optional bool), `channel` (optional `--channel=<track/risk>`; omitted for latest/stable). The schema rejects fields that identify other types (`package`, `deb_url`, repo fields, `ppa`, `check`/`install`/`sudo`) on a snap entry.
+- **check:** `snap list <name>` — exit 0 = PRESENT, **any** non-zero = ABSENT. snap has no machine-readable rc band ("no matching snaps installed" and a daemon error both exit 1), so every non-zero reads "not converged" and errs toward a loud install attempt (the `script` provider's reasoning). Never OUTDATED — refresh semantics belong to the deferred `upgrade` op. **Install one snap per command** — passing 2+ already-installed snaps in a single command fails with exit 1 (structurally guaranteed: one entry = one snap).
+- **install:** `snap install <name> [--classic] [--channel=…]`, per-command `sudo` (there is no per-user snap), with the widened install timeout (`apt.py::_INSTALL_TIMEOUT` — IDE-class snaps are 1.3–1.7 GB).
+- **classic is authored, never auto-detected:** `classic: true` is set on the entry iff the store (`snap info <name>`) shows `confinement: classic` — verified per shipped entry at review time (omitting `--classic` on a classic snap fails; confinement is the packager's choice and cannot be changed at install time).
+- **snapd precondition (detect-and-skip, decided 06-11-provider-snap):** the provider never installs snapd. When the `snap` CLI is absent (probed via a PATH lookup, not a subprocess — running a missing binary through the runner would raise instead of returning an rc), `check()` reads ABSENT (a snap cannot be present without snapd — still "ask the system") and `install()` raises `PreconditionError` **before** the `check_mode` guard, so a dry run on a snapd-less host shows the visible skip too. A present CLI with a broken/unseeded daemon is NOT a precondition miss: the install fails loudly (`ProviderError` with snapd's stderr tail) — a real problem on a snapd-having host should stop the run, not skip the entry.
+- **remove / upgrade are deferred** in this MVP slice (`NotImplementedError`, same posture as apt). When they land: `snap remove <name>` (`--purge` drops data); `snap refresh <name>` errors if not installed — there is no install-or-refresh, use the `snap list` guard then refresh-or-install.
 
 ### `flatpak`
 

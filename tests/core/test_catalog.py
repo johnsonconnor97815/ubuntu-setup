@@ -236,6 +236,62 @@ class TestCatalogValidation(unittest.TestCase):
         with self.assertRaises(CatalogError):
             load_catalog(self.dir)
 
+    # -- snap: store name defaults to the entry id; classic/channel optional --
+    def test_snap_entry_parses_with_no_type_fields(self):
+        # the common case: store name == entry id, latest/stable, strict
+        self._write("- {id: chromium, description: x, type: snap}\n")
+        entries = load_catalog(self.dir)
+        self.assertEqual(entries["chromium"].fields, {})
+
+    def test_snap_store_name_classic_and_channel_parse(self):
+        self._write(
+            "- {id: idea, description: x, type: snap, snap: intellij-idea, "
+            "classic: true, channel: latest/stable}\n"
+        )
+        fields = load_catalog(self.dir)["idea"].fields
+        self.assertEqual(fields["snap"], "intellij-idea")
+        self.assertIs(fields["classic"], True)
+        self.assertEqual(fields["channel"], "latest/stable")
+
+    def test_snap_bad_store_name_fails_schema(self):
+        # store names are lowercase/digits/hyphens, no leading/trailing hyphen
+        for bad in ("Has Space", "UPPER", "-leading", "trailing-"):
+            with self.subTest(snap=bad):
+                self._write(
+                    f"- {{id: s, description: x, type: snap, snap: '{bad}'}}\n")
+                with self.assertRaises(CatalogError):
+                    load_catalog(self.dir)
+
+    def test_snap_non_boolean_classic_fails_schema(self):
+        self._write(
+            "- {id: s, description: x, type: snap, classic: 'yes'}\n")
+        with self.assertRaises(CatalogError):
+            load_catalog(self.dir)
+
+    def test_snap_empty_channel_fails_schema(self):
+        self._write("- {id: s, description: x, type: snap, channel: ''}\n")
+        with self.assertRaises(CatalogError):
+            load_catalog(self.dir)
+
+    def test_snap_with_other_types_identity_fields_fails_schema(self):
+        # package/deb_url/repo fields/ppa/check/install/sudo identify OTHER
+        # provider types — declaring them on a snap entry is a contradiction
+        for extra in (
+            "package: x",
+            "deb_url: 'https://example.com/a.deb'",
+            "repo_url: 'https://example.com'",
+            "key_url: 'https://example.com/k.asc'",
+            "suite: stable",
+            "ppa: o/n",
+            "check: 'test -x /x'",
+            "install: 'curl x | sh'",
+            "sudo: true",
+        ):
+            with self.subTest(extra=extra):
+                self._write(f"- {{id: s, description: x, type: snap, {extra}}}\n")
+                with self.assertRaises(CatalogError):
+                    load_catalog(self.dir)
+
 
 if __name__ == "__main__":
     unittest.main()

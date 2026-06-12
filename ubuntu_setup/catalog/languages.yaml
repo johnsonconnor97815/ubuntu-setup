@@ -97,6 +97,21 @@
   tags: [languages, dotnet, csharp]
   source: official
 
+# https://kotlinlang.org/docs/command-line.html — hits: so-survey+pkgstats
+# (core), jetbrains (aux). noble's apt `kotlin` is 1.3.31 (2019) — unusably
+# stale (upstream 2.4.x); the official command-line doc's Ubuntu instruction
+# is exactly `sudo snap install --classic kotlin`. Store verified 2026-06-11:
+# publisher jetbrains (verified account), confinement classic (--classic is
+# mandatory), latest/stable 2.4.0. Runtime note: kotlinc needs a JDK to run —
+# the official install steps list no prerequisite (install converges without
+# one), so this is a usage note, not a depends_on edge (pair with `openjdk`).
+- id: kotlin
+  description: "Kotlin command-line compiler (official JetBrains classic snap; running kotlinc needs a JDK)"
+  type: snap
+  classic: true
+  tags: [languages, kotlin, snap]
+  source: official
+
 # https://www.lua.org/download.html — hits: so-survey+homebrew (core),
 # jetbrains (aux). lua.org ships source only and defers binaries to distros.
 # noble has no unversioned `lua` package — the command is lua5.4.

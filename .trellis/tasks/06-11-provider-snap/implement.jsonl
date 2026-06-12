@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/core/catalog-and-providers.md", "reason": "snap 类型既有设计（字段、classic、snapd 前置 PreconditionError 设想）、provider 协议与注册表"}
+{"file": ".trellis/spec/core/privilege-and-safety.md", "reason": "snap install 的逐命令 sudo 规则"}
+{"file": ".trellis/spec/core/idempotency-and-execution.md", "reason": "check 三态、PreconditionError skip 语义、集成档协议"}
+{"file": ".trellis/spec/catalog/authoring-guidelines.md", "reason": "条目写法、溯源注释（发布者验证状态）、source 标记"}
+{"file": ".trellis/tasks/06-10-intersection-research/research/final-list.json", "reason": "6 条 snap 的商店名/classic/发布者验证状态标注；thunderbird 原 flatpak 标注（决策改 snap）"}
+{"file": ".trellis/tasks/06-10-verify-infra/research/isolation-tech.md", "reason": "LXD 档调研：snapd 在系统容器内可用性、seed 就绪等待、GHA setup-lxd 路径"}
+{"file": ".trellis/tasks/06-10-catalog-launch-essentials/prd.md", "reason": "追加决策：thunderbird 改官方 snap、flatpak 入 backlog"}

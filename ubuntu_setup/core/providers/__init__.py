@@ -16,6 +16,7 @@ from .base import Ctx, Provider, State
 from .deb import DebProvider
 from .ppa import PpaProvider
 from .script import ScriptProvider
+from .snap import SnapProvider
 
 #: type string -> provider class. The single source of dispatch knowledge;
 #: ``core/catalog.py`` asks :func:`known_types` to validate entry types.
@@ -24,6 +25,7 @@ _REGISTRY: dict[str, type] = {
     DebProvider.type: DebProvider,
     PpaProvider.type: PpaProvider,
     ScriptProvider.type: ScriptProvider,
+    SnapProvider.type: SnapProvider,
 }
 
 

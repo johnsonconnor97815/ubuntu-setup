@@ -215,6 +215,20 @@
   tags: [gui, browser]
   source: official
 
+# https://snapcraft.io/chromium — hits: flathub+pkgstats (core), popcon (aux).
+# Upstream Chromium ships no end-user Linux packages; on Ubuntu the official
+# distribution IS Canonical's snap (noble's chromium-browser apt package is a
+# snap-transition stub, not a real deb). Store verified 2026-06-11: name
+# `chromium`, publisher Canonical (verified account), confinement strict,
+# latest/stable 149.x. Disambiguation: this is Chromium, not Google Chrome
+# (the separate `chrome` deb entry).
+- id: chromium
+  description: "Chromium browser (Canonical's official snap; noble's apt package is a snap stub)"
+  type: snap
+  requires: [desktop]
+  tags: [gui, browser, snap]
+  source: official
+
 # --------------------------------------------------------------------------- #
 # Communication (entries-deb batch)
 # --------------------------------------------------------------------------- #
@@ -274,6 +288,36 @@
   depends_on: [curl]
   requires: [desktop]
   tags: [gui, communication]
+  source: official
+
+# https://desktop.telegram.org/ — hits: flathub+pkgstats (core), popcon (aux).
+# telegram-desktop was removed from the noble archive (last published in
+# jammy) and there is no official deb repo; the official tarball is not
+# provider-expressible. The snap is published by Telegram FZ-LLC itself
+# (verified account) — store verified 2026-06-11: name `telegram-desktop`
+# (differs from the entry id, hence the explicit `snap` field), confinement
+# strict, latest/stable 6.9.x (tracks upstream promptly).
+- id: telegram
+  description: "Telegram Desktop messenger (official snap by Telegram FZ-LLC; store name telegram-desktop)"
+  type: snap
+  snap: telegram-desktop
+  requires: [desktop]
+  tags: [gui, communication, snap]
+  source: official
+
+# https://support.mozilla.org/en-US/kb/installing-thunderbird-linux — hits:
+# flathub+pkgstats (core), popcon (aux). Parent-prd decision (2026-06-10):
+# the official doc lists Flatpak first, snap second — the flatpak provider is
+# backlogged for first release, so thunderbird ships via the official snap
+# (noble's thunderbird apt package is a snap-transition stub anyway; Mozilla's
+# APT repo carries no thunderbird — verified during research). Store verified
+# 2026-06-11: name `thunderbird`, publisher Canonical (verified account),
+# confinement strict, latest/stable 140.x ESR.
+- id: thunderbird
+  description: "Mozilla Thunderbird mail client (official snap; noble's apt package is a snap stub)"
+  type: snap
+  requires: [desktop]
+  tags: [gui, communication, email, snap]
   source: official
 
 # --------------------------------------------------------------------------- #

@@ -44,8 +44,17 @@ chains: 4 ``ppa`` repo entries (+ 4 ``apt`` package entries that depend on
 them). Every chain depends on curl+gnupg (the provider downloads the key from
 the Launchpad API and dearmors it — Launchpad keys are always armored).
 
+The snap batch (06-11-provider-snap) covers the 6 ``provider_type == "snap"``
+final-list entries (chromium, yq, telegram, jetbrains-idea, jetbrains-pycharm,
+kotlin) plus thunderbird (the parent prd's official-snap decision — final-list
+said flatpak, the flatpak provider is backlogged) = 7 ``snap`` entries. Store
+names/confinement were verified against the Snap Store 2026-06-11 (see the
+sourcing comments); ids follow the final-list keys, so ``telegram`` /
+``jetbrains-idea`` / ``jetbrains-pycharm`` declare an explicit ``snap`` store
+name while the rest use the entry-id default.
+
 Totals: 71 + 4 + 12 + 3 + 4 = 94 apt, 14 repo-deb + 6 direct-deb = 20 deb,
-4 ppa, 15 script, 133 entries.
+4 ppa, 15 script, 7 snap, 140 entries.
 
 id renames vs final-list keys (kept minimal, mapping recorded here):
 ``gcc``+``make`` -> ``build-essential``, ``p7zip`` -> ``7zip``,
@@ -194,6 +203,8 @@ EXPECTED_DESKTOP_IDS = frozenset({
     "zed",
     # ppa batch: PPA-backed GUI packages (the repo entries carry no requires)
     "inkscape", "obs-studio",
+    # snap batch (final-list gui == true; yq/kotlin are CLI)
+    "chromium", "telegram", "thunderbird", "jetbrains-idea", "jetbrains-pycharm",
 })
 
 #: the shipped deb REPO-mode entries (third-party APT repositories)
@@ -214,6 +225,22 @@ EXPECTED_PPA_COORDINATES = {
     "obs-studio-repo": "obsproject/obs-studio",
     "yt-dlp-repo": "tomtomtom/yt-dlp",
     "fastfetch-repo": "zhangsongcui3371/fastfetch",
+}
+
+#: the shipped snap entries: id -> the EXACT type-specific fields (the store
+#: name is declared only when it differs from the entry id — the provider
+#: defaults to the id; `classic` mirrors the store's `confinement: classic`,
+#: verified via `snap info` 2026-06-11; no entry pins a channel —
+#: latest/stable throughout). Locked field-for-field like the ppa table so a
+#: divergent store name / confinement flag cannot sneak in unreviewed.
+EXPECTED_SNAP_FIELDS = {
+    "chromium": {},                                    # Canonical, strict
+    "yq": {},                                          # mikefarah (author), strict
+    "telegram": {"snap": "telegram-desktop"},          # Telegram FZ-LLC, strict
+    "thunderbird": {},                                 # Canonical, strict
+    "jetbrains-idea": {"snap": "intellij-idea", "classic": True},   # jetbrains
+    "jetbrains-pycharm": {"snap": "pycharm", "classic": True},      # jetbrains
+    "kotlin": {"classic": True},                                    # jetbrains
 }
 
 #: the shipped deb DIRECT-mode entries: id -> the binary package the vendor
@@ -348,11 +375,12 @@ class TestShippedCatalogContent(unittest.TestCase):
         # entries-deb) = 87; the script batch adds 3 dependency citations
         # (npm, zstd, libatomic1) = 90; the ppa batch adds 4 PPA-backed apt
         # packages (inkscape, obs-studio, yt-dlp, fastfetch) = 94; plus 14
-        # deb repo + 6 deb direct entries, 4 ppa repo entries and 15 script
-        # entries = 133 total — all 21 final-list deb products (18
-        # entries-deb + docker/docker-compose/vscode pilot), all 14
-        # final-list script products + yarn, and all 4 final-list ppa
-        # products covered.
+        # deb repo + 6 deb direct entries, 4 ppa repo entries, 15 script
+        # entries and 7 snap entries (6 final-list snap products + the
+        # thunderbird official-snap decision) = 140 total — all 21 final-list
+        # deb products (18 entries-deb + docker/docker-compose/vscode pilot),
+        # all 14 final-list script products + yarn, all 4 final-list ppa
+        # products and all 6 final-list snap products covered.
         self.assertEqual(len(apt), 94)
         deb = {e.id for e in self.catalog.values() if e.type == "deb"}
         self.assertEqual(
@@ -361,7 +389,9 @@ class TestShippedCatalogContent(unittest.TestCase):
         self.assertEqual(ppa, set(EXPECTED_PPA_COORDINATES))
         script = {e.id for e in self.catalog.values() if e.type == "script"}
         self.assertEqual(script, set(EXPECTED_SCRIPT_SUDO))
-        self.assertEqual(len(self.catalog), 133)
+        snap = {e.id for e in self.catalog.values() if e.type == "snap"}
+        self.assertEqual(snap, set(EXPECTED_SNAP_FIELDS))
+        self.assertEqual(len(self.catalog), 140)
 
     def test_apt_ids_and_packages_match_annotations(self):
         apt = {e.id: e for e in self.catalog.values() if e.type == "apt"}
@@ -527,6 +557,22 @@ class TestShippedCatalogContent(unittest.TestCase):
             fields = self.catalog[entry_id].fields
             self.assertNotIn("remove", fields, entry_id)
             self.assertNotIn("upgrade", fields, entry_id)
+
+    # -- snap batch ----------------------------------------------------------
+    def test_snap_entries_match_the_verified_store_table(self):
+        # exact fields per entry (like the ppa coordinate lock): store name
+        # only where it differs from the id, classic exactly where the store
+        # says `confinement: classic` (the three JetBrains snaps), no channel
+        # pins (latest/stable throughout)
+        for entry_id, fields in EXPECTED_SNAP_FIELDS.items():
+            self.assertEqual(self.catalog[entry_id].fields, fields, entry_id)
+
+    def test_snap_entries_carry_no_depends_on(self):
+        # snapd is a host precondition (PreconditionError skip — never an
+        # entry), and no snap of the batch has an install-time prerequisite;
+        # kotlin's JDK need is a runtime usage note (sourcing comment)
+        for entry_id in EXPECTED_SNAP_FIELDS:
+            self.assertEqual(self.catalog[entry_id].depends_on, (), entry_id)
 
 
 if __name__ == "__main__":

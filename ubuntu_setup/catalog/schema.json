@@ -96,6 +96,21 @@
       "pattern": "^https://",
       "description": "deb direct mode: a remote .deb installed via apt-get install <file> (requires 'package' for the idempotency check)"
     },
+    "snap": {
+      "type": "string",
+      "pattern": "^[a-z0-9]([a-z0-9-]*[a-z0-9])?$",
+      "description": "snap: the Snap Store name (default: the entry id); declare only when the two differ. Store names are lowercase letters/digits/hyphens, never leading/trailing hyphen"
+    },
+    "classic": {
+      "type": "boolean",
+      "default": false,
+      "description": "snap: classic confinement flag — set true iff `snap info` shows `confinement: classic` (the packager's choice; verified per shipped entry)"
+    },
+    "channel": {
+      "type": "string",
+      "minLength": 1,
+      "description": "snap: a non-default --channel=<track/risk>; omit for latest/stable"
+    },
     "check": {
       "type": "string",
       "minLength": 1,
@@ -178,6 +193,23 @@
       "$comment": "script requires an explicit idempotency probe and the official install command (kept in sync with script.py and authoring-guidelines.md); remove/upgrade/sudo are optional",
       "if": { "properties": { "type": { "const": "script" } }, "required": ["type"] },
       "then": { "required": ["check", "install"] }
+    },
+    {
+      "$comment": "snap needs no required field (the store name defaults to the entry id; classic/channel are optional — kept in sync with snap.py and authoring-guidelines.md); fields that identify OTHER types are contradictions the schema rejects",
+      "if": { "properties": { "type": { "const": "snap" } }, "required": ["type"] },
+      "then": {
+        "allOf": [
+          { "not": { "required": ["package"] } },
+          { "not": { "required": ["deb_url"] } },
+          { "not": { "required": ["repo_url"] } },
+          { "not": { "required": ["key_url"] } },
+          { "not": { "required": ["suite"] } },
+          { "not": { "required": ["ppa"] } },
+          { "not": { "required": ["check"] } },
+          { "not": { "required": ["install"] } },
+          { "not": { "required": ["sudo"] } }
+        ]
+      }
     }
   ]
 }
