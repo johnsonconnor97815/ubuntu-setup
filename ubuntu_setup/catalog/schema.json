@@ -42,13 +42,89 @@
     },
     "package": { "type": "string" },
     "version": { "type": "string" },
-    "hold": { "type": "boolean" }
+    "hold": { "type": "boolean" },
+    "name": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
+      "description": "deb: file basename under keyrings/sources.list.d/preferences.d (default: entry id); apt silently ignores other characters"
+    },
+    "key_url": {
+      "type": "string",
+      "pattern": "^https://",
+      "description": "deb repo mode: the signing key URL (https only — this is the trust root)"
+    },
+    "repo_url": {
+      "type": "string",
+      "pattern": "^https?://",
+      "description": "deb repo mode: the repository URI (deb822 URIs field)"
+    },
+    "suite": {
+      "type": "string",
+      "minLength": 1,
+      "description": "deb repo mode: deb822 Suites; may embed {codename} (resolved from /etc/os-release); '/' or a path ending in '/' for flat repos"
+    },
+    "components": {
+      "type": "array",
+      "items": { "type": "string" },
+      "minItems": 1,
+      "description": "deb repo mode: deb822 Components; omit entirely for flat repos"
+    },
+    "architectures": {
+      "type": "array",
+      "items": { "type": "string" },
+      "minItems": 1,
+      "description": "deb repo mode: deb822 Architectures (default: the host's dpkg --print-architecture)"
+    },
+    "pin": {
+      "type": "object",
+      "required": ["package", "pin", "priority"],
+      "additionalProperties": false,
+      "properties": {
+        "package": { "type": "string" },
+        "pin": { "type": "string" },
+        "priority": { "type": "integer" }
+      },
+      "description": "deb repo mode: an apt preferences pin written to /etc/apt/preferences.d/<name> (the Firefox official-repo case)"
+    },
+    "deb_url": {
+      "type": "string",
+      "pattern": "^https://",
+      "description": "deb direct mode: a remote .deb installed via apt-get install <file> (requires 'package' for the idempotency check)"
+    }
   },
   "allOf": [
     {
       "$comment": "apt requires a package name (field set kept in sync with apt.py and authoring-guidelines.md)",
       "if": { "properties": { "type": { "const": "apt" } }, "required": ["type"] },
       "then": { "required": ["package"] }
+    },
+    {
+      "$comment": "deb has two mutually exclusive modes (kept in sync with deb.py and authoring-guidelines.md): repo mode (third-party APT repository: deb822 + keyring) or direct mode (a remote .deb). Supply the fields for exactly one mode.",
+      "if": { "properties": { "type": { "const": "deb" } }, "required": ["type"] },
+      "then": {
+        "oneOf": [
+          {
+            "$comment": "repo mode",
+            "required": ["repo_url", "key_url", "suite"],
+            "allOf": [
+              { "not": { "required": ["deb_url"] } },
+              { "not": { "required": ["package"] } }
+            ]
+          },
+          {
+            "$comment": "direct mode",
+            "required": ["deb_url", "package"],
+            "allOf": [
+              { "not": { "required": ["repo_url"] } },
+              { "not": { "required": ["key_url"] } },
+              { "not": { "required": ["suite"] } },
+              { "not": { "required": ["components"] } },
+              { "not": { "required": ["architectures"] } },
+              { "not": { "required": ["pin"] } }
+            ]
+          }
+        ]
+      }
     }
   ]
 }

@@ -12,6 +12,63 @@
   tags: [containers]
   source: official
 
+# https://docs.docker.com/engine/install/ubuntu/ — repo half of the docker
+# chain (hits on the docker entry below). Official setup verified 2026-06-11:
+# key https://download.docker.com/linux/ubuntu/gpg into /etc/apt/keyrings,
+# deb822 docker.sources (Suites: host codename, Components: stable,
+# Architectures: host arch). Prerequisites per the official doc:
+# ca-certificates + curl; gnupg added because our deb provider normalizes the
+# (armored) key via `gpg --dearmor` into a binary keyring.
+- id: docker-repo
+  description: "Docker official APT repository (download.docker.com)"
+  type: deb
+  name: docker
+  key_url: "https://download.docker.com/linux/ubuntu/gpg"
+  repo_url: "https://download.docker.com/linux/ubuntu"
+  suite: "{codename}"
+  components: [stable]
+  depends_on: [ca-certificates, curl, gnupg]
+  tags: [containers, docker, repo]
+  source: official
+
+# https://docs.docker.com/engine/install/ubuntu/ — hits: so-survey+homebrew+
+# curation+pkgstats (core), popcon (aux). The official command installs FIVE
+# packages (docker-ce docker-ce-cli containerd.io docker-buildx-plugin
+# docker-compose-plugin); modeled as one-entry-one-package + depends_on
+# (decision 06-11-provider-deb): docker-ce-cli + containerd.io arrive via
+# dpkg-level Depends of docker-ce (apt resolves real package deps itself),
+# the two plugins are catalog entries below so `--install docker` converges
+# the full official set while each plugin stays independently installable.
+- id: docker
+  description: "Docker Engine (docker-ce from Docker's official repo)"
+  type: apt
+  package: docker-ce
+  depends_on: [docker-repo, docker-buildx, docker-compose]
+  tags: [containers, docker]
+  source: official
+
+# https://docs.docker.com/engine/install/ubuntu/ — part of the official
+# five-package install set (see the docker entry's decision note).
+- id: docker-buildx
+  description: "Docker Buildx CLI plugin (extended BuildKit builds)"
+  type: apt
+  package: docker-buildx-plugin
+  depends_on: [docker-repo]
+  tags: [containers, docker]
+  source: official
+
+# https://docs.docker.com/compose/install/linux/ — hits: homebrew+pkgstats
+# (core), popcon (aux). Official: docker-compose-plugin from the same Docker
+# apt repository (the `docker compose` v2 CLI plugin; the python v1
+# docker-compose package is deprecated, Ubuntu's docker-compose-v2 lags).
+- id: docker-compose
+  description: "Docker Compose v2 CLI plugin (`docker compose`)"
+  type: apt
+  package: docker-compose-plugin
+  depends_on: [docker-repo]
+  tags: [containers, docker]
+  source: official
+
 # https://www.qemu.org/download/ — hits: homebrew+pkgstats (core), popcon (aux).
 # Official download page: `apt-get install qemu-system`. The meta-package
 # covers emulators for all architectures (large download).

@@ -22,7 +22,8 @@
     "06-10-intersection-research",
     "06-10-engine-prep",
     "06-10-verify-infra",
-    "06-10-entries-apt"
+    "06-10-entries-apt",
+    "06-11-provider-deb"
   ],
   "parent": null,
   "relatedFiles": [],

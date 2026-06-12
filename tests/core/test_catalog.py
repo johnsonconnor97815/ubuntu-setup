@@ -86,6 +86,65 @@ class TestCatalogValidation(unittest.TestCase):
         with self.assertRaises(CatalogError):
             load_catalog(self.dir)
 
+    # -- deb: two mutually exclusive modes (schema kept in sync with deb.py) --
+    _DEB_REPO = (
+        "- {id: r, description: x, type: deb, "
+        "key_url: 'https://example.com/k.gpg', "
+        "repo_url: 'https://example.com/apt', suite: stable, components: [main]%s}\n"
+    )
+
+    def test_deb_repo_mode_parses(self):
+        self._write(self._DEB_REPO % "")
+        entries = load_catalog(self.dir)
+        self.assertEqual(entries["r"].fields["suite"], "stable")
+
+    def test_deb_direct_mode_parses(self):
+        self._write(
+            "- {id: d, description: x, type: deb, "
+            "deb_url: 'https://example.com/a.deb', package: a}\n"
+        )
+        entries = load_catalog(self.dir)
+        self.assertEqual(entries["d"].fields["package"], "a")
+
+    def test_deb_without_either_mode_fails_schema(self):
+        self._write("- {id: d, description: x, type: deb}\n")
+        with self.assertRaises(CatalogError):
+            load_catalog(self.dir)
+
+    def test_deb_repo_mode_missing_suite_fails_schema(self):
+        self._write(
+            "- {id: r, description: x, type: deb, "
+            "key_url: 'https://example.com/k.gpg', repo_url: 'https://example.com/apt'}\n"
+        )
+        with self.assertRaises(CatalogError):
+            load_catalog(self.dir)
+
+    def test_deb_mixed_modes_fail_schema(self):
+        self._write(self._DEB_REPO % ", deb_url: 'https://example.com/a.deb', package: a")
+        with self.assertRaises(CatalogError):
+            load_catalog(self.dir)
+
+    def test_deb_direct_mode_without_package_fails_schema(self):
+        # direct mode needs `package`: the idempotency check is the dpkg gate
+        self._write("- {id: d, description: x, type: deb, deb_url: 'https://example.com/a.deb'}\n")
+        with self.assertRaises(CatalogError):
+            load_catalog(self.dir)
+
+    def test_deb_http_key_url_fails_schema(self):
+        # the signing key is the trust root: https only
+        self._write(
+            "- {id: r, description: x, type: deb, "
+            "key_url: 'http://example.com/k.gpg', "
+            "repo_url: 'https://example.com/apt', suite: stable}\n"
+        )
+        with self.assertRaises(CatalogError):
+            load_catalog(self.dir)
+
+    def test_deb_pin_requires_all_three_fields(self):
+        self._write(self._DEB_REPO % ", pin: {package: '*', priority: 1000}")
+        with self.assertRaises(CatalogError):
+            load_catalog(self.dir)
+
 
 if __name__ == "__main__":
     unittest.main()

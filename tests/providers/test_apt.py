@@ -7,8 +7,13 @@ import unittest
 from ubuntu_setup.core.errors import ProviderError
 from ubuntu_setup.core.models import CatalogEntry
 from ubuntu_setup.core.providers.apt import AptProvider
+from ubuntu_setup.core.providers.aptcache import AptCache
 from ubuntu_setup.core.providers.base import State
 from tests._fakes import FakeRun, apt_install, make_ctx, status_query, version_query
+
+
+def apt_update(argv: list) -> bool:
+    return argv[:2] == ["apt-get", "update"]
 
 
 def _entry(**fields) -> CatalogEntry:
@@ -89,6 +94,24 @@ class TestAptInstall(unittest.TestCase):
         run = FakeRun().when(apt_install, returncode=100, stderr="E: Unable to locate package")
         with self.assertRaises(ProviderError):
             AptProvider(run=run).install(_entry(), make_ctx(run))
+
+    def test_install_consumes_a_pending_repo_change_before_installing(self):
+        # the freshness guard's consumption side: a repo entry converged
+        # earlier this run marked the cache -> update once, BEFORE install
+        run = FakeRun()
+        cache = AptCache()
+        cache.mark_repo_changed()
+        AptProvider(run=run).install(_entry(), make_ctx(run, aptcache=cache))
+        update_idx = [i for i, c in enumerate(run.calls) if apt_update(c.argv)]
+        install_idx = [i for i, c in enumerate(run.calls) if apt_install(c.argv)]
+        self.assertEqual(len(update_idx), 1)
+        self.assertLess(update_idx[0], install_idx[0])
+        self.assertFalse(cache.pending)
+
+    def test_install_with_a_fresh_cache_never_updates(self):
+        run = FakeRun()
+        AptProvider(run=run).install(_entry(), make_ctx(run))
+        self.assertEqual(run.count(apt_update), 0)
 
 
 if __name__ == "__main__":

@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/core/catalog-and-providers.md", "reason": "deb 类型既有设计（字段、repo↔package 经 depends_on）、provider 协议与注册表惯用法、apt update 守卫的未代码化设想"}
+{"file": ".trellis/spec/core/privilege-and-safety.md", "reason": "逐命令 sudo 硬规则——key/源文件写入与 apt-get update 的提权方式"}
+{"file": ".trellis/spec/core/idempotency-and-execution.md", "reason": "check 三态语义（PRESENT/ABSENT/OUTDATED）、plan/apply 事件、集成档验证协议"}
+{"file": ".trellis/spec/core/error-and-logging.md", "reason": "runner 单一边界、错误分类、PreconditionError 语义——key 下载失败/网络错误的归类"}
+{"file": ".trellis/spec/catalog/authoring-guidelines.md", "reason": "repo 条目与包条目的写法规范、溯源注释、source 标记"}
+{"file": ".trellis/tasks/06-10-intersection-research/research/final-list.json", "reason": "21 条 deb 的官方步骤（official_cmd/official_doc_url）——provider 字段设计必须覆盖全部 21 条的表达需求；docker/vscode 试点数据"}

@@ -19,6 +19,7 @@ from unittest import mock
 
 from ubuntu_setup.core import providers as providers_mod
 from ubuntu_setup.core.privilege import Privilege
+from ubuntu_setup.core.providers.aptcache import AptCache
 from ubuntu_setup.core.providers.base import Ctx
 from ubuntu_setup.core.runner import RunResult, TerminateOutcome
 
@@ -127,12 +128,14 @@ class FakeKillableCommand:
         return RunResult(list(argv), rc, "", "terminated" if self.was_killed else "", 0.0)
 
 
-def make_ctx(run: FakeRun, *, check_mode: bool = False) -> Ctx:
+def make_ctx(run: FakeRun, *, check_mode: bool = False,
+             aptcache: "AptCache | None" = None) -> Ctx:
     return Ctx(
         run=run,
         priv=Privilege(run=run),
         log=logging.getLogger("test"),
         check_mode=check_mode,
+        aptcache=aptcache if aptcache is not None else AptCache(),
     )
 
 

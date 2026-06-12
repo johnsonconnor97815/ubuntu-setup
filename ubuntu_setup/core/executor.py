@@ -67,7 +67,7 @@ from .errors import PreconditionError, PrivilegeError, ProviderError, UserAbort
 from .events import Event, OutputLine, RunFinished, RunStarted, StepFinished, StepStarted
 from .models import CatalogEntry, Op, Outcome, Plan, StepResult
 from .privilege import Privilege
-from .providers import Ctx, State, get_provider
+from .providers import AptCache, Ctx, State, get_provider
 from .runner import RunResult
 from .runner import run as default_run
 
@@ -254,6 +254,10 @@ def execute(
     #: ids skipped so far this run (requires gate or PreconditionError) — the
     #: source the dependency-chain skip propagation reads
     skipped_ids: "set[str]" = set()
+    #: ONE apt list freshness guard per run, shared by every step's ctx: repo
+    #: entries mark it, package installs consume it — `apt-get update` runs
+    #: once per batch of repo changes, never per package (providers/aptcache.py)
+    aptcache = AptCache()
 
     def skip_step(entry: CatalogEntry, op: Op, detail: str) -> StepResult:
         """Record one explicit skip (visible + recorded + propagating)."""
@@ -343,7 +347,8 @@ def execute(
         # the running command's terminate handle -> the inflight slot (cancel).
         q: "queue.Queue[Any]" = queue.Queue(maxsize=_EMIT_QUEUE_MAX)
         ctx = Ctx(run=_step_run(stream_run, inflight, entry.id, q.put),
-                  priv=priv, log=logger, check_mode=check_mode, emit=q.put)
+                  priv=priv, log=logger, check_mode=check_mode, emit=q.put,
+                  aptcache=aptcache)
         method = getattr(provider, op.value)
         worker = threading.Thread(
             target=_bridge,

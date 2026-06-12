@@ -14,6 +14,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Callable, Protocol, runtime_checkable
 
 from ..models import CatalogEntry
+from .aptcache import AptCache
 
 if TYPE_CHECKING:  # avoid importing privilege at module load (keep base light)
     from ..privilege import Privilege
@@ -38,7 +39,10 @@ class Ctx:
 
     ``run`` is the single subprocess boundary (``core/runner.run``); ``check_mode``
     is the dry-run mutation guard — when ``True`` an op must make ZERO changes
-    (it may still compute and ``emit`` the intended change).
+    (it may still compute and ``emit`` the intended change). ``aptcache`` is the
+    per-run apt list freshness guard (one instance shared across a run's steps —
+    repo-changing ops mark it, package-installing ops consume it; see
+    ``providers/aptcache.py``).
     """
 
     run: "Callable[..., RunResult]"
@@ -46,6 +50,7 @@ class Ctx:
     log: logging.Logger
     check_mode: bool = False
     emit: Callable[[Any], None] = field(default=_noop_emit)
+    aptcache: AptCache = field(default_factory=AptCache)
 
 
 @runtime_checkable

@@ -4,9 +4,9 @@
 
 ---
 
-## Status: design-derived, not yet code-backed
+## Status: `apt` + `deb` (and the `ctx` contract incl. `aptcache`) code-backed; the rest design-derived
 
-Prescriptive. Field names and provider keys defined here are the contract the first implementation must follow. The command idioms below were verified against current Ubuntu (22.04 / 24.04+), apt/dpkg, snapd, flatpak, and systemd documentation — keep them current, do not regress to the deprecated forms called out as anti-patterns.
+Prescriptive. Field names and provider keys defined here are the contract the first implementation must follow; the `apt` and `deb` sections (and the freshness guard) now describe shipped code (`core/providers/apt.py`, `deb.py`, `aptcache.py`; tests `tests/providers/`, `tests/core/test_aptcache.py`). The command idioms below were verified against current Ubuntu (22.04 / 24.04+), apt/dpkg, snapd, flatpak, and systemd documentation — keep them current, do not regress to the deprecated forms called out as anti-patterns.
 
 ---
 
@@ -83,6 +83,7 @@ Contract for every provider:
 | `ctx.log` | the run logger (audit trail) — see [error-and-logging.md](./error-and-logging.md) |
 | `ctx.check_mode: bool` | **dry-run guard** — when `True`, the operation must make **zero** changes (see below) |
 | `ctx.emit(event)` | report progress / predicted change to the executor and TUI |
+| `ctx.aptcache` | the per-run apt list freshness guard (`providers/aptcache.py`, code-backed): repo-changing ops (`deb` repo mode, the future `ppa`) call `mark_repo_changed()`; package-installing ops (`apt`, `deb` direct mode) call `ensure_fresh()` before `apt-get install` — `apt-get update` runs once per batch of repo changes, never per package. The executor creates ONE instance per run and shares it across every step's ctx |
 
 `check()` takes only `entry` and never mutates, so it does not need `ctx`'s mutating members.
 
@@ -124,27 +125,43 @@ These are the exact, current idioms each provider must use. Run everything throu
 - **check:** glob `/etc/apt/sources.list.d/` for `*<user>-ubuntu-<name>*.{list,sources}`, or grep the dir for `ppa.launchpadcontent.net/<user>/<name>`. Do **not** rely on `add-apt-repository --list` — on 24.04 it ignores legacy `.list` files (Launchpad bug 2106617).
 - **prerequisite:** `add-apt-repository` is provided by `software-properties-common`, which is not guaranteed on a minimal install. `install()` ensures it first (`apt-get install -y software-properties-common`) before adding the PPA; if it cannot be installed, raise `PreconditionError` (the entry is skipped — see [error-and-logging.md](./error-and-logging.md)).
 
-### `deb` (third-party APT repo — the MODERN deb822 + signed-by way)
+### `deb` (third-party APT repo — the MODERN deb822 + signed-by way; code-backed: `deb.py`)
+
+Two mutually exclusive modes, enforced by `schema.json` and dispatched inside the provider (never outside the registry):
+
+**Repo mode** — fields `key_url` (https only — it is the trust root) + `repo_url` + `suite`, optional `components` / `architectures` / `pin` / `name` (the file basename, default = entry id, charset `[A-Za-z0-9._-]`). Install performs (each privileged step its own `sudo`, no shell pipes — the key is staged in a user-owned temp dir):
 
 ```
-install -m 0755 -d /etc/apt/keyrings
-curl -fsSL <key-url> | gpg --dearmor -o /etc/apt/keyrings/<name>.gpg
-chmod a+r /etc/apt/keyrings/<name>.gpg
-# write /etc/apt/sources.list.d/<name>.sources (deb822):
-#   Types: deb
-#   URIs: <repo-url>
-#   Suites: <codename>           # $(. /etc/os-release && echo $VERSION_CODENAME)
-#   Components: <component>
-#   Architectures: <arch>        # $(dpkg --print-architecture)
-#   Signed-By: /etc/apt/keyrings/<name>.gpg
-apt-get update
+sudo install -m 0755 -d /etc/apt/keyrings
+curl -fsSL -o <tmp>/<name>.key <key-url>            # unprivileged download
+gpg --batch --yes --dearmor -o <tmp>/<name>.gpg …   # ONLY if the key is ASCII-armored (sniffed); a binary keyring (e.g. Brave's) is kept as-is
+sudo install -m 0644 <tmp>/… /etc/apt/keyrings/<name>.gpg     # world-readable in one step
+sudo install -m 0644 <tmp>/… /etc/apt/sources.list.d/<name>.sources
+sudo install -m 0644 <tmp>/… /etc/apt/preferences.d/<name>    # only when `pin` is declared
+# NO apt-get update here — the provider marks ctx.aptcache instead (see below)
 ```
 
-- Key **must** be dearmored binary (`gpg --dearmor`) and **world-readable** (`chmod a+r`) so the `_apt` user can read it, or `apt-get update` fails with a permission error.
+The generated `.sources` body (one function is the source of truth for install *and* the check comparison):
+
+```
+Types: deb
+URIs: <repo_url>
+Suites: <suite>            # may embed {codename} -> resolved from /etc/os-release (UBUNTU_CODENAME, falling back to VERSION_CODENAME)
+Components: <components>   # space-joined; the line is omitted entirely for flat repos (kubectl `Suites: /`, Sublime `Suites: apt/stable/`)
+Architectures: <archs>     # space-joined; default = the host's `dpkg --print-architecture`
+Signed-By: /etc/apt/keyrings/<name>.gpg
+```
+
+- Key **must** be dearmored binary (`gpg --dearmor`) and **world-readable** so the `_apt` user can read it, or `apt-get update` fails with a permission error (the `install -m 0644` covers both placement and mode).
 - Operator-managed keys go in **`/etc/apt/keyrings`** (available since apt 2.4, i.e. 22.04+); `/usr/share/keyrings` is reserved for package-shipped keys.
-- Filenames under `sources.list.d`/keyrings may contain only `[A-Za-z0-9._-]` — others are silently ignored.
-- A local `.deb`: `apt-get install -y ./pkg.deb` (the leading `./` or an absolute path is required, else apt treats it as a repo package name) — this resolves dependencies in one step; prefer it over `dpkg -i` + `apt-get -f install`.
-- **check:** the repo is added iff its `.sources`/key files exist with the expected content; the package is installed per the `apt` check above.
+- Filenames under `sources.list.d`/keyrings may contain only `[A-Za-z0-9._-]` — others are silently ignored (schema-enforced on `name`).
+- `pin` (`{package, pin, priority}`) writes an apt preference — the Firefox official-repo case (`Pin: origin packages.mozilla.org`, priority 1000, so Ubuntu's snap-transition stub never shadows the real deb).
+- **check (repo mode):** PRESENT iff the `.sources` file matches the generated content **byte-for-byte**, the keyring exists non-empty, the pin (when declared) matches, **and** the repo's index has actually been fetched (its `InRelease`/`Release` file exists in `/var/lib/apt/lists` under the **exact** apt-mangled name — apt's `URItoFileName`: scheme stripped, `_` and the QuoteString bad set %-quoted, `/`→`_`; computed from `repo_url`+suite for both dists-style and flat repos, never a prefix glob, which would false-match a sibling repo whose URI merely extends this one). Anything else — including content drift — is **ABSENT**: `install()` is the convergence op and rewrites everything. Drift is deliberately *not* OUTDATED (OUTDATED satisfies an install and would never converge); OUTDATED stays reserved for version semantics. The fetched-lists probe is what makes a repo converged without a follow-up `apt-get update` (e.g. a repo-only run) self-heal on the next run. A key changed upstream is not detectable offline (we compare existence, not remote bytes) — accepted limitation.
+- **A repo entry never installs packages.** The package is a separate `apt` entry that `depends_on` the repo entry (one responsibility per entry); the planner orders repo before package. A multi-package official install (docker's five) = one entry per package, linked by `depends_on` — never a multi-package `apt` field (decision 06-11-provider-deb; dpkg-level dependencies like docker-ce-cli/containerd.io are left to apt's own resolver).
+
+**Direct mode** — fields `deb_url` (https) + `package` (the binary package the `.deb` provides — required: it is the idempotency probe). Install downloads to a user-owned temp file and runs `apt-get install -y --no-install-recommends -o Dpkg::Options::=… /abs/path.deb` (the leading `./` or an absolute path is required, else apt treats it as a repo package name) — this resolves dependencies in one step; prefer it over `dpkg -i` + `apt-get -f install`. It consumes `ctx.aptcache.ensure_fresh()` first (its dependencies may resolve from a repo converged earlier in the run) and uses the widened install timeout. **check (direct mode):** the shared dpkg `${Status}` gate (`apt.py::dpkg_state`).
+
+**The freshness guard (`providers/aptcache.py`, code-backed):** one `AptCache` per executor run, shared via `ctx.aptcache`. Repo-mode install calls `mark_repo_changed()` and never updates itself; every package-installing op (`apt` install, `deb` direct install) calls `ensure_fresh()` right before `apt-get install` — the update runs **iff a repo change is pending**, once per batch, then clears. N repo entries converging back-to-back cost exactly one `apt-get update`; a repo added later in the run still gets its own update before its first consumer. A failed update raises `ProviderError` with the pending flag intact (a retry updates again). See the apt-cache section in [idempotency-and-execution.md](./idempotency-and-execution.md).
 
 ### `snap`
 

@@ -1,4 +1,4 @@
-"""Directory-level validation of the SHIPPED catalog content (the apt batch).
+"""Directory-level validation of the SHIPPED catalog content.
 
 The loader already enforces schema validity, unique ids, registered types and
 closed ``depends_on`` references — ``load_catalog()`` succeeding IS that test.
@@ -14,7 +14,13 @@ parent prd's approved additions (06-10-catalog-launch-essentials, 2026-06-10):
 - the dependency citations (4): ca-certificates, software-properties-common,
   lsb-release, unzip.
 
-Total: 62 + 4 + 4 = 70 list items = 71 catalog entries (venv+pip split).
+Pure-apt total: 62 + 4 + 4 = 70 list items = 71 catalog entries (venv+pip split).
+
+The deb pilot batch (06-11-provider-deb) adds the docker + vscode chains: two
+``deb`` repo entries (docker-repo, vscode-repo) and four third-party-repo
+``apt`` package entries (docker, docker-buildx, docker-compose, vscode) —
+the repo->package split mandated by authoring rule 4, linked via
+``depends_on``. Total now: 75 apt + 2 deb = 77.
 
 id renames vs final-list keys (kept minimal, mapping recorded here):
 ``gcc``+``make`` -> ``build-essential``, ``p7zip`` -> ``7zip``,
@@ -61,6 +67,11 @@ EXPECTED_APT_PACKAGES = {
     "podman": "podman",
     "qemu": "qemu-system",
     "ansible": "ansible",
+    # deb pilot: third-party-repo apt packages (docker + vscode chains)
+    "docker": "docker-ce",
+    "docker-buildx": "docker-buildx-plugin",
+    "docker-compose": "docker-compose-plugin",
+    "vscode": "code",
     # databases
     "postgresql": "postgresql",
     "sqlite": "sqlite3",
@@ -116,11 +127,31 @@ EXPECTED_APT_PACKAGES = {
     "glab": "glab",
 }
 
-#: the final-list `requires: [desktop]` annotations (gui == true entries)
+#: the final-list `requires: [desktop]` annotations (gui == true entries);
+#: repo entries a GUI package depends on carry no requires of their own —
+#: the dependent does (authoring-guidelines)
 EXPECTED_DESKTOP_IDS = frozenset({
     "audacity", "gimp", "keepassxc", "krita", "libreoffice",
-    "qbittorrent", "vlc",
+    "qbittorrent", "vlc", "vscode",
 })
+
+#: the shipped deb (third-party repo) entries — the deb pilot batch
+EXPECTED_DEB_REPO_IDS = frozenset({"docker-repo", "vscode-repo"})
+
+#: the full cross-entry ordering graph: every shipped depends_on edge. apt
+#: resolves real package dependencies itself — depends_on exists only for the
+#: repo->package chains (and the repo entries' bootstrap-tool prerequisites).
+EXPECTED_DEPENDS_ON = {
+    "docker-repo": ("ca-certificates", "curl", "gnupg"),
+    # docker's official install is five packages; cli+containerd.io arrive via
+    # dpkg-level Depends of docker-ce, the two plugins via depends_on so that
+    # `--install docker` converges the official set (decision 06-11-provider-deb)
+    "docker": ("docker-repo", "docker-buildx", "docker-compose"),
+    "docker-buildx": ("docker-repo",),
+    "docker-compose": ("docker-repo",),
+    "vscode-repo": ("curl", "gnupg"),
+    "vscode": ("vscode-repo",),
+}
 
 
 class TestShippedCatalogContent(unittest.TestCase):
@@ -136,9 +167,13 @@ class TestShippedCatalogContent(unittest.TestCase):
         apt = [e for e in self.catalog.values() if e.type == "apt"]
         # 63 apt-typed final-list entries - 1 (gcc+make merge) + 5 bedrock
         # (build-essential already counted) - 1 + 4 dependency citations,
-        # +1 for the python3-venv/pip split = 71
-        self.assertEqual(len(apt), 71)
-        self.assertEqual(len(self.catalog), 71)  # this batch ships apt only
+        # +1 for the python3-venv/pip split = 71 pure-apt entries; the deb
+        # pilot adds 4 third-party-repo apt packages (docker, docker-buildx,
+        # docker-compose, vscode) = 75, plus the 2 deb repo entries = 77
+        self.assertEqual(len(apt), 75)
+        deb = {e.id for e in self.catalog.values() if e.type == "deb"}
+        self.assertEqual(deb, EXPECTED_DEB_REPO_IDS)
+        self.assertEqual(len(self.catalog), 77)
 
     def test_apt_ids_and_packages_match_annotations(self):
         apt = {e.id: e for e in self.catalog.values() if e.type == "apt"}
@@ -177,11 +212,27 @@ class TestShippedCatalogContent(unittest.TestCase):
         self.assertIn("tree", self.catalog)
         self.assertEqual(self.catalog["ripgrep"].fields["package"], "ripgrep")
 
-    def test_no_depends_on_in_the_pure_apt_batch(self):
+    def test_depends_on_edges_match_the_recorded_graph(self):
         # apt resolves real package dependencies itself; catalog depends_on is
-        # for cross-entry ordering (repo -> package), which this batch has none of
+        # ONLY the cross-entry ordering of the repo->package chains (plus the
+        # repo entries' bootstrap prerequisites) — locked edge-for-edge
         for entry in self.catalog.values():
-            self.assertEqual(entry.depends_on, (), entry.id)
+            self.assertEqual(
+                entry.depends_on, EXPECTED_DEPENDS_ON.get(entry.id, ()),
+                f"{entry.id}: depends_on must match the recorded graph",
+            )
+
+    def test_deb_repo_entries_follow_the_field_contract(self):
+        # repo mode: key from https, deb822 source fields present, a clean
+        # file basename, and never a `package` (that belongs to the dependent)
+        for entry_id in EXPECTED_DEB_REPO_IDS:
+            fields = self.catalog[entry_id].fields
+            self.assertTrue(fields["key_url"].startswith("https://"), entry_id)
+            self.assertIn("repo_url", fields, entry_id)
+            self.assertIn("suite", fields, entry_id)
+            self.assertIn("name", fields, entry_id)
+            self.assertNotIn("package", fields, entry_id)
+            self.assertNotIn("deb_url", fields, entry_id)
 
 
 if __name__ == "__main__":

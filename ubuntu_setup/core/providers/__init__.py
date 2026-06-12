@@ -11,12 +11,15 @@ from typing import Callable
 from ..errors import CatalogError
 from ..runner import RunResult
 from .apt import AptProvider
+from .aptcache import AptCache
 from .base import Ctx, Provider, State
+from .deb import DebProvider
 
 #: type string -> provider class. The single source of dispatch knowledge;
 #: ``core/catalog.py`` asks :func:`known_types` to validate entry types.
 _REGISTRY: dict[str, type] = {
     AptProvider.type: AptProvider,
+    DebProvider.type: DebProvider,
 }
 
 
@@ -40,4 +43,4 @@ def get_provider(entry_type: str, *, run: "Callable[..., RunResult] | None" = No
     return cls(run=run)
 
 
-__all__ = ["Ctx", "Provider", "State", "get_provider", "known_types"]
+__all__ = ["AptCache", "Ctx", "Provider", "State", "get_provider", "known_types"]

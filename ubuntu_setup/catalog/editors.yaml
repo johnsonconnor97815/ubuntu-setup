@@ -31,3 +31,36 @@
   package: nano
   tags: [editor]
   source: official
+
+# https://code.visualstudio.com/docs/setup/linux — repo half of the vscode
+# chain (hits on the vscode entry below). Official manual-repo setup verified
+# 2026-06-11: key https://packages.microsoft.com/keys/microsoft.asc dearmored
+# to a binary keyring, deb822 vscode.sources (Suites: stable, Components:
+# main, Architectures: amd64,arm64,armhf). curl+gnupg are the key
+# download/dearmor prerequisites (the official doc uses wget+gpg; curl is our
+# catalog's download bedrock). The repo entry itself carries no `requires` —
+# the GUI dependent does (authoring-guidelines).
+- id: vscode-repo
+  description: "Microsoft Visual Studio Code APT repository (packages.microsoft.com)"
+  type: deb
+  name: vscode
+  key_url: "https://packages.microsoft.com/keys/microsoft.asc"
+  repo_url: "https://packages.microsoft.com/repos/code"
+  suite: stable
+  components: [main]
+  architectures: [amd64, arm64, armhf]
+  depends_on: [curl, gnupg]
+  tags: [editor, repo]
+  source: official
+
+# https://code.visualstudio.com/docs/setup/linux — hits: so-survey+flathub+
+# pkgstats (core), jetbrains+popcon (aux). Not in the Ubuntu archive; the
+# official path is Microsoft's own apt repo (package name is `code`).
+- id: vscode
+  description: "Visual Studio Code (Microsoft's official deb repo; package `code`)"
+  type: apt
+  package: code
+  depends_on: [vscode-repo]
+  requires: [desktop]
+  tags: [editor, gui]
+  source: official

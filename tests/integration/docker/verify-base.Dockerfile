@@ -14,7 +14,12 @@
 #     the headless paths never import textual — tests/tui/test_boundary.py);
 #   - /var/lib/apt/lists is deliberately KEPT: per-entry containers `apt-get
 #     install` straight away without re-running `apt-get update` (refreshed at
-#     most daily via the APT_REFRESH cache-buster below).
+#     most daily via the APT_REFRESH cache-buster below);
+#   - /usr/sbin/policy-rc.d exits 101 ("action forbidden"): invoke-rc.d/
+#     deb-systemd-invoke consult it before starting services, so a postinst
+#     that wants to start its daemon (docker-ce/containerd from the deb pilot
+#     chain) succeeds in this systemd-less container instead of failing or
+#     hanging on a service start — the standard Debian container idiom.
 #
 # Built by harness.build_verify_image(); per-entry guests are disposable
 # containers of this image (one fresh container per entry, never reused).
@@ -38,6 +43,8 @@ RUN echo "apt-refresh=${APT_REFRESH}" \
         python3-yaml \
         python3-jsonschema \
     && echo "ubuntu ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/90-usetup-verify \
-    && chmod 0440 /etc/sudoers.d/90-usetup-verify
+    && chmod 0440 /etc/sudoers.d/90-usetup-verify \
+    && printf '#!/bin/sh\nexit 101\n' > /usr/sbin/policy-rc.d \
+    && chmod 0755 /usr/sbin/policy-rc.d
 
 CMD ["sleep", "infinity"]
