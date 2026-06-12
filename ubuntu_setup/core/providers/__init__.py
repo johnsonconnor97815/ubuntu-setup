@@ -14,6 +14,7 @@ from .apt import AptProvider
 from .aptcache import AptCache
 from .base import Ctx, Provider, State
 from .deb import DebProvider
+from .ppa import PpaProvider
 from .script import ScriptProvider
 
 #: type string -> provider class. The single source of dispatch knowledge;
@@ -21,6 +22,7 @@ from .script import ScriptProvider
 _REGISTRY: dict[str, type] = {
     AptProvider.type: AptProvider,
     DebProvider.type: DebProvider,
+    PpaProvider.type: PpaProvider,
     ScriptProvider.type: ScriptProvider,
 }
 

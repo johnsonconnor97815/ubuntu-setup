@@ -145,6 +145,42 @@ class TestCatalogValidation(unittest.TestCase):
         with self.assertRaises(CatalogError):
             load_catalog(self.dir)
 
+    # -- ppa: a single <owner>/<name> coordinate, everything else derived -----
+    def test_ppa_entry_parses(self):
+        self._write("- {id: p, description: x, type: ppa, ppa: inkscape.dev/stable}\n")
+        entries = load_catalog(self.dir)
+        self.assertEqual(entries["p"].fields["ppa"], "inkscape.dev/stable")
+
+    def test_ppa_without_coordinate_fails_schema(self):
+        self._write("- {id: p, description: x, type: ppa}\n")
+        with self.assertRaises(CatalogError):
+            load_catalog(self.dir)
+
+    def test_ppa_prefix_or_missing_slash_fails_schema(self):
+        # the field is the bare <owner>/<name> coordinate — never the ppa: form
+        for bad in ("ppa:owner/name", "owner", "owner/name/extra"):
+            with self.subTest(ppa=bad):
+                self._write(
+                    f"- {{id: p, description: x, type: ppa, ppa: '{bad}'}}\n")
+                with self.assertRaises(CatalogError):
+                    load_catalog(self.dir)
+
+    def test_ppa_with_derived_repo_fields_fails_schema(self):
+        # repo_url/key_url/suite/... are derived by the provider; declaring
+        # them on a ppa entry is a contradiction the schema rejects
+        self._write(
+            "- {id: p, description: x, type: ppa, ppa: o/n, "
+            "repo_url: 'https://example.com'}\n"
+        )
+        with self.assertRaises(CatalogError):
+            load_catalog(self.dir)
+
+    def test_ppa_with_package_fails_schema(self):
+        # one responsibility per entry: the package is a separate apt entry
+        self._write("- {id: p, description: x, type: ppa, ppa: o/n, package: x}\n")
+        with self.assertRaises(CatalogError):
+            load_catalog(self.dir)
+
     # -- script: the escape hatch needs an explicit probe + install -----------
     def test_script_entry_parses(self):
         self._write(

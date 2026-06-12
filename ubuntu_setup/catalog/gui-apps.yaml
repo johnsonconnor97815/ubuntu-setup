@@ -327,6 +327,63 @@
   tags: [gui, productivity, notes]
   source: official
 
+# --------------------------------------------------------------------------- #
+# Graphics / streaming via official Launchpad PPAs (provider-ppa batch)
+# --------------------------------------------------------------------------- #
+
+# https://inkscape.org/release/inkscape-1.4.4/gnulinux/ubuntu/ppa/dl/ — repo
+# half of the inkscape chain (hits on the inkscape entry below). The project's
+# own PPA (supports 22.04/24.04+), which the official page tells you to use
+# exactly when the distro version lags. The signing key comes from the
+# Launchpad API at install time (no rotating key URL to maintain); noble
+# InRelease + key endpoint verified 2026-06-12.
+- id: inkscape-repo
+  description: "Inkscape official stable PPA (ppa:inkscape.dev/stable)"
+  type: ppa
+  ppa: inkscape.dev/stable
+  depends_on: [curl, gnupg]
+  tags: [gui, graphics, repo]
+  source: official
+
+# https://inkscape.org/release/inkscape-1.4.4/gnulinux/ubuntu/ppa/dl/ — hits:
+# flathub+pkgstats (core), popcon (aux). noble's 1.2.2 trails upstream 1.4.x
+# by two minor series; the official PPA is the project's stated Ubuntu channel
+# for that case (preferred over their AppImage/snap/flatpak alternatives).
+- id: inkscape
+  description: "Inkscape vector graphics editor (official PPA build)"
+  type: apt
+  package: inkscape
+  depends_on: [inkscape-repo]
+  requires: [desktop]
+  tags: [gui, graphics]
+  source: official
+
+# https://obsproject.com/kb/linux-installation — repo half of the obs-studio
+# chain (hits on the obs-studio entry below). OBS officially supports Ubuntu
+# ONLY via this project-run PPA (Flathub is their recommendation for
+# non-Ubuntu distros); noble InRelease + key endpoint verified 2026-06-12.
+- id: obs-studio-repo
+  description: "OBS Studio official PPA (ppa:obsproject/obs-studio)"
+  type: ppa
+  ppa: obsproject/obs-studio
+  depends_on: [curl, gnupg]
+  tags: [gui, media, repo]
+  source: official
+
+# https://obsproject.com/kb/linux-installation — hits: flathub+pkgstats (core),
+# popcon (aux). noble universe trails the PPA badly (30.x vs 32.x) and is not
+# an OBS-supported channel. The virtual camera needs the v4l2loopback kernel
+# module — a manual runtime step, not part of this install (the PPA package
+# carries no dkms dependency; verified against its Packages index 2026-06-12).
+- id: obs-studio
+  description: "OBS Studio screen recorder & streamer (official PPA; virtual camera needs v4l2loopback separately)"
+  type: apt
+  package: obs-studio
+  depends_on: [obs-studio-repo]
+  requires: [desktop]
+  tags: [gui, media, streaming]
+  source: official
+
 # https://store.steampowered.com/about/ — hits: flathub+curation+pkgstats
 # (core), popcon (aux). Official steam.deb (CDN permalink, always current;
 # verified 2026-06-11) installs the launcher; it self-configures

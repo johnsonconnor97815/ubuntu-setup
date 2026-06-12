@@ -4,9 +4,9 @@
 
 ---
 
-## Status: `apt` + `deb` + `script` (and the `ctx` contract incl. `aptcache`) code-backed; the rest design-derived
+## Status: `apt` + `deb` + `ppa` + `script` (and the `ctx` contract incl. `aptcache`) code-backed; the rest design-derived
 
-Prescriptive. Field names and provider keys defined here are the contract the first implementation must follow; the `apt`, `deb` and `script` sections (and the freshness guard) now describe shipped code (`core/providers/apt.py`, `deb.py`, `script.py`, `aptcache.py`; tests `tests/providers/`, `tests/core/test_aptcache.py`). The command idioms below were verified against current Ubuntu (22.04 / 24.04+), apt/dpkg, snapd, flatpak, and systemd documentation — keep them current, do not regress to the deprecated forms called out as anti-patterns.
+Prescriptive. Field names and provider keys defined here are the contract the first implementation must follow; the `apt`, `deb`, `ppa` and `script` sections (and the freshness guard) now describe shipped code (`core/providers/apt.py`, `deb.py`, `ppa.py`, `script.py`, `aptcache.py`; tests `tests/providers/`, `tests/core/test_aptcache.py`). The command idioms below were verified against current Ubuntu (22.04 / 24.04+), apt/dpkg, snapd, flatpak, and systemd documentation — keep them current, do not regress to the deprecated forms called out as anti-patterns.
 
 ---
 
@@ -84,7 +84,7 @@ Contract for every provider:
 | `ctx.log` | the run logger (audit trail) — see [error-and-logging.md](./error-and-logging.md) |
 | `ctx.check_mode: bool` | **dry-run guard** — when `True`, the operation must make **zero** changes (see below) |
 | `ctx.emit(event)` | report progress / predicted change to the executor and TUI |
-| `ctx.aptcache` | the per-run apt list freshness guard (`providers/aptcache.py`, code-backed): repo-changing ops (`deb` repo mode, the future `ppa`) call `mark_repo_changed()`; package-installing ops (`apt`, `deb` direct mode) call `ensure_fresh()` before `apt-get install` — `apt-get update` runs once per batch of repo changes, never per package. The executor creates ONE instance per run and shares it across every step's ctx |
+| `ctx.aptcache` | the per-run apt list freshness guard (`providers/aptcache.py`, code-backed): repo-changing ops (`deb` repo mode, `ppa`) call `mark_repo_changed()`; package-installing ops (`apt`, `deb` direct mode) call `ensure_fresh()` before `apt-get install` — `apt-get update` runs once per batch of repo changes, never per package. The executor creates ONE instance per run and shares it across every step's ctx |
 
 `check()` takes only `entry` and never mutates, so it does not need `ctx`'s mutating members.
 
@@ -120,11 +120,16 @@ These are the exact, current idioms each provider must use. Run everything throu
 - **hold (optional):** `apt-mark hold <pkg>` / `apt-mark unhold <pkg>`; check with `apt-mark showhold | grep -qx <pkg>`.
 - Use **`apt-get`**, not `apt` — apt(8)'s CLI/output is explicitly an unstable interface. Branch on exit codes, not parsed stdout.
 
-### `ppa`
+### `ppa` (code-backed: `ppa.py` — a thin subclass of the deb repo machinery)
 
-- **add:** `add-apt-repository -y ppa:<user>/<name>` (fetches the key, writes a deb822 `.sources` on 24.04, a `.list` on 22.04), then `apt-get update`.
-- **check:** glob `/etc/apt/sources.list.d/` for `*<user>-ubuntu-<name>*.{list,sources}`, or grep the dir for `ppa.launchpadcontent.net/<user>/<name>`. Do **not** rely on `add-apt-repository --list` — on 24.04 it ignores legacy `.list` files (Launchpad bug 2106617).
-- **prerequisite:** `add-apt-repository` is provided by `software-properties-common`, which is not guaranteed on a minimal install. `install()` ensures it first (`apt-get install -y software-properties-common`) before adding the PPA; if it cannot be installed, raise `PreconditionError` (the entry is skipped — see [error-and-logging.md](./error-and-logging.md)).
+A PPA is a third-party APT repo with a fully *derivable* layout, so the provider **subclasses `deb`'s repo mode** instead of shelling out to `add-apt-repository` (form decided 2026-06-12, prd 06-11-provider-ppa). The entry carries a single field `ppa: <owner>/<name>` (bare coordinate, never the `ppa:` prefix; the schema forbids declaring any derived repo field alongside it); the provider translates it once to the equivalent deb repo-mode view, and everything else is shared code — never a copy:
+
+- **translation:** `repo_url = https://ppa.launchpadcontent.net/<owner>/<name>/ubuntu`, `suite = {codename}` (resolved from `/etc/os-release`), `components = [main]`, file basename = the entry id (deliberately NOT `add-apt-repository`'s `<owner>-ubuntu-<name>-<codename>`, so a manually added copy never collides with ours). The signing key comes from the Launchpad API (`https://api.launchpad.net/devel/~<owner>/+archive/ubuntu/<name>?ws.op=getSigningKeyData`), which returns **JSON** — a quoted string embedding the ASCII-armored key (Content-Type `application/json`, verified live 2026-06-12) — so the provider JSON-decodes the download in the deb provider's `_stage_key` hook before the shared armor-sniff + dearmor + `sudo install` flow. JSON `null` (a freshly created PPA whose key is still generating) is a loud `ProviderError`.
+- **check:** deb repo-mode check verbatim through the translation — the generated `.sources` byte-match + non-empty keyring + the fetched-lists probe (`/var/lib/apt/lists/ppa.launchpadcontent.net_<owner>_<name>_ubuntu_dists_<codename>_{InRelease,Release}`). Always the live filesystem; never `add-apt-repository --list` (on 24.04 it ignores legacy `.list` files, Launchpad bug 2106617) and never a command's remembered side effect.
+- **freshness:** `install()` marks `ctx.aptcache` and never updates itself — the once-per-batch guard, same as deb repo mode; the consuming `apt` package entry triggers the single `apt-get update`.
+- **why not `add-apt-repository`:** it requires `software-properties-common` (an in-provider apt install outside the entry model — the spec's earlier `PreconditionError` design is superseded), runs its own `apt-get update` by default (breaking the once-per-batch guard), and its output file name/format vary by release (embedded-key `.sources` on 24.04, `.list` + separate keyring on 22.04) — not byte-for-byte checkable. Direct placement keeps PPAs inside the exact converged-files contract every other repo follows.
+- **accepted limitation:** a PPA the user already added via `add-apt-repository` lives under its own basename; ours converges in parallel (apt warns about the duplicate definition but works) — the same accepted-duplication class as any externally configured repo.
+- **catalog shape:** repo entry + `apt` package entry linked by `depends_on` (one responsibility per entry, like `deb`); every PPA repo entry `depends_on` curl + gnupg (the key download is curl, and Launchpad keys are always armored). `remove`/`upgrade` are deferred (PPA removal out of scope).
 
 ### `deb` (third-party APT repo — the MODERN deb822 + signed-by way; code-backed: `deb.py`)
 

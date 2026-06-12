@@ -48,6 +48,11 @@
       "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
       "description": "deb: file basename under keyrings/sources.list.d/preferences.d (default: entry id); apt silently ignores other characters"
     },
+    "ppa": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9.+-]*/[a-z0-9][a-z0-9.+-]*$",
+      "description": "ppa: the Launchpad coordinate as <owner>/<name> (never the ppa: prefix); the provider derives https://ppa.launchpadcontent.net/<owner>/<name>/ubuntu and the Launchpad signing-key API URL from it"
+    },
     "key_url": {
       "type": "string",
       "pattern": "^https://",
@@ -148,6 +153,24 @@
               { "not": { "required": ["pin"] } }
             ]
           }
+        ]
+      }
+    },
+    {
+      "$comment": "ppa requires the <owner>/<name> coordinate and nothing else — every other repo field is derived by the provider (kept in sync with ppa.py and authoring-guidelines.md)",
+      "if": { "properties": { "type": { "const": "ppa" } }, "required": ["type"] },
+      "then": {
+        "required": ["ppa"],
+        "allOf": [
+          { "not": { "required": ["repo_url"] } },
+          { "not": { "required": ["key_url"] } },
+          { "not": { "required": ["suite"] } },
+          { "not": { "required": ["components"] } },
+          { "not": { "required": ["architectures"] } },
+          { "not": { "required": ["pin"] } },
+          { "not": { "required": ["deb_url"] } },
+          { "not": { "required": ["package"] } },
+          { "not": { "required": ["name"] } }
         ]
       }
     },

@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/core/catalog-and-providers.md", "reason": "ppa 类型既有设计（add-apt-repository/PreconditionError 设想）、deb 字段契约与 lists 探针/AptCache 语义——复用基础"}
+{"file": ".trellis/spec/core/privilege-and-safety.md", "reason": "逐命令 sudo 规则——key/源落盘与 update 的提权方式"}
+{"file": ".trellis/spec/core/idempotency-and-execution.md", "reason": "check 三态、apt cache 守卫、集成档验证协议"}
+{"file": ".trellis/spec/catalog/authoring-guidelines.md", "reason": "repo+包条目写法、溯源注释、deb 批次沉淀的规则 7"}
+{"file": ".trellis/tasks/06-10-intersection-research/research/final-list.json", "reason": "4 条 ppa 的官方出处（inkscape/obs-studio/yt-dlp/fastfetch 的 official_doc_url 与 PPA 名）"}

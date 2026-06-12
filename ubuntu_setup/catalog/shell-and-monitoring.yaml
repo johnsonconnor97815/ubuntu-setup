@@ -51,6 +51,31 @@
   tags: [shell, terminal]
   source: official
 
+# https://github.com/fastfetch-cli/fastfetch#installation — repo half of the
+# fastfetch chain (hits on the fastfetch entry below). The README's official
+# instruction for Ubuntu 22.04+ is this maintainer-run PPA (zhangsongcui3371
+# is a fastfetch maintainer); fastfetch only enters the Ubuntu archive at
+# 25.04. noble InRelease + key endpoint verified 2026-06-12.
+- id: fastfetch-repo
+  description: "fastfetch official maintainer PPA (ppa:zhangsongcui3371/fastfetch)"
+  type: ppa
+  ppa: zhangsongcui3371/fastfetch
+  depends_on: [curl, gnupg]
+  tags: [cli, monitoring, repo]
+  source: official
+
+# https://github.com/fastfetch-cli/fastfetch#installation — hits:
+# homebrew+pkgstats (core), popcon (aux). neofetch successor; noble has NO
+# fastfetch package at all (README: archive inclusion starts at 25.04 /
+# Debian 13), so the README's PPA is the official Ubuntu 24.04 path.
+- id: fastfetch
+  description: "Fast system information display (neofetch successor)"
+  type: apt
+  package: fastfetch
+  depends_on: [fastfetch-repo]
+  tags: [cli, monitoring, sysinfo]
+  source: official
+
 # https://starship.rs/ ("Get Started") — hits: homebrew+pkgstats (core),
 # awesome (aux). Not in the noble archive; the official path is install.sh
 # (`curl -sS https://starship.rs/install.sh | sh`). The flags are the

@@ -44,10 +44,13 @@
   tags: [bedrock, system]
   source: official
 
-# dependency citation: prerequisite of 4 researched entries (inkscape, yt-dlp,
-# keepassxc, fish PPA routes) — provides add-apt-repository for the ppa provider.
+# dependency citation: cited as prerequisite by 4 researched entries (inkscape,
+# yt-dlp, keepassxc, fish PPA routes) — provides add-apt-repository for users
+# who manage PPAs by hand. NOTE: the shipped ppa provider does NOT need it (it
+# places the deb822 sources + Launchpad key directly; see core/providers/ppa.py),
+# so PPA chains carry no edge here; kept as a user-facing bedrock tool.
 - id: software-properties-common
-  description: "add-apt-repository and friends (PPA management)"
+  description: "add-apt-repository and friends (manual PPA management)"
   type: apt
   package: software-properties-common
   tags: [bedrock, apt, ppa]

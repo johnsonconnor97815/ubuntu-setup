@@ -38,8 +38,14 @@ dependency-citation apt entries their official installers hard-require:
 ``npm`` (typescript/yarn; Ubuntu's nodejs ships without npm), ``zstd``
 (ollama's .tar.zst bundles), ``libatomic1`` (pnpm v11's standalone binary).
 
-Totals: 71 + 4 + 12 + 3 = 90 apt, 14 repo-deb + 6 direct-deb = 20 deb,
-15 script, 125 entries.
+The ppa batch (06-11-provider-ppa) covers all 4 ``provider_type == "ppa"``
+final-list entries — inkscape, obs-studio, yt-dlp, fastfetch — as repo+package
+chains: 4 ``ppa`` repo entries (+ 4 ``apt`` package entries that depend on
+them). Every chain depends on curl+gnupg (the provider downloads the key from
+the Launchpad API and dearmors it — Launchpad keys are always armored).
+
+Totals: 71 + 4 + 12 + 3 + 4 = 94 apt, 14 repo-deb + 6 direct-deb = 20 deb,
+4 ppa, 15 script, 133 entries.
 
 id renames vs final-list keys (kept minimal, mapping recorded here):
 ``gcc``+``make`` -> ``build-essential``, ``p7zip`` -> ``7zip``,
@@ -141,6 +147,11 @@ EXPECTED_APT_PACKAGES = {
     "ffmpeg": "ffmpeg",
     "graphviz": "graphviz",
     "imagemagick": "imagemagick",
+    # PPA-backed apt packages (provider-ppa batch)
+    "inkscape": "inkscape",
+    "obs-studio": "obs-studio",
+    "yt-dlp": "yt-dlp",
+    "fastfetch": "fastfetch",
     # network tools
     "aria2": "aria2",
     "httpie": "httpie",
@@ -181,6 +192,8 @@ EXPECTED_DESKTOP_IDS = frozenset({
     "chrome", "vivaldi", "discord", "zoom", "obsidian", "steam",
     # script batch (final-list gui == true)
     "zed",
+    # ppa batch: PPA-backed GUI packages (the repo entries carry no requires)
+    "inkscape", "obs-studio",
 })
 
 #: the shipped deb REPO-mode entries (third-party APT repositories)
@@ -192,6 +205,16 @@ EXPECTED_DEB_REPO_IDS = frozenset({
     "mongodb-repo", "redis-repo", "vscodium-repo", "sublime-text-repo",
     "kubectl-repo", "terraform-repo", "gh-repo",
 })
+
+#: the shipped ppa entries: id -> the Launchpad <owner>/<name> coordinate
+#: (the official PPA each upstream install doc cites — see the sourcing
+#: comments in the catalog files)
+EXPECTED_PPA_COORDINATES = {
+    "inkscape-repo": "inkscape.dev/stable",
+    "obs-studio-repo": "obsproject/obs-studio",
+    "yt-dlp-repo": "tomtomtom/yt-dlp",
+    "fastfetch-repo": "zhangsongcui3371/fastfetch",
+}
 
 #: the shipped deb DIRECT-mode entries: id -> the binary package the vendor
 #: .deb provides (the dpkg idempotency probe)
@@ -294,6 +317,16 @@ EXPECTED_DEPENDS_ON = {
     "yarn": ("nodejs", "npm"),
     "zed": ("curl",),
     "ollama": ("curl", "zstd"),
+    # ppa batch: repo->package chains; every PPA key is downloaded (curl) from
+    # the Launchpad API and dearmored (gnupg — Launchpad keys are armored)
+    "inkscape-repo": ("curl", "gnupg"),
+    "inkscape": ("inkscape-repo",),
+    "obs-studio-repo": ("curl", "gnupg"),
+    "obs-studio": ("obs-studio-repo",),
+    "yt-dlp-repo": ("curl", "gnupg"),
+    "yt-dlp": ("yt-dlp-repo",),
+    "fastfetch-repo": ("curl", "gnupg"),
+    "fastfetch": ("fastfetch-repo",),
 }
 
 
@@ -313,17 +346,22 @@ class TestShippedCatalogContent(unittest.TestCase):
         # +1 for the python3-venv/pip split = 71 pure-apt entries; the deb
         # batches add 16 third-party-repo apt packages (4 pilot + 12
         # entries-deb) = 87; the script batch adds 3 dependency citations
-        # (npm, zstd, libatomic1) = 90; plus 14 deb repo + 6 deb direct
-        # entries and 15 script entries = 125 total — all 21 final-list deb
-        # products (18 entries-deb + docker/docker-compose/vscode pilot) and
-        # all 14 final-list script products + yarn covered.
-        self.assertEqual(len(apt), 90)
+        # (npm, zstd, libatomic1) = 90; the ppa batch adds 4 PPA-backed apt
+        # packages (inkscape, obs-studio, yt-dlp, fastfetch) = 94; plus 14
+        # deb repo + 6 deb direct entries, 4 ppa repo entries and 15 script
+        # entries = 133 total — all 21 final-list deb products (18
+        # entries-deb + docker/docker-compose/vscode pilot), all 14
+        # final-list script products + yarn, and all 4 final-list ppa
+        # products covered.
+        self.assertEqual(len(apt), 94)
         deb = {e.id for e in self.catalog.values() if e.type == "deb"}
         self.assertEqual(
             deb, EXPECTED_DEB_REPO_IDS | set(EXPECTED_DEB_DIRECT_PACKAGES))
+        ppa = {e.id for e in self.catalog.values() if e.type == "ppa"}
+        self.assertEqual(ppa, set(EXPECTED_PPA_COORDINATES))
         script = {e.id for e in self.catalog.values() if e.type == "script"}
         self.assertEqual(script, set(EXPECTED_SCRIPT_SUDO))
-        self.assertEqual(len(self.catalog), 125)
+        self.assertEqual(len(self.catalog), 133)
 
     def test_apt_ids_and_packages_match_annotations(self):
         apt = {e.id: e for e in self.catalog.values() if e.type == "apt"}
@@ -411,6 +449,21 @@ class TestShippedCatalogContent(unittest.TestCase):
         self.assertEqual(self.catalog["kubectl-repo"].fields["suite"], "/")
         self.assertTrue(
             self.catalog["sublime-text-repo"].fields["suite"].endswith("/"))
+
+    # -- ppa batch ---------------------------------------------------------------
+    def test_ppa_entries_follow_the_field_contract(self):
+        # a ppa entry is ONLY its <owner>/<name> coordinate: every repo field
+        # (URL, key, suite, basename) is derived by the provider — locked here
+        # so nobody hand-writes a divergent copy of the derivation
+        for entry_id, coordinate in EXPECTED_PPA_COORDINATES.items():
+            fields = self.catalog[entry_id].fields
+            self.assertEqual(fields, {"ppa": coordinate}, entry_id)
+
+    def test_ppa_repo_entries_never_carry_requires(self):
+        # same rule as deb repos: the GUI dependent (inkscape, obs-studio)
+        # carries requires; the repo entry stays applicable everywhere
+        for entry_id in EXPECTED_PPA_COORDINATES:
+            self.assertEqual(self.catalog[entry_id].requires, (), entry_id)
 
     def test_firefox_repo_carries_the_official_pin(self):
         # the Firefox official-doc pin: priority 1000 on origin

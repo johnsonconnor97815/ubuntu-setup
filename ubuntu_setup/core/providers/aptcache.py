@@ -6,7 +6,7 @@ repo change and *before* the first package install that consumes the new repo,
 but never once per package. :class:`AptCache` encodes that as a per-run
 mark/consume pair:
 
-- a repo-changing provider (``deb`` repo mode, the future ``ppa``) calls
+- a repo-changing provider (``deb`` repo mode, ``ppa``) calls
   :meth:`mark_repo_changed` after writing its key/sources — it never updates
   itself;
 - a package-installing provider (``apt``, ``deb`` direct mode) calls

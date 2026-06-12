@@ -34,7 +34,7 @@ Common to all: `id`, `description`, `type`, `depends_on`, `tags`, `requires`, `s
 | `type` | Required type fields | Optional | Notes |
 |--------|----------------------|----------|-------|
 | `apt` | `package` | `version`, `hold` | Standard package. `version` pins to `<pkg>=<version>`; the check compares the installed version. |
-| `ppa` | `ppa` (`user/name`) | — | Usually a `depends_on` target of an `apt` entry. |
+| `ppa` | `ppa` (`<owner>/<name>` — the bare Launchpad coordinate, never the `ppa:` prefix) | — | A `depends_on` target of an `apt` entry (code-backed: `ppa.py` + `schema.json`). Everything else is derived by the provider (launchpadcontent.net URL, `{codename}` suite, `main` component, Launchpad-API signing key, basename = entry id); the schema rejects any declared repo field alongside `ppa`. |
 | `deb` | **repo mode:** `repo_url`, `key_url`, `suite` — **or** — **direct mode:** `deb_url`, `package` | repo mode: `components`, `architectures`, `pin`, `name` | Two mutually exclusive modes (code-backed: `deb.py` + `schema.json`): a third-party APT repo (deb822 + key) **or** a remote `.deb`. `key_url` must be https (the trust root). `suite` may embed `{codename}` (resolved from `/etc/os-release` — the Docker/HashiCorp pattern); omit `components` for flat repos (`Suites: /`); `architectures` defaults to the host arch; `pin` (`{package, pin, priority}`) writes `/etc/apt/preferences.d/<name>` (the Firefox pin-priority-1000 case); `name` is the file basename under keyrings/sources.list.d (default: entry id). Direct mode requires `package` — the dpkg idempotency probe for the installed `.deb`. |
 | `snap` | `name` | `classic: true` | Set `classic: true` only if `snap info` shows `confinement: classic`. |
 | `flatpak` | `app_id` | `scope: system\|user` (default `system`) | The provider ensures flatpak + the flathub remote (in the chosen scope) first. |
@@ -76,6 +76,10 @@ Sourcing discipline (the trust narrative's zero-engineering half): **every shipp
    - **Hard installer prerequisites become `depends_on` edges**, including ones upstream forgot to document — found by real-install verification: pnpm v11's standalone binary needs `libatomic1`; ollama's `.tar.zst` bundles need `zstd`; Ubuntu's `nodejs` ships without `npm` (typescript/yarn need the separate package); bun/deno/rclone need `unzip`; gradle's doc requires a JDK 17+ (`openjdk`).
    - **Version-pinned installs pin the probe too** (gradle's `/opt/gradle/gradle-9.5.1`): bumping the version means editing install AND check together (the stale probe then reads ABSENT and the entry re-converges) — say so in the sourcing comment.
    - Shell-rc edits (PATH exports, `starship init`, `zoxide init`) belong to the user or to the official script itself — never to the entry.
+9. **`ppa` conventions from the shipped batch** (code-backed: 06-11-provider-ppa; locked by `tests/core/test_catalog_content.py`):
+   - **The entry is ONLY the coordinate.** Everything else (URL, key, suite, basename) is derived by the provider — never hand-write a `deb` entry for a Launchpad PPA, and never declare repo fields on a `ppa` entry (schema-rejected).
+   - **Every PPA repo entry `depends_on` curl + gnupg**: the signing key is downloaded with curl from the Launchpad API and is always ASCII-armored (the binary-keyring exception of the deb batch cannot occur here).
+   - **The PPA must be the upstream's documented channel** — cite the official page that names it in the sourcing comment (inkscape's release page, OBS's linux-installation kb, yt-dlp's install wiki, fastfetch's README). A PPA run by a third party the upstream doc cites (yt-dlp's tomtomtom) is acceptable but the comment must say so.
 
 ---
 

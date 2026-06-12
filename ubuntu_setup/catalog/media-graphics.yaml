@@ -30,3 +30,31 @@
   package: imagemagick
   tags: [cli, graphics, images]
   source: official
+
+# https://github.com/yt-dlp/yt-dlp/wiki/Installation — repo half of the yt-dlp
+# chain (hits on the yt-dlp entry below). The official wiki's Ubuntu APT answer
+# is this PPA. CAVEAT: it is run by tomtomtom — a third-party maintainer the
+# project's own install doc cites, not the yt-dlp team itself (research note
+# kept on record); reviewed and accepted because the archive-version
+# alternative is non-functional. noble InRelease + key endpoint verified
+# 2026-06-12.
+- id: yt-dlp-repo
+  description: "yt-dlp PPA cited by the official install wiki (ppa:tomtomtom/yt-dlp)"
+  type: ppa
+  ppa: tomtomtom/yt-dlp
+  depends_on: [curl, gnupg]
+  tags: [cli, media, repo]
+  source: official
+
+# https://github.com/yt-dlp/yt-dlp/wiki/Installation — hits: homebrew+pkgstats
+# (core), popcon+awesome (aux). yt-dlp must update frequently to keep up with
+# site changes: noble universe froze at 2024.04 and is effectively dead against
+# current sites, so the wiki's PPA (tracking upstream releases) is the only
+# viable apt-shaped channel.
+- id: yt-dlp
+  description: "Download video/audio from thousands of sites (PPA-fresh build)"
+  type: apt
+  package: yt-dlp
+  depends_on: [yt-dlp-repo]
+  tags: [cli, media, download]
+  source: official

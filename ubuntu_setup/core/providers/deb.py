@@ -296,6 +296,7 @@ class DebProvider:
                          self._required(entry, "key_url")]),
                 entry, "download signing key",
             )
+            self._stage_key(downloaded, entry)
             key_src = downloaded
             if self._is_armored(downloaded):
                 key_src = staging / f"{name}.gpg"
@@ -366,6 +367,12 @@ class DebProvider:
             )
 
     # -- shared helpers ---------------------------------------------------------
+    def _stage_key(self, downloaded: Path, entry: CatalogEntry) -> None:
+        """Post-download key normalization hook — the seam for subclasses whose
+        key endpoint does not serve raw key bytes (the ``ppa`` provider unwraps
+        Launchpad's JSON-encoded armored key here). A plain deb ``key_url``
+        serves the key directly: no normalization."""
+
     @staticmethod
     def _is_armored(path: Path) -> bool:
         """ASCII-armored key? (A missing file — only possible under a test fake

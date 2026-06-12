@@ -1,0 +1,3 @@
+{"file": ".trellis/tasks/06-11-provider-ppa/prd.md", "reason": "复查：AC 逐条——4 链真跑绿、恰一次 update、与 deb 复用无漂移、fastfetch 无重复"}
+{"file": ".trellis/spec/core/catalog-and-providers.md", "reason": "复查：ppa 字段契约回写与实现一致、check 查活系统、注册表分发"}
+{"file": ".trellis/tasks/06-10-intersection-research/research/final-list.json", "reason": "复查：4 条与标注对照（PPA 名、官方出处、GUI requires）"}
