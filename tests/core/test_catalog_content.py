@@ -30,7 +30,16 @@ The deb batch covers all 21 ``provider_type == "deb"`` final-list entries:
   obsidian, steam). final-list's mariadb/mysql/nginx are provider_type=apt
   (already in the apt batch — re-checked, not duplicated here).
 
-Totals: 71 + 4 + 12 = 87 apt, 14 repo-deb + 6 direct-deb = 20 deb, 107 entries.
+The script batch (06-11-provider-script) covers the 14 ``provider_type ==
+"script"`` final-list entries plus yarn (the parent prd's corepack decision):
+rust, uv, bun, deno, pnpm, starship, zoxide, lazygit, ollama, gradle, rclone,
+jupyterlab, typescript, zed, yarn = 15 ``script`` entries, plus 3
+dependency-citation apt entries their official installers hard-require:
+``npm`` (typescript/yarn; Ubuntu's nodejs ships without npm), ``zstd``
+(ollama's .tar.zst bundles), ``libatomic1`` (pnpm v11's standalone binary).
+
+Totals: 71 + 4 + 12 + 3 = 90 apt, 14 repo-deb + 6 direct-deb = 20 deb,
+15 script, 125 entries.
 
 id renames vs final-list keys (kept minimal, mapping recorded here):
 ``gcc``+``make`` -> ``build-essential``, ``p7zip`` -> ``7zip``,
@@ -57,6 +66,10 @@ EXPECTED_APT_PACKAGES = {
     "unzip": "unzip",
     "xz-utils": "xz-utils",
     "openssh-server": "openssh-server",
+    # dependency citations of the script batch (06-11-provider-script)
+    "zstd": "zstd",
+    "libatomic1": "libatomic1",
+    "npm": "npm",
     # build toolchain
     "build-essential": "build-essential",  # merged gcc+make
     "ninja": "ninja-build",
@@ -166,6 +179,8 @@ EXPECTED_DESKTOP_IDS = frozenset({
     "sublime-text",
     # entries-deb: direct-mode GUI entries
     "chrome", "vivaldi", "discord", "zoom", "obsidian", "steam",
+    # script batch (final-list gui == true)
+    "zed",
 })
 
 #: the shipped deb REPO-mode entries (third-party APT repositories)
@@ -187,6 +202,29 @@ EXPECTED_DEB_DIRECT_PACKAGES = {
     "zoom": "zoom",
     "obsidian": "obsidian",
     "steam": "steam-launcher",
+}
+
+#: the shipped script entries: id -> the locked privilege declaration.
+#: sudo: True == the official installer writes root-owned paths (/usr/local,
+#: /opt, /usr/bin, npm -g's /usr/local prefix); everything else is a
+#: user-level install into $HOME and must NEVER escalate (prd
+#: 06-11-provider-script: default is the plain user).
+EXPECTED_SCRIPT_SUDO = {
+    "rust": False,        # ~/.rustup + ~/.cargo
+    "uv": False,          # ~/.local/bin
+    "bun": False,         # ~/.bun
+    "deno": False,        # ~/.deno
+    "pnpm": False,        # ~/.local/share/pnpm
+    "starship": False,    # ~/.local/bin (installer --bin-dir)
+    "zoxide": False,      # ~/.local/bin
+    "jupyterlab": False,  # pipx -> ~/.local
+    "zed": False,         # ~/.local/zed.app + ~/.local/bin
+    "lazygit": True,      # /usr/local/bin
+    "gradle": True,       # /opt/gradle + /usr/local/bin
+    "rclone": True,       # /usr/bin
+    "typescript": True,   # npm -g -> /usr/local
+    "yarn": True,         # corepack shims -> /usr/local/bin
+    "ollama": True,       # /usr/local/{bin,lib} (+ systemd unit where present)
 }
 
 #: the full cross-entry ordering graph: every shipped depends_on edge. apt
@@ -237,6 +275,25 @@ EXPECTED_DEPENDS_ON = {
     "zoom": ("curl",),
     "obsidian": ("curl",),
     "steam": ("curl",),
+    # script batch: bootstrap-tool edges the official installers hard-require
+    # (curl downloads; unzip/zstd/libatomic1 per installer; npm/nodejs for the
+    # npm-route entries; openjdk is gradle's documented JDK 17+ prerequisite;
+    # pipx is jupyterlab's PEP 668 application path)
+    "rust": ("curl",),
+    "uv": ("curl",),
+    "bun": ("curl", "unzip"),
+    "deno": ("curl", "unzip"),
+    "pnpm": ("curl", "libatomic1"),
+    "starship": ("curl",),
+    "zoxide": ("curl",),
+    "lazygit": ("curl",),
+    "gradle": ("curl", "unzip", "openjdk"),
+    "rclone": ("curl", "unzip"),
+    "jupyterlab": ("pipx",),
+    "typescript": ("nodejs", "npm"),
+    "yarn": ("nodejs", "npm"),
+    "zed": ("curl",),
+    "ollama": ("curl", "zstd"),
 }
 
 
@@ -255,14 +312,18 @@ class TestShippedCatalogContent(unittest.TestCase):
         # (build-essential already counted) - 1 + 4 dependency citations,
         # +1 for the python3-venv/pip split = 71 pure-apt entries; the deb
         # batches add 16 third-party-repo apt packages (4 pilot + 12
-        # entries-deb) = 87, plus 14 deb repo entries and 6 deb direct
-        # entries = 107 total — all 21 final-list deb products covered
-        # (18 entries-deb + docker/docker-compose/vscode from the pilot).
-        self.assertEqual(len(apt), 87)
+        # entries-deb) = 87; the script batch adds 3 dependency citations
+        # (npm, zstd, libatomic1) = 90; plus 14 deb repo + 6 deb direct
+        # entries and 15 script entries = 125 total — all 21 final-list deb
+        # products (18 entries-deb + docker/docker-compose/vscode pilot) and
+        # all 14 final-list script products + yarn covered.
+        self.assertEqual(len(apt), 90)
         deb = {e.id for e in self.catalog.values() if e.type == "deb"}
         self.assertEqual(
             deb, EXPECTED_DEB_REPO_IDS | set(EXPECTED_DEB_DIRECT_PACKAGES))
-        self.assertEqual(len(self.catalog), 107)
+        script = {e.id for e in self.catalog.values() if e.type == "script"}
+        self.assertEqual(script, set(EXPECTED_SCRIPT_SUDO))
+        self.assertEqual(len(self.catalog), 125)
 
     def test_apt_ids_and_packages_match_annotations(self):
         apt = {e.id: e for e in self.catalog.values() if e.type == "apt"}
@@ -358,6 +419,61 @@ class TestShippedCatalogContent(unittest.TestCase):
         self.assertEqual(pin["priority"], 1000)
         self.assertEqual(pin["pin"], "origin packages.mozilla.org")
         self.assertEqual(pin["package"], "*")
+
+    # -- script batch ----------------------------------------------------------
+    def test_script_privilege_declarations_match_the_locked_table(self):
+        # the review-locked sudo split: user-level entries must NEVER carry
+        # sudo (prd: default is the plain user), root-level ones must declare it
+        for entry_id, expected_sudo in EXPECTED_SCRIPT_SUDO.items():
+            fields = self.catalog[entry_id].fields
+            self.assertIs(bool(fields.get("sudo", False)), expected_sudo,
+                          f"{entry_id}: sudo declaration must match the "
+                          f"reviewed privilege table")
+
+    def test_script_checks_are_real_probes(self):
+        # authoring-guidelines rule 2: a vacuous probe defeats idempotency.
+        # Every shipped probe is an absolute-path existence test (never
+        # login-shell PATH); lock the shape so a `check: "true"` can't sneak in.
+        for entry_id in EXPECTED_SCRIPT_SUDO:
+            check = self.catalog[entry_id].fields["check"]
+            self.assertNotIn(check.strip(), {"true", ":", "test 1"}, entry_id)
+            self.assertTrue(check.startswith("test -x "),
+                            f"{entry_id}: shipped script probes are absolute-"
+                            f"path executable tests, got {check!r}")
+            probed = check.split()[-1].strip('"')
+            self.assertTrue(
+                probed.startswith(("/", "$HOME/")),
+                f"{entry_id}: probe path must be absolute (or $HOME-anchored "
+                f"— the provider pins HOME from the passwd DB), got {probed!r}",
+            )
+
+    def test_user_level_script_probes_stay_in_home(self):
+        # a user-level entry probing a root path (or vice versa) means the
+        # identity declaration and the artifact location disagree
+        for entry_id, is_sudo in EXPECTED_SCRIPT_SUDO.items():
+            check = self.catalog[entry_id].fields["check"]
+            if is_sudo:
+                self.assertNotIn("$HOME", check,
+                                 f"{entry_id}: root-level probes must not use "
+                                 f"$HOME (privilege Rule 3)")
+            else:
+                self.assertIn("$HOME", check,
+                              f"{entry_id}: user-level installs land in $HOME")
+
+    def test_script_installs_carry_no_inline_sudo(self):
+        # escalation is the entry-level `sudo: true` declaration, executed
+        # per-command by the engine — never an inline sudo inside the command
+        for entry_id in EXPECTED_SCRIPT_SUDO:
+            install = self.catalog[entry_id].fields["install"]
+            self.assertNotIn("sudo", install, entry_id)
+
+    def test_script_remove_upgrade_fields_are_not_shipped(self):
+        # reserved fields; the ops are deferred (prd out-of-scope) — shipping
+        # a command nothing can execute would be dead, unreviewable data
+        for entry_id in EXPECTED_SCRIPT_SUDO:
+            fields = self.catalog[entry_id].fields
+            self.assertNotIn("remove", fields, entry_id)
+            self.assertNotIn("upgrade", fields, entry_id)
 
 
 if __name__ == "__main__":

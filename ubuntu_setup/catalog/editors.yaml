@@ -124,3 +124,40 @@
   requires: [desktop]
   tags: [editor, gui]
   source: official
+
+# https://jupyterlab.readthedocs.io/en/stable/getting_started/installation.html
+# — hits: so-survey+homebrew+pkgstats (core), jetbrains (aux). Not packaged on
+# noble (jupyter-notebook is the classic Notebook, a different product). The
+# official doc installs from PyPI (`pip install jupyterlab`); on 24.04 PEP 668
+# marks the system Python externally-managed, so the sanctioned way to install
+# a PyPI *application* is pipx (research annotation: "落地以 pipx install
+# jupyterlab"). User-level: venv under ~/.local/share/pipx, binaries in
+# ~/.local/bin. A terminal-launched, browser-served app — no desktop required.
+- id: jupyterlab
+  description: "JupyterLab — web-based interactive computing (via pipx; ~/.local/bin/jupyter-lab)"
+  type: script
+  check: test -x "$HOME/.local/bin/jupyter-lab"
+  install: pipx install jupyterlab
+  depends_on: [pipx]
+  tags: [editor, python, notebook]
+  source: official
+
+# https://zed.dev/docs/linux — hits: so-survey+pkgstats (core), jetbrains
+# (aux). Not in the noble archive (the doc's Debian/Ubuntu apt repos are
+# explicitly community-maintained — research: do not map to deb); the official
+# install is the `curl -f https://zed.dev/install.sh | sh` one-liner, plus a
+# SHELL fallback: the installer runs under `set -u` and reads $SHELL to print
+# PATH advice, so it dies in non-login contexts where SHELL is unset (found
+# by real-install verification, 2026-06-12: "sh: 63: SHELL: parameter not
+# set" AFTER the binary landed). User-level: unpacks to ~/.local/zed.app and
+# symlinks ~/.local/bin/zed (verified installer source, 2026-06-11). Needs a
+# Vulkan-capable GPU at runtime (not at install).
+- id: zed
+  description: "Zed — fast collaborative code editor (user-level; ~/.local/bin/zed)"
+  type: script
+  check: test -x "$HOME/.local/bin/zed"
+  install: export SHELL="${SHELL:-/bin/bash}" && curl -f https://zed.dev/install.sh | sh
+  depends_on: [curl]
+  requires: [desktop]
+  tags: [editor, gui]
+  source: official

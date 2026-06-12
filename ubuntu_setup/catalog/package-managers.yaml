@@ -32,3 +32,54 @@
   package: python3-poetry
   tags: [package-manager, python]
   source: official
+
+# https://docs.astral.sh/uv/getting-started/installation/ — hits:
+# so-survey+homebrew+pkgstats (core). Not in the noble archive; the official
+# standalone installer is the first-listed Linux path (and the only one that
+# supports `uv self update`). Verbatim official one-liner; installs uv+uvx to
+# ~/.local/bin (verified installer source, 2026-06-11). Shell-rc PATH edits
+# are the script's own doing.
+- id: uv
+  description: "uv — fast Python package & project manager (Astral; ~/.local/bin)"
+  type: script
+  check: test -x "$HOME/.local/bin/uv"
+  install: curl -LsSf https://astral.sh/uv/install.sh | sh
+  depends_on: [curl]
+  tags: [package-manager, python]
+  source: official
+
+# https://pnpm.io/installation — hits: so-survey+homebrew+pkgstats (core).
+# Not in the noble archive; the official doc's first option is the standalone
+# script (needs no Node.js). Verbatim official command plus a SHELL fallback:
+# the installer's final `pnpm setup --force` infers which shell rc to edit
+# from $SHELL, which is unset in non-login contexts (verified installer
+# source, 2026-06-11). pnpm v11 lands the CLI at ~/.local/share/pnpm/bin
+# (PNPM_HOME default; binaries moved into the bin/ subdir in v11). The v11
+# standalone binary links against libatomic.so.1 -> depends_on libatomic1
+# (absent from minimal 24.04 images; found by real-install verification).
+- id: pnpm
+  description: "pnpm — fast, disk-efficient Node.js package manager (standalone, no Node needed)"
+  type: script
+  check: test -x "$HOME/.local/share/pnpm/bin/pnpm"
+  install: export SHELL="${SHELL:-/bin/bash}" && curl -fsSL https://get.pnpm.io/install.sh | sh -
+  depends_on: [curl, libatomic1]
+  tags: [package-manager, javascript]
+  source: official
+
+# https://yarnpkg.com/getting-started/install — hits: so-survey+homebrew+
+# pkgstats (core). Parent prd decision (2026-06-10): yarn lands via corepack
+# (modern Yarn is project-pinned by design; corepack provides the global
+# shim). Official doc's install steps: `npm install -g corepack`, then
+# `corepack enable` — scoped here to `corepack enable yarn` so the shim set
+# never shadows the separate pnpm entry. Root-level: npm -g and the shims
+# write /usr/local (per-command sudo; never `~` under sudo). Note: the yarn
+# shim downloads the pinned Yarn release on first per-project use.
+- id: yarn
+  description: "Yarn via corepack shim (modern project-pinned Yarn; /usr/local/bin/yarn)"
+  type: script
+  sudo: true
+  check: test -x /usr/local/bin/yarn
+  install: npm install -g corepack && corepack enable yarn
+  depends_on: [nodejs, npm]
+  tags: [package-manager, javascript]
+  source: official

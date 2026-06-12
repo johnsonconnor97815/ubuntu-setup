@@ -65,6 +65,8 @@ PROBES: "dict[str, tuple[str, ...]]" = {
     "unzip": ("unzip", "-h"),
     "xz-utils": ("xz", "--version"),
     "openssh-server": ("test", "-x", "/usr/sbin/sshd"),
+    "zstd": ("zstd", "--version"),
+    "libatomic1": ("test", "-e", "/usr/lib/x86_64-linux-gnu/libatomic.so.1"),
     # build toolchain
     "build-essential": ("gcc", "--version"),
     "ninja": ("ninja", "--version"),
@@ -106,6 +108,7 @@ PROBES: "dict[str, tuple[str, ...]]" = {
     # languages / runtimes
     "go": ("go", "version"),
     "nodejs": ("node", "--version"),
+    "npm": ("npm", "--version"),
     "openjdk": ("java", "--version"),
     "php": ("php", "--version"),
     "python3": ("python3", "--version"),

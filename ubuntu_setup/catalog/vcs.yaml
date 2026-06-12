@@ -64,3 +64,28 @@
   depends_on: [gh-repo]
   tags: [vcs, git, github]
   source: official
+
+# https://github.com/jesseduffield/lazygit#installation — hits:
+# homebrew+pkgstats (core), awesome (aux). Not in the noble archive (apt only
+# from Ubuntu 25.10 / Debian 13 on); the README's block for "Ubuntu 25.04 and
+# earlier" is quoted verbatim (2026-06-11) with two adaptations: the work
+# happens in a mktemp -d (never the invoker's cwd) and the README's inline
+# `sudo install` drops its sudo — the entry declares `sudo: true` so the
+# engine escalates the whole command per-command instead. The README line
+# resolves the arch itself (uname -m, aarch64 -> arm64).
+- id: lazygit
+  description: "lazygit — terminal UI for git (GitHub release binary in /usr/local/bin)"
+  type: script
+  sudo: true
+  check: test -x /usr/local/bin/lazygit
+  install: >-
+    cd "$(mktemp -d)" &&
+    LAZYGIT_VERSION=$(curl -s "https://api.github.com/repos/jesseduffield/lazygit/releases/latest"
+    | grep -Po '"tag_name": *"v\K[^"]*') &&
+    LAZYGIT_ARCH=$(uname -m | sed -e 's/aarch64/arm64/') &&
+    curl -Lo lazygit.tar.gz "https://github.com/jesseduffield/lazygit/releases/download/v${LAZYGIT_VERSION}/lazygit_${LAZYGIT_VERSION}_Linux_${LAZYGIT_ARCH}.tar.gz" &&
+    tar xf lazygit.tar.gz lazygit &&
+    install lazygit -D -t /usr/local/bin/
+  depends_on: [curl]
+  tags: [vcs, git, tui]
+  source: official

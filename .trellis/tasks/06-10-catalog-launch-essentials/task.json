@@ -24,7 +24,8 @@
     "06-10-verify-infra",
     "06-10-entries-apt",
     "06-11-provider-deb",
-    "06-11-entries-deb"
+    "06-11-entries-deb",
+    "06-11-provider-script"
   ],
   "parent": null,
   "relatedFiles": [],

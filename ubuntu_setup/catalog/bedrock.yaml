@@ -79,6 +79,27 @@
   tags: [bedrock, compression]
   source: official
 
+# dependency citation: prerequisite of the ollama script entry — its official
+# installer hard-errors without the zstd tool (.tar.zst bundles). Preinstalled
+# on standard Ubuntu (initramfs compression) but absent from minimal images.
+- id: zstd
+  description: "Zstandard compression tools (zstd)"
+  type: apt
+  package: zstd
+  tags: [bedrock, compression]
+  source: official
+
+# dependency citation: prerequisite of the pnpm script entry — the official
+# standalone binary (v11) links against libatomic.so.1, which minimal 24.04
+# images lack (found by real-install verification in a clean container,
+# 2026-06-11: "error while loading shared libraries: libatomic.so.1").
+- id: libatomic1
+  description: "GCC atomic-operations runtime library (libatomic.so.1)"
+  type: apt
+  package: libatomic1
+  tags: [bedrock, runtime-lib]
+  source: official
+
 # bedrock whitelist (approved 2026-06-10): remote access for the Server/SSH
 # audience; Ubuntu Server preinstalls it, Desktop does not.
 - id: openssh-server

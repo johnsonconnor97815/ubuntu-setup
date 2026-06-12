@@ -1,0 +1,4 @@
+{"file": ".trellis/tasks/06-11-provider-script/prd.md", "reason": "复查：AC 逐条——schema 拒绝、15 条齐全、check 无恒真、提权声明正确、全量真跑记录"}
+{"file": ".trellis/spec/core/privilege-and-safety.md", "reason": "复查：用户级条目未误用 sudo、root 级逐命令提权、sudo 下无 ~ 展开"}
+{"file": ".trellis/spec/catalog/authoring-guidelines.md", "reason": "复查：script 作者规范逐条（探针质量、官方命令原样、溯源注释）"}
+{"file": ".trellis/tasks/06-10-intersection-research/research/final-list.json", "reason": "复查：15 条与标注逐条对照（official_cmd 原样性、URL、依赖关系无凭空编造）"}

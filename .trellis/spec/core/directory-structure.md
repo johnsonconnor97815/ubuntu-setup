@@ -42,12 +42,12 @@ ubuntu_setup/
 │   │   ├── base.py        # Provider protocol: check / install / remove / upgrade
 │   │   ├── apt.py
 │   │   ├── ppa.py             # (planned)
-│   │   ├── deb.py             # (planned)
+│   │   ├── deb.py             # third-party APT repos (deb822+key) / direct .deb
 │   │   ├── snap.py            # (planned)
 │   │   ├── flatpak.py         # (planned)
 │   │   ├── dotfile_block.py   # (planned)
 │   │   ├── service.py         # (planned)
-│   │   └── script.py          # (planned) the escape hatch — see ../catalog/authoring-guidelines.md
+│   │   └── script.py          # the escape hatch (bash -o pipefail -c; sudo declaration) — see ../catalog/authoring-guidelines.md
 │   ├── planner.py         # desired actions → ordered Plan (depends_on closure + stable topological sort)
 │   ├── executor.py        # run a Plan as a generator of events: fail-fast, check-before-act, requires gate
 │   ├── environment.py     # host capability detection (the `requires` judgment: desktop, ...) — injectable probes

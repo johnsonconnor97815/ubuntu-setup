@@ -145,6 +145,61 @@ class TestCatalogValidation(unittest.TestCase):
         with self.assertRaises(CatalogError):
             load_catalog(self.dir)
 
+    # -- script: the escape hatch needs an explicit probe + install -----------
+    def test_script_entry_parses(self):
+        self._write(
+            "- {id: s, description: x, type: script, "
+            "check: 'test -x /usr/local/bin/s', install: 'curl x | sh'}\n"
+        )
+        entries = load_catalog(self.dir)
+        self.assertEqual(entries["s"].fields["check"], "test -x /usr/local/bin/s")
+        self.assertNotIn("sudo", entries["s"].fields)  # default: plain user
+
+    def test_script_sudo_declaration_parses(self):
+        self._write(
+            "- {id: s, description: x, type: script, sudo: true, "
+            "check: 'test -x /usr/local/bin/s', install: 'curl x | sh'}\n"
+        )
+        self.assertIs(load_catalog(self.dir)["s"].fields["sudo"], True)
+
+    def test_script_without_check_fails_schema(self):
+        # the idempotency probe is mandatory — no probe, no entry
+        self._write("- {id: s, description: x, type: script, install: 'curl x | sh'}\n")
+        with self.assertRaises(CatalogError):
+            load_catalog(self.dir)
+
+    def test_script_without_install_fails_schema(self):
+        self._write("- {id: s, description: x, type: script, check: 'test -x /x'}\n")
+        with self.assertRaises(CatalogError):
+            load_catalog(self.dir)
+
+    def test_script_boolean_check_fails_schema(self):
+        # YAML `check: true` is a boolean, not a command string — rejected
+        # (the string "true" is syntactically valid; review rejects vacuous
+        # probes — authoring-guidelines rule 2)
+        self._write(
+            "- {id: s, description: x, type: script, "
+            "check: true, install: 'curl x | sh'}\n"
+        )
+        with self.assertRaises(CatalogError):
+            load_catalog(self.dir)
+
+    def test_script_empty_check_fails_schema(self):
+        self._write(
+            "- {id: s, description: x, type: script, "
+            "check: '', install: 'curl x | sh'}\n"
+        )
+        with self.assertRaises(CatalogError):
+            load_catalog(self.dir)
+
+    def test_script_non_boolean_sudo_fails_schema(self):
+        self._write(
+            "- {id: s, description: x, type: script, sudo: 'yes', "
+            "check: 'test -x /x', install: 'curl x | sh'}\n"
+        )
+        with self.assertRaises(CatalogError):
+            load_catalog(self.dir)
+
 
 if __name__ == "__main__":
     unittest.main()

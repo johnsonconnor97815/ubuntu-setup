@@ -1,0 +1,27 @@
+# Declarative catalog — AI tooling. Data, not code; validated against
+# schema.json at load time.
+# Sourcing: upstream install doc URL + intersection-research hits per entry
+# (.trellis/tasks/06-10-intersection-research/research/final-list.json).
+
+# https://github.com/ollama/ollama/blob/main/README.md — hits:
+# so-survey+homebrew+pkgstats (core). No apt/deb/snap official channel; the
+# README's Linux install is the one-liner below, quoted verbatim. Root-level
+# (`sudo: true`): the script installs /usr/local/bin/ollama +
+# /usr/local/lib/ollama, creates the ollama system user and — only where
+# systemctl exists — writes/enables/starts ollama.service; run unprivileged it
+# would self-escalate with its own sudo, against this tool's per-command
+# escalation. On a systemd-less host (container) the script still installs
+# the binary and exits 0 with a warning (verified installer source,
+# 2026-06-11) — the full official path incl. service start needs a systemd
+# machine (research: VM-tier verification). Current bundles ship .tar.zst:
+# the installer hard-errors without the zstd tool -> depends_on zstd. The
+# multi-GB download is the largest in the catalog.
+- id: ollama
+  description: "Ollama — run LLMs locally (official install script; systemd service where available)"
+  type: script
+  sudo: true
+  check: test -x /usr/local/bin/ollama
+  install: curl -fsSL https://ollama.com/install.sh | sh
+  depends_on: [curl, zstd]
+  tags: [ai, llm]
+  source: official

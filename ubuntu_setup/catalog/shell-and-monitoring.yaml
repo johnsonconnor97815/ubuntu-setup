@@ -50,3 +50,38 @@
   package: zsh
   tags: [shell, terminal]
   source: official
+
+# https://starship.rs/ ("Get Started") — hits: homebrew+pkgstats (core),
+# awesome (aux). Not in the noble archive; the official path is install.sh
+# (`curl -sS https://starship.rs/install.sh | sh`). The flags are the
+# installer's own documented options (verified installer source, 2026-06-11):
+# `--yes` skips the confirmation prompt (the script errors without a tty
+# otherwise), `--bin-dir` keeps the install user-level — the default
+# /usr/local/bin makes the script self-escalate with its own sudo, against
+# this tool's per-command escalation model. The script requires the bin dir
+# to already exist, hence the mkdir. Shell init (`eval "$(starship init
+# bash)"`) is the official docs' per-user rc step, not this tool's.
+- id: starship
+  description: "Starship cross-shell prompt (~/.local/bin; add the init line to your shell rc)"
+  type: script
+  check: test -x "$HOME/.local/bin/starship"
+  install: mkdir -p "$HOME/.local/bin" && curl -sS https://starship.rs/install.sh | sh -s -- --yes --bin-dir "$HOME/.local/bin"
+  depends_on: [curl]
+  tags: [shell, terminal, prompt]
+  source: official
+
+# https://github.com/ajeetdsouza/zoxide#installation — hits: homebrew+pkgstats
+# (core), awesome (aux). The README strikes through the Debian/Ubuntu apt row
+# ("update too slowly") and points those users at install.sh — the official
+# path for noble, quoted verbatim. Installs to ~/.local/bin (the installer's
+# default; verified installer source, 2026-06-11). The per-shell activation
+# (`eval "$(zoxide init bash)"`) is the official docs' rc step, not this
+# tool's.
+- id: zoxide
+  description: "zoxide — smarter cd (~/.local/bin; add the init line to your shell rc)"
+  type: script
+  check: test -x "$HOME/.local/bin/zoxide"
+  install: curl -sSfL https://raw.githubusercontent.com/ajeetdsouza/zoxide/main/install.sh | sh
+  depends_on: [curl]
+  tags: [shell, terminal, cli]
+  source: official

@@ -90,6 +90,31 @@
       "type": "string",
       "pattern": "^https://",
       "description": "deb direct mode: a remote .deb installed via apt-get install <file> (requires 'package' for the idempotency check)"
+    },
+    "check": {
+      "type": "string",
+      "minLength": 1,
+      "description": "script: the idempotency probe command (bash -o pipefail -c). REQUIRED for script entries; must be a real probe (absolute paths, never login-shell PATH) — a vacuous probe is rejected in review"
+    },
+    "install": {
+      "type": "string",
+      "minLength": 1,
+      "description": "script: the official install command, recorded verbatim (bash -o pipefail -c)"
+    },
+    "remove": {
+      "type": "string",
+      "minLength": 1,
+      "description": "script: reserved (the remove op is deferred in this MVP slice)"
+    },
+    "upgrade": {
+      "type": "string",
+      "minLength": 1,
+      "description": "script: reserved (the upgrade op is deferred in this MVP slice)"
+    },
+    "sudo": {
+      "type": "boolean",
+      "default": false,
+      "description": "script: explicit privilege declaration — true escalates the command per-command via the runner's sudo variant; default is the plain user (user-level installs into $HOME)"
     }
   },
   "allOf": [
@@ -125,6 +150,11 @@
           }
         ]
       }
+    },
+    {
+      "$comment": "script requires an explicit idempotency probe and the official install command (kept in sync with script.py and authoring-guidelines.md); remove/upgrade/sudo are optional",
+      "if": { "properties": { "type": { "const": "script" } }, "required": ["type"] },
+      "then": { "required": ["check", "install"] }
     }
   ]
 }

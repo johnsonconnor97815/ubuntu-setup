@@ -53,3 +53,32 @@
   package: maven
   tags: [build, java]
   source: official
+
+# https://docs.gradle.org/current/userguide/installation.html — hits:
+# so-survey+homebrew+pkgstats (core). noble's gradle 4.4 (2017) cannot build
+# modern projects (research verdict: below the usability bar). The official
+# doc lists SDKMAN! first and "Installing manually" (the binary zip) second;
+# this entry takes the manual route because SDKMAN's `sdk install` has an
+# interactive default-version prompt with no documented non-interactive flag.
+# Steps follow the official manual instructions (download the bin zip ->
+# unzip under /opt/gradle); the doc's PATH step is expressed as a
+# /usr/local/bin symlink (shell-rc edits are out of provider scope).
+# MAINTENANCE: the URL and paths pin gradle 9.5.1 (current per
+# services.gradle.org/versions/current, 2026-06-11) — upgrading the entry
+# means bumping the version in install AND check. Root-level (/opt +
+# /usr/local/bin). JDK 17+ is a hard runtime prerequisite -> depends_on
+# openjdk (default-jdk = 21 LTS on noble).
+- id: gradle
+  description: "Gradle 9.5.1 build tool (official binary zip under /opt/gradle; needs a JDK)"
+  type: script
+  sudo: true
+  check: test -x /opt/gradle/gradle-9.5.1/bin/gradle
+  install: >-
+    cd "$(mktemp -d)" &&
+    curl -fsSL -o gradle-9.5.1-bin.zip "https://services.gradle.org/distributions/gradle-9.5.1-bin.zip" &&
+    mkdir -p /opt/gradle &&
+    unzip -q -d /opt/gradle gradle-9.5.1-bin.zip &&
+    ln -sfn /opt/gradle/gradle-9.5.1/bin/gradle /usr/local/bin/gradle
+  depends_on: [curl, unzip, openjdk]
+  tags: [build, java]
+  source: official

@@ -106,3 +106,82 @@
   package: lua5.4
   tags: [languages, lua]
   source: official
+
+# dependency citation: prerequisite of the typescript and yarn script entries
+# (final-list prerequisite_citations: npm x2). Ubuntu's nodejs package does NOT
+# include npm — it is this separate package (9.2.0 on noble). Its global
+# prefix is /usr/local (verified in a clean 24.04 container, 2026-06-11), so
+# `npm install -g` writes root-owned paths.
+- id: npm
+  description: "npm — Node.js package manager (separate from Ubuntu's nodejs package)"
+  type: apt
+  package: npm
+  tags: [languages, javascript, package-manager]
+  source: official
+
+# https://www.rust-lang.org/tools/install — hits: so-survey+homebrew+pkgstats
+# (core), jetbrains+popcon (aux). The official page marks rustup as
+# "Recommended"; distro rustc trails the 6-week train badly enough that
+# upstream discourages it for development. Verbatim official one-liner plus
+# the installer's own documented unattended flag (`-y` — rustup book,
+# "Unattended installation"). User-level: ~/.rustup + ~/.cargo; PATH comes
+# from the script's own shell-rc edit (~/.cargo/env) — the user's/installer's
+# responsibility, not this tool's. Compiling crates additionally needs a C
+# linker (build-essential) at runtime — a usage note, not an install step.
+- id: rust
+  description: "Rust toolchain via rustup (rustc+cargo in ~/.cargo; needs a C linker to build crates)"
+  type: script
+  check: test -x "$HOME/.cargo/bin/rustc"
+  install: curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+  depends_on: [curl]
+  tags: [languages, rust]
+  source: official
+
+# https://bun.com/docs/installation — hits: so-survey+homebrew+pkgstats (core).
+# No apt/deb/snap channel; the official install script is the only Linux path.
+# Verbatim official one-liner; the script hard-requires unzip (it errors
+# without it — verified installer source, 2026-06-11) and installs the single
+# binary to ~/.bun/bin. Shell-rc PATH edits are the script's own doing.
+- id: bun
+  description: "Bun JavaScript runtime & toolkit (single binary in ~/.bun/bin)"
+  type: script
+  check: test -x "$HOME/.bun/bin/bun"
+  install: curl -fsSL https://bun.com/install | bash
+  depends_on: [curl, unzip]
+  tags: [languages, javascript]
+  source: official
+
+# https://docs.deno.com/runtime/getting_started/installation/ — hits:
+# so-survey+homebrew+pkgstats (core). No apt/deb/ppa channel; the official
+# deno_install script is the first-listed path. Verbatim official one-liner;
+# the script needs unzip (or 7z) and installs to ~/.deno/bin. Its interactive
+# shell-setup prompt only fires on a tty (verified installer source,
+# 2026-06-11) — non-interactive runs skip it cleanly.
+- id: deno
+  description: "Deno JavaScript/TypeScript runtime (single binary in ~/.deno/bin)"
+  type: script
+  check: test -x "$HOME/.deno/bin/deno"
+  install: curl -fsSL https://deno.land/install.sh | sh
+  depends_on: [curl, unzip]
+  tags: [languages, javascript, typescript]
+  source: official
+
+# https://www.typescriptlang.org/download/ — hits: so-survey+pkgstats (core),
+# jetbrains (aux). noble's node-typescript (4.8, 2022) is too old for modern
+# TS projects (research verdict: below the usability bar). The official page
+# documents the per-project `npm install typescript --save-dev`; this catalog
+# manages a machine-global CLI, so the entry uses npm's documented global
+# variant `npm install -g typescript`. Root vs user decision: on noble npm's
+# global prefix is /usr/local (root-owned; verified in a clean 24.04
+# container, 2026-06-11) — so this is a root-level entry with per-command
+# sudo (a user-level prefix would require npmrc config mutation, out of
+# provider scope).
+- id: typescript
+  description: "TypeScript compiler (tsc) installed globally via npm"
+  type: script
+  sudo: true
+  check: test -x /usr/local/bin/tsc
+  install: npm install -g typescript
+  depends_on: [nodejs, npm]
+  tags: [languages, typescript, javascript]
+  source: official

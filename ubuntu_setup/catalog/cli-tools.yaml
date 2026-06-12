@@ -98,3 +98,23 @@
   package: tree
   tags: [cli]
   source: official
+
+# https://rclone.org/install/ — hits: homebrew+pkgstats (core), popcon (aux).
+# Official doc explicitly recommends AGAINST distro packages ("often quite out
+# of date") — noble ships 1.60 (2022) vs upstream 1.7x. The official "Script
+# installation" is `curl https://rclone.org/install.sh | sudo bash`; here the
+# entry declares `sudo: true` so the engine escalates per-command instead of
+# an in-pipe sudo, and curl gets -fsSL so an HTTP error can never feed bash.
+# Installs /usr/bin/rclone (verified installer source, 2026-06-11); the
+# script needs an unzip tool (unzip/7z/busybox) -> depends_on unzip. The
+# script exits 3 when the current version is already installed — unreachable
+# here because check() gates install to the absent case.
+- id: rclone
+  description: "rclone — sync files to/from cloud storage (official install script)"
+  type: script
+  sudo: true
+  check: test -x /usr/bin/rclone
+  install: curl -fsSL https://rclone.org/install.sh | bash
+  depends_on: [curl, unzip]
+  tags: [cli, sync, cloud]
+  source: official

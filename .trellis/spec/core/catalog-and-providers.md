@@ -4,9 +4,9 @@
 
 ---
 
-## Status: `apt` + `deb` (and the `ctx` contract incl. `aptcache`) code-backed; the rest design-derived
+## Status: `apt` + `deb` + `script` (and the `ctx` contract incl. `aptcache`) code-backed; the rest design-derived
 
-Prescriptive. Field names and provider keys defined here are the contract the first implementation must follow; the `apt` and `deb` sections (and the freshness guard) now describe shipped code (`core/providers/apt.py`, `deb.py`, `aptcache.py`; tests `tests/providers/`, `tests/core/test_aptcache.py`). The command idioms below were verified against current Ubuntu (22.04 / 24.04+), apt/dpkg, snapd, flatpak, and systemd documentation — keep them current, do not regress to the deprecated forms called out as anti-patterns.
+Prescriptive. Field names and provider keys defined here are the contract the first implementation must follow; the `apt`, `deb` and `script` sections (and the freshness guard) now describe shipped code (`core/providers/apt.py`, `deb.py`, `script.py`, `aptcache.py`; tests `tests/providers/`, `tests/core/test_aptcache.py`). The command idioms below were verified against current Ubuntu (22.04 / 24.04+), apt/dpkg, snapd, flatpak, and systemd documentation — keep them current, do not regress to the deprecated forms called out as anti-patterns.
 
 ---
 
@@ -26,9 +26,10 @@ One software unit = one declarative entry, authored in YAML under `ubuntu_setup/
 - id: rust
   description: "Rust toolchain (rustup)"
   type: script               # the escape hatch — arbitrary commands
-  check: "command -v rustc"  # REQUIRED for script: the idempotency probe
-  install: "curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y"
-  source: official
+  check: test -x "$HOME/.cargo/bin/rustc"   # REQUIRED: the idempotency probe (absolute path, never login-shell PATH)
+  install: curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+  depends_on: [curl]
+  source: official           # sudo: true would declare a root-level installer (default: plain user)
 
 - id: zsh-env
   description: "Editor env in ~/.zshrc"
@@ -195,10 +196,13 @@ Signed-By: /etc/apt/keyrings/<name>.gpg
 - **enable+start:** `systemctl enable --now <unit>` (idempotent; runs an internal reload). **disable+stop:** `systemctl disable --now <unit>`.
 - Run `systemctl daemon-reload` only after creating/editing a unit **file** on disk. **User units** use `systemctl --user …` (no sudo, as the real user) and need their own `--user daemon-reload`; a system reload does not touch them. `mask` is stronger than disable — `unmask` before re-enabling.
 
-### `script` (escape hatch)
+### `script` (escape hatch — code-backed: `script.py`, tests `tests/providers/test_script.py`)
 
-- The only provider that runs author-supplied commands. Requires an explicit `check` command (the idempotency probe, e.g. `command -v rustc`); `install` required; `remove`/`upgrade` optional.
-- Highest-risk type: it is the one place arbitrary `sudo`/shell runs. **The future LLM phase must never generate `script` entries**, and human review is mandatory for them. See `../catalog/authoring-guidelines.md`.
+- The only provider that runs author-supplied commands. Fields: `check` (REQUIRED — the idempotency probe; the schema rejects a missing/empty/non-string one, and a vacuous probe is rejected in review), `install` (required), `remove`/`upgrade` (**reserved**: schema-accepted, op raises `NotImplementedError` — deferred by prd 06-11-provider-script), `sudo` (optional bool, default `false` — the explicit privilege declaration).
+- **Execution form (decided 06-11):** author commands are shell strings, run as `["bash", "-o", "pipefail", "-c", <command>]` through the runner — argv list + `shell=False`, the exact string audit-logged via `shlex.join`. `pipefail` is mandatory: the official `curl … | sh` idiom would otherwise swallow a failed download as the interpreter's exit 0. Deliberately **not** a login shell (`-l` would make probes/installs depend on the user's rc files and login-shell PATH — forbidden; probes use absolute paths).
+- **Privilege:** default is the **plain user** (most script entries are user-level installs into `$HOME`: rustup/uv/starship class) — for those the provider pins `HOME` to the real user's passwd-DB home (`extra_env`, privilege Rule 3) so `$HOME` in author commands never resolves to `/root` under a sudo'd app launch. `sudo: true` escalates the **whole command string** per command via the runner's `sudo -n env …` variant (root-level installers: ollama/rclone/npm -g class); root-level commands never use `~`/`$HOME` (authoring rule). `check` runs under the **same identity** as the mutating ops, so observations match what install would see. Accepted caveat: a `sudo: true` check without a cached credential fails `sudo -n` and reads ABSENT — conservative; the executor's per-step credential probe then surfaces the real problem as a clean `PrivilegeError` (exit 4).
+- **State mapping:** check exit 0 -> PRESENT, any non-zero -> ABSENT — the author's probe IS the contract; there is no machine-readable "real error" band to distinguish (a `tool --version` probe exits 127 when absent), so every non-zero reads "not converged" and errs toward a loud install attempt. `script` never returns OUTDATED (no version semantics). `install` carries the widened install timeout (`apt.py::_INSTALL_TIMEOUT`) — official installers legitimately download hundreds of MB (rust toolchain / ollama bundle class).
+- Highest-risk type: it is the one place arbitrary `sudo`/shell runs. **The future LLM phase must never generate `script` entries**, and human review is mandatory for them (every shipped entry's check/install was reviewed with its privilege declaration). See `../catalog/authoring-guidelines.md`.
 
 ---
 
