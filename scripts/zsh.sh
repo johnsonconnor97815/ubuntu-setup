@@ -619,6 +619,117 @@ do_default_shell() {
   fi
 }
 
+# --- Interactive management screen (the script's own UI) -----------------------
+# A bespoke full-screen component manager: toggle the framework, pick a prompt, check
+# plugins on/off, set the default shell, install/remove zsh. State is read live from
+# ubuntu-setup.conf each pass; every change shells out via ui_run (so apt/git/sudo output
+# is visible and logged) and then the screen reloads. Limited terminals fall back to the
+# synthesized op menu. `ui` is an entry mode (kit_dispatch) — never listed in meta ops.
+ui() {
+  if ! ui_supported; then ui_default_menu; return 0; fi
+  ui_begin || { ui_default_menu; return 0; }
+
+  local sel=0 g
+  while true; do
+    [[ "${_UI_WINCH:-0}" == 1 ]] && { _UI_WINCH=0; ui_size; }
+
+    # ---- live state ----
+    local installed=0 ver="" user zsh_path cur_shell is_default=0
+    user="${SUDO_USER:-$(id -un)}"
+    if status >/dev/null 2>&1; then
+      installed=1
+      ver="$(zsh --version 2>/dev/null | awk '{print $2}')"
+      zsh_path="$(command -v zsh)"
+      cur_shell="$(getent passwd "$user" | cut -d: -f7 2>/dev/null || true)"
+      [[ "$cur_shell" == "$zsh_path" ]] && is_default=1
+      if _zsh_resolve_paths >/dev/null 2>&1; then _zsh_load_state; fi
+    fi
+
+    # ---- build display rows (parallel arrays: kind / id / label) ----
+    local -a dkind=() did=() dlabel=()
+    if (( ! installed )); then
+      dkind+=(install); did+=(install); dlabel+=("$(ui_badge missing) $(ui_t install) zsh — Z shell")
+    else
+      local fw_badge
+      if [[ "${FRAMEWORK:-none}" == "oh-my-zsh" ]]; then fw_badge="${UI_OK}[on]${UI_OFF}"; else fw_badge="${UI_MUTED}[off]${UI_OFF}"; fi
+      dkind+=(framework); did+=(framework); dlabel+=("$(printf '%-13s %s' 'Framework' "Oh My Zsh  $fw_badge")")
+      dkind+=(prompt);    did+=(prompt);    dlabel+=("$(printf '%-13s %s%s%s  %s' 'Prompt' "$UI_INFO" "${PROMPT:-git}" "$UI_OFF" "$UI_ARROW")")
+      dkind+=(spacer);    did+=("");        dlabel+=("")
+      dkind+=(header);    did+=("");        dlabel+=("Plugins")
+      local -a known=(autosuggestions syntax-highlighting completions history-substring-search fzf zoxide)
+      local p on
+      for p in "${known[@]}"; do
+        on=0; _zsh_plugin_in "$p" "$PLUGINS" && on=1
+        dkind+=(plugin); did+=("$p")
+        if (( on )); then dlabel+=("  ${UI_OK}${UI_CHK_ON}${UI_OFF} $p"); else dlabel+=("  ${UI_MUTED}${UI_CHK_OFF}${UI_OFF} $p"); fi
+      done
+      for p in $PLUGINS; do
+        _zsh_plugin_in "$p" "${known[*]}" && continue
+        dkind+=(plugin); did+=("$p"); dlabel+=("  ${UI_OK}${UI_CHK_ON}${UI_OFF} $p ${UI_MUTED}(git)${UI_OFF}")
+      done
+      dkind+=(spacer);   did+=("");        dlabel+=("")
+      dkind+=(defshell); did+=(defshell)
+      if (( is_default )); then dlabel+=("$(printf '%-13s %s' 'Login shell' "zsh ${UI_OK}${UI_CHECK}${UI_OFF}")")
+      else dlabel+=("$(printf '%-13s %s' 'Login shell' "${UI_MUTED}${cur_shell}${UI_OFF}  ${UI_ARROW} zsh")"); fi
+      dkind+=(spacer);   did+=("");        dlabel+=("")
+      dkind+=(remove);   did+=(remove);    dlabel+=("${UI_ERR}${UI_CROSS}${UI_OFF} $(ui_t remove) zsh")
+    fi
+    local n=${#dkind[@]}
+    (( sel < 0 )) && sel=0; (( sel >= n )) && sel=$(( n - 1 ))
+    case "${dkind[$sel]}" in spacer|header)
+      for (( g=0; g<n; g++ )); do (( sel=(sel+1)%n )); case "${dkind[$sel]}" in spacer|header) ;; *) break ;; esac; done ;;
+    esac
+
+    # ---- render ----
+    printf '\033[2J' >&"$_UI_FD"
+    if (( installed )); then ui_header "zsh · component manager" "v$ver ${UI_OK}${UI_CHECK}${UI_OFF}"
+    else ui_header "zsh · component manager" "$(ui_t not_installed)"; fi
+    local i row=3
+    for (( i=0; i<n; i++ )); do
+      case "${dkind[$i]}" in
+        spacer) : ;;
+        header) ui_move "$row" 2; printf '\033[K%s%s%s' "$UI_ACCENT$UI_BOLD" "${dlabel[$i]}" "$UI_OFF" >&"$_UI_FD" ;;
+        *)      ui_row "$row" "$i" "$sel" "${dlabel[$i]}" ;;
+      esac
+      (( row++ ))
+    done
+    if (( installed )); then ui_footer "↑↓ move   ↵/space toggle   a add-plugin   q quit"
+    else ui_footer "↑↓ move   ↵ install   q quit"; fi
+
+    # ---- input ----
+    ui_read_key
+    case "$UI_KEY" in
+      up|k)   for (( g=0; g<n; g++ )); do (( sel=(sel-1+n)%n )); case "${dkind[$sel]}" in spacer|header) ;; *) break ;; esac; done ;;
+      down|j) for (( g=0; g<n; g++ )); do (( sel=(sel+1)%n ));   case "${dkind[$sel]}" in spacer|header) ;; *) break ;; esac; done ;;
+      a|A)
+        if (( installed )) && ui_input "git URL or plugin name" ""; then
+          ui_run "add-plugin · zsh" -- "$0" add-plugin "$UI_INPUT"
+        fi ;;
+      enter|right|l|space)
+        case "${dkind[$sel]}" in
+          install) ui_run "$(ui_t install) zsh" -- "$0" install ;;
+          remove)  ui_confirm "Uninstall zsh? (refused if it is your login shell)" n && ui_run "$(ui_t remove) zsh" -- "$0" remove ;;
+          framework)
+            if [[ "${FRAMEWORK:-none}" == "oh-my-zsh" ]]; then ui_run "uninstall-omz · zsh" -- "$0" uninstall-omz
+            else ui_run "install-omz · zsh" -- "$0" install-omz; fi ;;
+          prompt)
+            ui_pick "zsh — prompt" "current: ${PROMPT:-git}" "" -- \
+              git "git (ASCII branch)" plain "plain" starship "Starship (Nerd Font)" \
+              powerlevel10k "Powerlevel10k (Nerd Font)" pure "Pure"
+            [[ -n "$UI_PICK" ]] && ui_run "prompt $UI_PICK · zsh" -- "$0" prompt "$UI_PICK" ;;
+          plugin)
+            local pn="${did[$sel]}"
+            if _zsh_plugin_in "$pn" "$PLUGINS"; then ui_run "remove-plugin $pn · zsh" -- "$0" remove-plugin "$pn"
+            else ui_run "add-plugin $pn · zsh" -- "$0" add-plugin "$pn"; fi ;;
+          defshell) ui_run "default-shell · zsh" -- "$0" default-shell ;;
+        esac ;;
+      q|esc) break ;;
+    esac
+  done
+  ui_end
+  return 0
+}
+
 usage() {
   cat <<EOF
 Usage: ${0##*/} <command>
@@ -642,6 +753,7 @@ line). Re-running converges; your own ~/.zshrc is never clobbered.
   remove-plugin <name>        Disable a plugin (removes git clones; keeps apt packages)
   prompt <name>      Set the prompt (git|plain|starship|powerlevel10k|pure)
   default-shell      Make zsh the default login shell (lockout-safe)
+  ui                 Open the interactive component manager (needs a terminal)
   status / meta / help
 
 Default config is a conservative, headless-safe baseline (framework-free, git-branch ASCII
