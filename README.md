@@ -43,7 +43,7 @@ swkit help
 ## 脚本集合
 
 - **部署位置**:`~/.local/share/ubuntu-setup/`(即 `$KIT_HOME`),收纳 `lib/`、`scripts/`、`swkit`,且**本身是一个 git 仓**。
-- **种子脚本**:`git`、`curl`、`zsh`、`docker`、`node`、`claude`、`codex`。其中 `docker` 与 `zsh` 还支持 `configure`(`zsh configure` 无参 = 安全基线:apt 插件 + `~/.zshrc`;`--default-shell` = 把 zsh 设为登录 shell,设前先 `zsh -i -c exit` 验证、锁定安全;`--no-plugins` 跳过插件)。
+- **种子脚本**:`git`、`curl`、`zsh`、`docker`、`node`、`claude`、`codex`。`docker` 与 `zsh` 还支持 `configure`。**`zsh configure` 是可管理的富配置**:无参 = 保守 headless 安全基线(history / 补全 / 键位 / 颜色别名 + apt 插件 + git 分支 ASCII 提示符),写入受管 drop-in `~/.config/zsh/ubuntu-setup.zsh` 并在 `~/.zshrc` 加一行 source——**重跑更新到最新、不覆盖你自己的 `~/.zshrc`**;可选 `--framework oh-my-zsh`、`--prompt git|plain|starship|powerlevel10k|pure`、`--default-shell`(锁定安全)、`--no-plugins`、`--no-aliases`。TUI 里 zsh 另有 `oh-my-zsh` / `starship` / `default-shell` 独立动作可一键选。(Starship/Powerlevel10k 的图标需本地终端装 Nerd Font;headless 建议 git/plain/Pure。)
 - **统一接口**:每个 `scripts/<软件>.sh` 都支持 `meta` / `status` / `install` / `remove` / `configure`(可选) / `help`;`status` 退出码 0 当且仅当已装/已生效(这就是幂等探针),`install`/`remove` 先查 `status` 再决定动作。
 - **更新不丢改动**:重跑 `./bootstrap.sh` 时,出厂脚本被刷进一条 `vendor` 分支再 `git merge` 进工作树(`main`),**绝不盲目覆盖**——LLM 新写的脚本原样保留,只有"出厂版与本地都改了同一文件"才作为合并冲突显式留给你处理。每一次改动都被 git 跟踪(可回滚、可 PR 回上游)。
 

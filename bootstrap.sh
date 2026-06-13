@@ -865,23 +865,27 @@ kit_each_script() {
   shopt -u nullglob
 }
 
-# Level 3: a software's action menu — only the operations its meta advertises.
+# Level 3: a software's action menu — every operation its meta advertises (install/
+# remove/configure get translated labels; any custom action shows its raw op id).
 tui_software() {
-  local sw="$1" script name ops choice
+  local sw="$1" script name ops choice op
   script="$(kit_scripts_dir)/${sw}.sh"
   if [[ ! -x "$script" ]]; then ui_msgbox "$(t summary_title)" "No script: $sw"; return 0; fi
   name="$(kit_meta_field "$script" name)"; [[ -n "$name" ]] || name="$sw"
   ops="$(kit_meta_field "$script" ops)"
   while true; do
-    local -a args=()
-    case ",$ops," in *",install,"*)   args+=(install   "$(t op_install)") ;; esac
-    case ",$ops," in *",remove,"*)    args+=(remove    "$(t op_remove)") ;; esac
-    case ",$ops," in *",configure,"*) args+=(configure "$(t op_configure)") ;; esac
+    local -a args=() oplist=()
+    IFS=',' read -ra oplist <<<"$ops"
+    for op in "${oplist[@]}"; do
+      op="${op//[[:space:]]/}"
+      [[ -n "$op" ]] || continue
+      args+=("$op" "$(op_label "$op")")
+    done
     args+=(back "$(t s_back)")
     choice="$(ui_menu "$name" "$(t software_prompt)" "${args[@]}")" || return 0
     case "$choice" in
-      install|remove|configure) run_op "$sw" "$choice" ;;
       back|"") return 0 ;;
+      *) run_op "$sw" "$choice" ;;
     esac
   done
 }

@@ -229,6 +229,11 @@ emit_meta_line() { printf '%s=%s\n' "$1" "$2"; }
 # Route a script's subcommand to its convention functions. A script defines
 #   meta status do_install do_remove [do_configure] usage
 # and ends with `kit_dispatch "$@"`. configure is offered only if do_configure exists.
+#
+# Custom actions: any other subcommand <op> routes to the function do_<op> if the script
+# defines it (hyphens in <op> map to underscores, so `default-shell` -> do_default_shell).
+# This lets a script advertise extra actions in its `meta` ops= line and have the bootstrap
+# TUI / swkit drive them, without changing this library per script.
 kit_dispatch() {
   local cmd="${1:-help}"
   [[ $# -gt 0 ]] && shift
@@ -246,6 +251,15 @@ kit_dispatch() {
       fi
       ;;
     help|-h|--help) usage ;;
-    *) log_err "Unknown subcommand: $cmd"; usage; return 2 ;;
+    *)
+      local fn="do_${cmd//-/_}"
+      if declare -F "$fn" >/dev/null 2>&1; then
+        "$fn" "$@"
+      else
+        log_err "Unknown subcommand: $cmd"
+        usage
+        return 2
+      fi
+      ;;
   esac
 }
