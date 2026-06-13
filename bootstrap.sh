@@ -3,8 +3,8 @@
 # bootstrap.sh — set up a fresh Ubuntu machine for LLM-driven software management.
 #
 # Installs the Claude Code CLI and the Codex CLI (official native installers by
-# default, npm as an opt-in fallback), then deploys the ubuntu-install skill so
-# you can ask either LLM to install software for you.
+# default, npm as an opt-in fallback), then deploys the bundled skills
+# (ubuntu-install, zsh-setup) so you can ask either LLM to manage your machine.
 #
 # Usage: ./bootstrap.sh [--only claude|codex] [--method native|npm] [--skip-skills]
 #
@@ -14,6 +14,17 @@
 # Privilege model: run as a normal user. Only the apt dependency top-up
 # escalates, one command at a time, via sudo. Running as root also works but is
 # not required; `sudo npm install -g` is never used.
+#
+# Passwordless sudo: after bootstrap the LLM runs `sudo apt-get …` through its own
+# Bash tool, which has NO interactive terminal — so it cannot type a sudo password
+# and could not install anything. So bootstrap, run here while you DO have a terminal,
+# shows a TUI toggle (a whiptail dialog box, falling back to a text [Y/n] prompt) to
+# turn passwordless sudo ON or OFF for the invoking user. ON writes a NOPASSWD sudoers
+# drop-in (/etc/sudoers.d/ubuntu-setup-llm) granting passwordless root; OFF removes it.
+# The toggle shows the current state, so you can flip it either way on any run.
+# Non-interactive runs (no terminal) leave it unchanged. There is no command-line flag
+# for this — the choice is made through the UI; revoke any time with
+# `sudo rm /etc/sudoers.d/ubuntu-setup-llm`.
 
 set -Eeuo pipefail
 
@@ -61,8 +72,8 @@ usage() {
 Usage: ./bootstrap.sh [options]
 
 Sets up a fresh Ubuntu (20.04+) machine for LLM-driven software management:
-installs the Claude Code CLI and the Codex CLI, then deploys the
-ubuntu-install skill so you can ask either LLM to install software for you.
+installs the Claude Code CLI and the Codex CLI, then deploys the bundled
+skills (ubuntu-install, zsh-setup) so you can ask either LLM to manage it.
 
 Options:
   --only claude|codex   Install only one of the two CLIs (default: both)
@@ -70,6 +81,13 @@ Options:
                         no Node.js needed; npm requires existing Node >= 18)
   --skip-skills         Do not deploy skills to ~/.claude / ~/.codex
   -h, --help            Show this help and exit
+
+During the run, bootstrap shows a TUI toggle (a whiptail dialog box, or a text
+[Y/n] prompt if whiptail is absent) to turn passwordless sudo ON or OFF for the LLM
+— its shell has no terminal to type a sudo password, so without it the LLM cannot
+install software. The toggle shows the current state and can flip it either way;
+non-interactive runs leave it unchanged. There is no flag for this. Revoke later
+with: sudo rm /etc/sudoers.d/ubuntu-setup-llm
 
 The script is idempotent: already-installed components are detected on the
 live system and skipped, so it is safe to re-run at any time.
@@ -149,6 +167,43 @@ resolve_target_home() {
   else
     printf '%s\n' "$HOME"
   fi
+}
+
+# The real user the LLM will run as (the sudo caller when wrapped, else the
+# current user) — the account that should get passwordless sudo.
+resolve_target_user() {
+  if running_as_sudo_wrapper; then
+    printf '%s\n' "$SUDO_USER"
+  else
+    id -un
+  fi
+}
+
+# Can we prompt the user? Use the controlling terminal, not stdin, so prompts work
+# even when the script is piped (curl … | bash). No /dev/tty -> non-interactive.
+have_tty() {
+  [[ -r /dev/tty && -w /dev/tty ]]
+}
+
+# Interactive yes/no prompt on the controlling terminal. $1 = question, $2 = default
+# ("y" or "n", used on a bare Enter). Returns 0 for yes, 1 for no. Reads/writes
+# /dev/tty directly (never stdin). Caller must have checked have_tty first.
+prompt_yes_no() {
+  local question="$1" default="${2:-y}" hint reply
+  case "$default" in
+    y|Y) hint="[Y/n]" ;;
+    *)   hint="[y/N]" ;;
+  esac
+  while true; do
+    printf '%s %s ' "$question" "$hint" >/dev/tty
+    read -r reply </dev/tty || reply=""
+    [[ -z "$reply" ]] && reply="$default"
+    case "$reply" in
+      y|Y|yes|YES|Yes) return 0 ;;
+      n|N|no|NO|No)    return 1 ;;
+      *) printf 'Please answer y or n.\n' >/dev/tty ;;
+    esac
+  done
 }
 
 # mkdir -p that hands ownership of newly created components back to the real
@@ -335,29 +390,143 @@ ensure_local_bin_on_path() {
 
 # --- Skill deployment -----------------------------------------------------------------
 
+# Skills shipped to the user's machine. Add a directory under skills/ and its
+# name here to deploy it; each must contain a SKILL.md.
+SKILLS=(ubuntu-install zsh-setup)
+
 deploy_skills() {
-  step "Deploy ubuntu-install skill"
-  local src="$SCRIPT_DIR/skills/ubuntu-install"
-  local target_home claude_dst codex_prompts
-  if [[ ! -f "$src/SKILL.md" ]]; then
-    error "Skill source not found: $src/SKILL.md (run from a full clone of the repo)."
-    exit 1
-  fi
+  step "Deploy skills"
+  local target_home name src claude_dst codex_prompts
   target_home="$(resolve_target_home)"
-
-  # Claude Code: user-level skill directory (overwrite = idempotent update).
-  claude_dst="$target_home/.claude/skills/ubuntu-install"
-  ensure_user_dir "$claude_dst"
-  cp -R "$src/." "$claude_dst/"
-  maybe_chown_user "$claude_dst"
-  info "Claude Code skill -> $claude_dst/"
-
-  # Codex: skill body (frontmatter stripped) as a custom prompt, /ubuntu-install.
   codex_prompts="$target_home/.codex/prompts"
-  ensure_user_dir "$codex_prompts"
-  strip_frontmatter "$src/SKILL.md" >"$codex_prompts/ubuntu-install.md"
-  maybe_chown_user "$codex_prompts/ubuntu-install.md"
-  info "Codex prompt -> $codex_prompts/ubuntu-install.md"
+
+  for name in "${SKILLS[@]}"; do
+    src="$SCRIPT_DIR/skills/$name"
+    if [[ ! -f "$src/SKILL.md" ]]; then
+      error "Skill source not found: $src/SKILL.md (run from a full clone of the repo)."
+      exit 1
+    fi
+
+    # Claude Code: user-level skill directory (overwrite = idempotent update).
+    claude_dst="$target_home/.claude/skills/$name"
+    ensure_user_dir "$claude_dst"
+    cp -R "$src/." "$claude_dst/"
+    maybe_chown_user "$claude_dst"
+    info "Claude Code skill -> $claude_dst/"
+
+    # Codex: skill body (frontmatter stripped) as a custom prompt, /$name.
+    ensure_user_dir "$codex_prompts"
+    strip_frontmatter "$src/SKILL.md" >"$codex_prompts/$name.md"
+    maybe_chown_user "$codex_prompts/$name.md"
+    info "Codex prompt -> $codex_prompts/$name.md"
+  done
+}
+
+# --- Passwordless sudo (interactive TUI toggle) ----------------------------------------
+
+readonly SUDOERS_DROPIN="/etc/sudoers.d/ubuntu-setup-llm"
+
+# Is our NOPASSWD drop-in currently active? Probe without ever prompting (sudo -n):
+# if sudo itself needs a password, the drop-in can't be granting passwordless access.
+passwordless_enabled() {
+  sudo -n test -f "$SUDOERS_DROPIN" 2>/dev/null
+}
+
+# Write the NOPASSWD drop-in. Best-effort: warn + return (non-fatal) on any failure,
+# and never leave an invalid sudoers file behind.
+enable_passwordless() {
+  local user="$1" line
+  line="$user ALL=(ALL) NOPASSWD:ALL"
+  info "You may be asked for your sudo password once now to enable this."
+  if ! printf '# Created by ubuntu-setup bootstrap.sh. Lets the LLM run sudo (e.g. apt)\n# without a password. Remove this file to revoke.\n%s\n' \
+      "$line" | sudo tee "$SUDOERS_DROPIN" >/dev/null; then
+    warn "Could not write $SUDOERS_DROPIN (sudo failed). No change."
+    return 0
+  fi
+  sudo chmod 0440 "$SUDOERS_DROPIN" || true
+  if command -v visudo >/dev/null 2>&1 && ! sudo visudo -cf "$SUDOERS_DROPIN" >/dev/null 2>&1; then
+    sudo rm -f "$SUDOERS_DROPIN" || true
+    warn "sudoers validation failed; removed $SUDOERS_DROPIN. No change."
+    return 0
+  fi
+  info "Passwordless sudo ENABLED for '$user' — the LLM can now run apt/sudo unprompted."
+}
+
+# Remove our NOPASSWD drop-in. Best-effort.
+disable_passwordless() {
+  info "You may be asked for your sudo password once now to disable this."
+  if sudo rm -f "$SUDOERS_DROPIN"; then
+    info "Passwordless sudo DISABLED — removed $SUDOERS_DROPIN."
+  else
+    warn "Could not remove $SUDOERS_DROPIN. No change."
+  fi
+}
+
+# Present a TUI toggle for the LLM's passwordless sudo and turn it on/off to match
+# the user's choice. Uses whiptail (a real dialog box) when available, else falls
+# back to a /dev/tty [Y/n] prompt. The toggle reflects the current state, so the
+# user can switch it either way on any run. Non-interactive runs are left untouched.
+# The choice is made entirely through the UI — there is no command-line flag.
+configure_passwordless_sudo() {
+  step "Passwordless sudo for the LLM"
+  if ! command -v sudo >/dev/null 2>&1; then
+    warn "sudo not available — skipping. The LLM will need you to run sudo commands yourself."
+    return 0
+  fi
+  if ! have_tty; then
+    warn "No terminal to show the toggle — leaving passwordless sudo unchanged."
+    warn "Re-run ./bootstrap.sh in a terminal to turn it on or off."
+    return 0
+  fi
+
+  local user state want_on currently_on=0
+  user="$(resolve_target_user)"
+  passwordless_enabled && currently_on=1
+  state="$([[ $currently_on -eq 1 ]] && echo ENABLED || echo disabled)"
+
+  if command -v whiptail >/dev/null 2>&1; then
+    local rc=0 args=(--title "ubuntu-setup: LLM passwordless sudo")
+    [[ $currently_on -eq 0 ]] && args+=(--defaultno)
+    args+=(--yesno "The LLM runs sudo (e.g. apt) in its own shell, which has no
+terminal to type a password - so it can only install
+software if sudo is passwordless.
+
+Enabling writes:
+    ${SUDOERS_DROPIN}
+granting '${user}' passwordless root. Revoke any time with:
+    sudo rm ${SUDOERS_DROPIN}
+
+Currently: ${state}
+
+Turn passwordless sudo ON for the LLM?" 18 70)
+    whiptail "${args[@]}" </dev/tty || rc=$?
+    case "$rc" in
+      0) want_on=1 ;;
+      1) want_on=0 ;;
+      *) info "Cancelled — passwordless sudo left ${state,,}."; return 0 ;;
+    esac
+  else
+    info "(whiptail not installed — using a text prompt.)"
+    info "The LLM's shell has no terminal to type a sudo password; without passwordless"
+    info "sudo it cannot install software. Enabling writes $SUDOERS_DROPIN"
+    info "(revoke: sudo rm $SUDOERS_DROPIN). Currently: $state."
+    if prompt_yes_no "Turn passwordless sudo ON for the LLM?" \
+        "$([[ $currently_on -eq 1 ]] && echo y || echo n)"; then
+      want_on=1
+    else
+      want_on=0
+    fi
+  fi
+
+  if [[ $want_on -eq 1 && $currently_on -eq 0 ]]; then
+    enable_passwordless "$user"
+  elif [[ $want_on -eq 0 && $currently_on -eq 1 ]]; then
+    disable_passwordless
+  elif [[ $want_on -eq 1 ]]; then
+    info "Passwordless sudo already enabled — no change."
+  else
+    info "Passwordless sudo left disabled."
+  fi
 }
 
 # --- Verification ----------------------------------------------------------------------
@@ -382,9 +551,11 @@ All done. Next steps:
 
   1. Sign in to Claude Code:  run 'claude' and follow the login flow.
   2. Sign in to Codex:        run 'codex' and follow the login flow.
-  3. Install software through the LLM, from any directory, e.g.:
+  3. Manage the machine through the LLM, from any directory, e.g.:
        claude:  "Use the ubuntu-install skill to install docker"
        codex:   type '/ubuntu-install' and then ask it to install docker
+       claude:  "Use the zsh-setup skill to install and configure zsh"
+       codex:   type '/zsh-setup' and ask it to set zsh up safely
 
 Re-running ./bootstrap.sh at any time is safe — installed components are skipped.
 EOF
@@ -401,6 +572,11 @@ main() {
     warn "as your normal user — sudo is applied per command only where required."
     warn "Skills will still be deployed to the real user's home: $(resolve_target_home)"
   fi
+
+  # Passwordless-sudo toggle up front (interactive TUI): you have a terminal now, so
+  # if you turn it on, that single password entry also warms the credential cache for
+  # the apt steps below.
+  configure_passwordless_sudo
 
   local want_claude=1 want_codex=1 need_install=0
   case "$ONLY" in

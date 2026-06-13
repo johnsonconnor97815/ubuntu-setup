@@ -39,6 +39,12 @@ Choose the install channel in this order, and tell the user which one you picked
 - **Never** `sudo npm install -g`, `sudo pip install`, or similar language-package-manager-as-root commands. Use user-writable prefixes (`npm config set prefix ~/.local`, `pip install --user`, pipx) instead.
 - User-level files must end up owned by the user — never create files in `$HOME` from inside a sudo command.
 
+**You have no interactive terminal, so you cannot type a sudo password.** A `sudo` that needs one will error (`a terminal is required` / `no tty present` / sudo-rs: `interactive authentication is required`) or hang. Before any sudo step:
+
+- **Probe first:** run `sudo -n true` and branch on its **exit status**, never the message text (the wording differs between classic sudo and sudo-rs and may be localized). Exit 0 → sudo is passwordless right now — proceed. This is the common case: the project's `bootstrap.sh` offers to set up passwordless sudo (a `/etc/sudoers.d/ubuntu-setup-llm` NOPASSWD rule) and cloud images often ship it too. Exit non-zero → a password is required and you cannot supply it.
+- **When a password is required, never** echo / pipe / here-string it into `sudo -S`, store it in a file or env var, or write a NOPASSWD rule yourself. Stop, explain that your shell can't enter a sudo password, and offer: **(1)** re-run the project bootstrap, `./bootstrap.sh`, and turn passwordless sudo **ON** in its TUI toggle (revoke later by toggling it off, or `sudo rm /etc/sudoers.d/ubuntu-setup-llm`) — the normal way to make LLM-driven installs work unprompted; or **(2)** have the user run the exact `sudo …` command(s) you present **themselves** in their own terminal and confirm.
+- Passwordless root is a security boundary: it is established only with the user's consent at the bootstrap prompt, never silently by you.
+
 ## 4. Back up before editing any config file
 
 Before modifying an existing configuration file, make a timestamped copy next to it:
@@ -50,7 +56,7 @@ When appending to shell rc files, grep for the exact line first and only append 
 
 ## 5. Plan before apply; fail fast
 
-- Before executing, present the **exact list of commands** you intend to run (including every `sudo` command) and wait for the user's confirmation.
+- Before executing, present the **exact list of commands** you intend to run (including every `sudo` command) and wait for the user's confirmation. Say which steps need `sudo` and whether `sudo -n true` shows it is currently passwordless, so the user knows up front whether they must enable passwordless sudo (§3) or run the privileged steps themselves.
 - Surface destructive actions loudly: `remove` vs `purge` (purge deletes config), repo removals, `--reinstall`. Get explicit confirmation for these.
 - Execute step by step; **stop at the first failure**. Report which step failed, show the relevant stderr, and suggest concrete diagnosis commands (e.g. `apt-get install -y <pkg> 2>&1 | tail`, `journalctl -u <unit> -n 50`, `systemctl status <unit>`). Do not improvise risky fixes; ask the user.
 - After a failure is fixed, re-running the plan is safe because every step checks the live system first (rule 1).

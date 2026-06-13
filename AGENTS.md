@@ -4,8 +4,8 @@
 
 本仓库只交付两样东西：
 
-- `bootstrap.sh` —— 唯一入口的 bash 脚本，在全新 Ubuntu 上装好 Claude Code CLI 与 Codex CLI。
-- `skills/ubuntu-install/SKILL.md` —— 部署到用户机器的安装守则（LLM 据此装/卸/升/查软件）。
+- `bootstrap.sh` —— 唯一入口的 bash 脚本，在全新 Ubuntu 上装好 Claude Code CLI 与 Codex CLI，并部署 `skills/`。
+- `skills/*/SKILL.md` —— 部署到用户机器的守则（LLM 据此管理机器）。当前：`ubuntu-install`（装/卸/升/查软件）、`zsh-setup`（安装并配置 zsh）。新增 skill 时记得把目录名加进 `bootstrap.sh` 的 `SKILLS` 数组。
 
 没有编译工具链，没有 Python 包。
 
