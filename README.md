@@ -1,6 +1,6 @@
 # ubuntu-setup
 
-把一台**全新安装的 Ubuntu**(含 Server / SSH / 无桌面)变成由 LLM 驱动的软件管理机器:一个 bash 脚本在 **TUI** 里让你**自选**安装 **Claude Code CLI**、**Codex CLI**、**Node.js + npm** 与 skill——此后管理机器,直接对 LLM 说就行("装个 docker"、"配置一下 zsh"),由 skill 里的守则保证幂等、apt 优先、逐命令 sudo、先计划后执行。当前内置两个 skill:`ubuntu-install`(装/卸/升/查软件)与 `zsh-setup`(安装并配置 zsh)。
+把一台**全新安装的 Ubuntu**(含 Server / SSH / 无桌面)变成由 LLM 驱动的软件管理机器:一个 bash 脚本在 **TUI** 里给你一个**精选软件目录**,按**类别 → 软件 → 操作(安装 / 卸载 / 配置)**三级浏览——开箱即用地装好 **Claude Code CLI**、**Codex CLI**、**Node.js + npm**、**git / curl / zsh / docker** 与 skill;此后管理机器,长尾软件与深度配置直接对 LLM 说就行("装个 nginx"、"把 zsh 配上 Starship"),由 skill 里的守则保证幂等、apt 优先、逐命令 sudo、先计划后执行。当前内置两个 skill:`ubuntu-install`(装/卸/升/查软件)与 `zsh-setup`(安装并配置 zsh)。
 
 ## 快速开始
 
@@ -12,10 +12,10 @@ cd ubuntu-setup
 
 有终端时,`./bootstrap.sh` 默认进入 **TUI**(whiptail,缺失则回退纯文本菜单):
 
-- **软件列表**(多选):**Claude Code CLI**、**Codex CLI**、**Node.js + npm**(apt)、内置 **skills**。勾选哪个装哪个,默认勾选两个 CLI 与 skills、Node 默认不勾;已装的会标注 `[已安装]` 并幂等跳过。安装在**进度条**后台进行,完整日志写到 `~/.cache/ubuntu-setup/`,装完弹出结果摘要并回到主菜单。
+- **安装软件**(精选目录,三级浏览):**类别**(装机必备 git/curl/zsh · 常用软件 docker · AI 编码 CLI Claude/Codex · 运行时 Node.js+npm · LLM 资产 skills)→ **软件** → **操作**。回车进入某软件后,只列它支持的操作——**安装 / 卸载**,对 zsh、docker 另有**配置**(zsh 设为默认登录 shell;docker 加入 `docker` 组并起服务);没有有意义配置的软件不显示该项。已装的软件在列表里标注 `[已安装]`,操作幂等(重复安全)。每个操作在**进度条**后台进行,完整日志写到 `~/.cache/ubuntu-setup/`,完成弹出结果并回到操作菜单。目录之外的任意软件、以及深度配置(如 zsh 的插件/提示符)交给 LLM 的 skill,不进 TUI。
 - **设置**:切换界面**语言**(中文 / English / 日本語,记到 `~/.config/ubuntu-setup/config`);**开/关 LLM 免密 sudo**(见文末)。
 
-脚本幂等,可随时安全重跑:已装好的组件会被检测并跳过;失败后修因重跑即可续装。全程不需要整体 root——只有 Node、以及补齐 `curl`/`ca-certificates` 这类 apt 操作会逐命令 `sudo`。
+脚本幂等,可随时安全重跑:已装好的组件会被检测并跳过;失败后修因重跑即可续装(TUI 里单个操作失败也不会带崩整个会话,记下日志后回菜单)。全程不需要整体 root——只有 apt 操作(git/curl/zsh/docker/Node 的装卸、补齐 `ca-certificates`)以及 docker 加组、zsh `chsh` 会逐命令 `sudo`;CLI 的安装与 npm 卸载、skills 部署都以当前用户身份跑。
 
 ## 参数(headless)
 

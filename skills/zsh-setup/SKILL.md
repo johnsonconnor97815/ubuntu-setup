@@ -9,6 +9,8 @@ You are setting up the Z shell on a real Ubuntu/Debian machine (20.04+), possibl
 
 **The one step that can lock the user out is changing the default login shell.** Treat it with the caution that deserves — read §1 before doing anything else.
 
+**Boundary with bootstrap's TUI.** `bootstrap.sh` ("Install software → zsh → Configure", `sw_zsh_configure`) does one **minimal, safe** thing only: make zsh the default login shell (via `sudo chsh`, after checking it isn't already). Everything deeper — plugins, prompt, `~/.zshrc`, frameworks — is **this skill's** job. When you also change the login shell, follow the same `chsh` lockout rules (§1, §8); the TUI's minimal subset and this skill's prose describe the same action in two places, so if one changes, check the other (same drift caveat as ubuntu-install §3's sudo rule).
+
 ## 1. Lockout safety (read this first)
 
 Changing a user's login shell on a remote machine is the only action here that can make them unable to log in. So:

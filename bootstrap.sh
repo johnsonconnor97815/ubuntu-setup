@@ -3,12 +3,14 @@
 # bootstrap.sh — set up a fresh Ubuntu machine for LLM-driven software management.
 #
 # Run with no arguments in a terminal and it opens a TUI (whiptail, with a plain-text
-# fallback): a main menu with a software list and a settings page. From the software
-# list you pick what to install — Claude Code CLI, Codex CLI, Node.js + npm, and the
-# bundled LLM skills — nothing is forced on you. Settings lets you switch the interface
-# language (中文 / English / 日本語) and toggle passwordless sudo for the LLM. Installs
-# run in the background behind a progress bar, with full output written to a log file,
-# and you land back on the menu when they finish.
+# fallback): a main menu with "Install software" and a settings page. "Install software"
+# is a curated, hand-written catalog browsed in three levels — category (Essentials,
+# Common software, AI coding CLIs, Runtime, LLM assets) → software → action (install /
+# uninstall / configure). The catalog is pure bash and bounded; arbitrary/long-tail
+# software (and deep configuration) is still handled by the LLM via the bundled skills.
+# Settings lets you switch the interface language (中文 / English / 日本語) and toggle
+# passwordless sudo for the LLM. Each action runs behind a progress bar, with full output
+# written to a log file, and you land back on the action menu when it finishes.
 #
 # Usage: ./bootstrap.sh [--only claude|codex] [--method native|npm] [--with-node]
 #                       [--skip-skills] [--headless] [--tui]
@@ -54,7 +56,6 @@ WITH_NODE=0       # headless: also install Node.js + npm
 HEADLESS=0        # forced headless by a scripting flag
 FORCE_TUI=0       # --tui forces the menu when a terminal is present
 LANG_CODE="en"    # interface language: en / zh / ja
-LAST_LOG=""       # path of the most recent install log (set by run_installs)
 CURRENT_STEP="startup"
 
 # --- Logging (stderr; colors only on a tty) ------------------------------------
@@ -105,9 +106,51 @@ MSG[en:m_quit]="Quit"
 MSG[zh:m_quit]="退出"
 MSG[ja:m_quit]="終了"
 
-MSG[en:sw_prompt]=$'Select what to install\n(Space toggles, Enter confirms):'
-MSG[zh:sw_prompt]=$'选择要安装的项目\n(空格勾选,回车确认):'
-MSG[ja:sw_prompt]=$'インストールする項目を選択\n(スペースで選択、Enter で確定):'
+MSG[en:catalog_prompt]="Choose a category:"
+MSG[zh:catalog_prompt]="选择类别:"
+MSG[ja:catalog_prompt]="カテゴリを選択:"
+
+MSG[en:category_prompt]="Choose software:"
+MSG[zh:category_prompt]="选择软件:"
+MSG[ja:category_prompt]="ソフトウェアを選択:"
+
+MSG[en:software_prompt]="Choose an action:"
+MSG[zh:software_prompt]="选择操作:"
+MSG[ja:software_prompt]="操作を選択:"
+
+# Category labels
+MSG[en:cat_essentials]="Essentials"
+MSG[zh:cat_essentials]="装机必备"
+MSG[ja:cat_essentials]="必須ツール"
+
+MSG[en:cat_common]="Common software"
+MSG[zh:cat_common]="常用软件"
+MSG[ja:cat_common]="よく使うソフト"
+
+MSG[en:cat_ai]="AI coding CLIs"
+MSG[zh:cat_ai]="AI 编码 CLI"
+MSG[ja:cat_ai]="AI コーディング CLI"
+
+MSG[en:cat_runtime]="Runtime"
+MSG[zh:cat_runtime]="运行时"
+MSG[ja:cat_runtime]="ランタイム"
+
+MSG[en:cat_assets]="LLM assets"
+MSG[zh:cat_assets]="LLM 资产"
+MSG[ja:cat_assets]="LLM アセット"
+
+# Operation labels
+MSG[en:op_install]="Install"
+MSG[zh:op_install]="安装"
+MSG[ja:op_install]="インストール"
+
+MSG[en:op_remove]="Uninstall"
+MSG[zh:op_remove]="卸载"
+MSG[ja:op_remove]="アンインストール"
+
+MSG[en:op_configure]="Configure"
+MSG[zh:op_configure]="配置"
+MSG[ja:op_configure]="設定"
 
 MSG[en:sw_claude]="Claude Code CLI"
 MSG[zh:sw_claude]="Claude Code CLI"
@@ -124,6 +167,22 @@ MSG[ja:sw_node]="Node.js + npm(apt)"
 MSG[en:sw_skills]="LLM skills (ubuntu-install, zsh-setup)"
 MSG[zh:sw_skills]="LLM 技能(ubuntu-install、zsh-setup)"
 MSG[ja:sw_skills]="LLM スキル(ubuntu-install、zsh-setup)"
+
+MSG[en:sw_git]="git"
+MSG[zh:sw_git]="git"
+MSG[ja:sw_git]="git"
+
+MSG[en:sw_curl]="curl"
+MSG[zh:sw_curl]="curl"
+MSG[ja:sw_curl]="curl"
+
+MSG[en:sw_zsh]="zsh"
+MSG[zh:sw_zsh]="zsh"
+MSG[ja:sw_zsh]="zsh"
+
+MSG[en:sw_docker]="Docker (docker.io)"
+MSG[zh:sw_docker]="Docker(docker.io)"
+MSG[ja:sw_docker]="Docker(docker.io)"
 
 MSG[en:tag_installed]="[installed]"
 MSG[zh:tag_installed]="[已安装]"
@@ -149,17 +208,9 @@ MSG[en:lang_prompt]="Choose the interface language:"
 MSG[zh:lang_prompt]="选择界面语言:"
 MSG[ja:lang_prompt]="インターフェース言語を選択:"
 
-MSG[en:installing]="Installing"
-MSG[zh:installing]="正在安装"
-MSG[ja:installing]="インストール中"
-
-MSG[en:nothing_selected]="Nothing selected — nothing to install."
-MSG[zh:nothing_selected]="未选择任何项目,无需安装。"
-MSG[ja:nothing_selected]="何も選択されていません。"
-
-MSG[en:summary_title]="Install summary"
-MSG[zh:summary_title]="安装结果"
-MSG[ja:summary_title]="インストール結果"
+MSG[en:summary_title]="Result"
+MSG[zh:summary_title]="操作结果"
+MSG[ja:summary_title]="結果"
 
 MSG[en:ok_label]="OK"
 MSG[zh:ok_label]="成功"
@@ -227,11 +278,14 @@ Usage: ./bootstrap.sh [options]
 
 Sets up a fresh Ubuntu (20.04+) machine for LLM-driven software management.
 
-With a terminal and no scripting flags, it opens a TUI: a main menu with a
-software list (Claude Code CLI, Codex CLI, Node.js + npm, and the bundled skills
-ubuntu-install / zsh-setup — pick what you want) and a Settings page (interface
-language 中文 / English / 日本語, and the passwordless-sudo toggle for the LLM).
-Installs run behind a progress bar; output goes to a log under ~/.cache/ubuntu-setup/.
+With a terminal and no scripting flags, it opens a TUI: "Install software" browses a
+curated catalog in three levels — category (Essentials, Common software, AI coding
+CLIs, Runtime, LLM assets) -> software (git, curl, zsh, docker, Claude Code CLI,
+Codex CLI, Node.js + npm, the bundled skills) -> action (install / uninstall /
+configure). A Settings page switches the interface language (中文 / English / 日本語)
+and toggles passwordless sudo for the LLM. Each action runs behind a progress bar;
+output goes to a log under ~/.cache/ubuntu-setup/. Long-tail software and deep
+configuration stay with the LLM via the bundled skills.
 
 Headless options (any of these, or no terminal, switches off the TUI):
   --only claude|codex   Install only one of the two CLIs (default: both)
@@ -426,8 +480,8 @@ report_version() {
 #
 # Each falls back to a plain-text equivalent on /dev/tty when whiptail is absent, so
 # a minimal Ubuntu server with no whiptail still gets a usable menu. whiptail's newt
-# backend draws straight to the terminal device, so menu/checklist results are captured
-# off its stderr via the 3>&1 1>&2 2>&3 fd-swap and printed on this function's stdout.
+# backend draws straight to the terminal device, so menu results are captured off its
+# stderr via the 3>&1 1>&2 2>&3 fd-swap and printed on this function's stdout.
 
 # ui_menu TITLE PROMPT  tag1 label1  tag2 label2 ...  -> prints chosen tag (empty on cancel)
 ui_menu() {
@@ -454,26 +508,6 @@ ui_menu() {
   [[ "$reply" =~ ^[0-9]+$ ]] || return 1
   (( reply >= 1 && reply <= ${#tags[@]} )) || return 1
   printf '%s' "${tags[$((reply-1))]}"
-}
-
-# ui_checklist TITLE PROMPT  tag1 label1 on|off ...  -> prints chosen tags, space-separated
-ui_checklist() {
-  local title="$1" prompt="$2"; shift 2
-  if has_whiptail; then
-    local n=$(( $# / 3 ))
-    whiptail --title "$title" --checklist "$prompt" 20 78 "$n" "$@" 3>&1 1>&2 2>&3 </dev/tty | tr -d '"'
-    return "${PIPESTATUS[0]}"
-  fi
-  local -a out=()
-  local tag label state
-  printf '\n=== %s ===\n%s\n' "$title" "$prompt" >/dev/tty
-  while (($#)); do
-    tag="$1"; label="$2"; state="$3"; shift 3
-    if prompt_yes_no "  $label?" "$([[ $state == on ]] && echo y || echo n)"; then
-      out+=("$tag")
-    fi
-  done
-  printf '%s' "${out[*]:-}"
 }
 
 # ui_yesno TITLE TEXT [default y|n] -> 0 yes, 1 no, >1 cancelled
@@ -548,6 +582,22 @@ apt_install() {
   info "Installing missing packages (may prompt for your sudo password): $*"
   "${apt_prefix[@]}" DEBIAN_FRONTEND=noninteractive apt-get update
   "${apt_prefix[@]}" DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends "$@"
+}
+
+# Remove apt packages: plain apt-get as root, per-command sudo otherwise. Uses
+# `remove` (not `purge`) so user configuration survives. Never re-executes as root.
+apt_remove() {
+  local apt_prefix=()
+  if [[ $EUID -ne 0 ]]; then
+    if ! command -v sudo >/dev/null 2>&1; then
+      error "Cannot remove $* — neither root nor sudo is available."
+      error "Ask an administrator to run: apt-get remove -y $*"
+      return 1
+    fi
+    apt_prefix=(sudo)
+  fi
+  info "Removing packages (may prompt for your sudo password): $*"
+  "${apt_prefix[@]}" DEBIAN_FRONTEND=noninteractive apt-get remove -y "$@"
 }
 
 # Dependencies for the native (curl) install method.
@@ -804,157 +854,375 @@ configure_passwordless_sudo() {
   fi
 }
 
-# --- Background installs (progress bar + log) ----------------------------------
+# --- Software catalog ----------------------------------------------------------
+#
+# A curated, hand-written catalog browsed as category -> software -> action. Pure
+# bash and bounded (NOT a data-driven engine): each software <key> is described by a
+# few functions following a naming convention, and the menus dispatch to them by name:
+#
+#   sw_<key>_status      return 0 iff installed/deployed (the idempotency probe)
+#   sw_<key>_install     install it
+#   sw_<key>_remove      uninstall it
+#   sw_<key>_configure   OPTIONAL — its presence makes "Configure" appear in the menu
+#
+# To add software: write these functions and add the key to a CAT_ITEMS category.
+# Arbitrary/long-tail software (and deep configuration) stays with the LLM skills.
 
-item_label() {
+# Categories in display order; each maps to a space-separated list of software keys.
+CATALOG=(essentials common ai runtime assets)
+declare -A CAT_ITEMS=(
+  [essentials]="git curl zsh"
+  [common]="docker"
+  [ai]="claude codex"
+  [runtime]="node"
+  [assets]="skills"
+)
+
+# git --------------------------------------------------------------------------
+sw_git_status()  { command -v git >/dev/null 2>&1; }
+sw_git_install() {
+  step "Install git"
+  if sw_git_status; then info "git already installed: $(git --version 2>/dev/null) — skipping."; return 0; fi
+  apt_install git
+}
+sw_git_remove() {
+  step "Remove git"
+  if ! sw_git_status; then info "git is not installed — nothing to remove."; return 0; fi
+  apt_remove git
+}
+
+# curl -------------------------------------------------------------------------
+sw_curl_status()  { command -v curl >/dev/null 2>&1; }
+sw_curl_install() {
+  step "Install curl"
+  if sw_curl_status; then info "curl already installed — skipping."; return 0; fi
+  apt_install curl
+}
+sw_curl_remove() {
+  step "Remove curl"
+  if ! sw_curl_status; then info "curl is not installed — nothing to remove."; return 0; fi
+  apt_remove curl
+}
+
+# zsh --------------------------------------------------------------------------
+sw_zsh_status()  { command -v zsh >/dev/null 2>&1; }
+sw_zsh_install() {
+  step "Install zsh"
+  if sw_zsh_status; then info "zsh already installed: $(zsh --version 2>/dev/null) — skipping."; return 0; fi
+  apt_install zsh
+}
+sw_zsh_remove() {
+  step "Remove zsh"
+  if ! sw_zsh_status; then info "zsh is not installed — nothing to remove."; return 0; fi
+  apt_remove zsh
+}
+# Minimal, safe configuration only: make zsh the user's default login shell, via
+# per-command sudo (so it never depends on the user's password). Deep customization
+# (Starship/plugins/.zshrc) is the zsh-setup skill's job, NOT the TUI's.
+sw_zsh_configure() {
+  step "Configure zsh (default login shell)"
+  if ! sw_zsh_status; then info "zsh is not installed — install it first."; return 0; fi
+  local user shell_path current
+  user="$(resolve_target_user)"
+  shell_path="$(command -v zsh)"
+  current="$(getent passwd "$user" | cut -d: -f7)"
+  if [[ "$current" == "$shell_path" ]]; then
+    info "zsh is already $user's login shell — skipping."
+  else
+    if [[ $EUID -ne 0 ]] && command -v sudo >/dev/null 2>&1; then
+      sudo chsh -s "$shell_path" "$user"
+    else
+      chsh -s "$shell_path" "$user"
+    fi
+    info "Set $user's login shell to $shell_path — log out and back in for it to take effect."
+  fi
+  info "For a richer zsh setup (Starship/plugins/.zshrc), ask the LLM to use the zsh-setup skill."
+}
+
+# docker -----------------------------------------------------------------------
+# Channel-conservative: Ubuntu's docker.io, not Docker's docker-ce repo. The repo
+# route (and anything fancier) stays with the LLM skill.
+sw_docker_status()  { command -v docker >/dev/null 2>&1; }
+sw_docker_install() {
+  step "Install Docker"
+  if sw_docker_status; then info "docker already installed: $(docker --version 2>/dev/null) — skipping."; return 0; fi
+  apt_install docker.io
+}
+sw_docker_remove() {
+  step "Remove Docker"
+  if ! sw_docker_status; then info "docker is not installed — nothing to remove."; return 0; fi
+  apt_remove docker.io
+}
+# Add the user to the docker group and enable the service (both idempotent).
+sw_docker_configure() {
+  step "Configure Docker (group + service)"
+  if ! sw_docker_status; then info "docker is not installed — install it first."; return 0; fi
+  local user
+  local -a sudo_pfx=()
+  user="$(resolve_target_user)"
+  if [[ $EUID -ne 0 ]] && command -v sudo >/dev/null 2>&1; then sudo_pfx=(sudo); fi
+  if id -nG "$user" 2>/dev/null | tr ' ' '\n' | grep -qx docker; then
+    info "$user is already in the docker group — skipping group add."
+  else
+    "${sudo_pfx[@]}" usermod -aG docker "$user"
+    info "Added $user to the docker group — log out and back in for it to take effect."
+  fi
+  if command -v systemctl >/dev/null 2>&1; then
+    "${sudo_pfx[@]}" systemctl enable --now docker || warn "Could not enable/start the docker service."
+    info "Enabled and started the docker service."
+  else
+    info "systemctl not found — start the docker daemon yourself if needed."
+  fi
+}
+
+# Claude / Codex CLI — reuse the existing installers; uninstall is best-effort -----
+sw_claude_status()  { command -v claude >/dev/null 2>&1; }
+sw_claude_install() {
+  if sw_claude_status; then step "Install Claude Code CLI"; report_version claude; return 0; fi
+  ensure_curl_deps
+  install_claude
+}
+sw_claude_remove() { step "Remove Claude Code CLI"; remove_cli claude "$CLAUDE_NPM_PKG"; }
+
+sw_codex_status()  { command -v codex >/dev/null 2>&1; }
+sw_codex_install() {
+  if sw_codex_status; then step "Install Codex CLI"; report_version codex; return 0; fi
+  ensure_curl_deps
+  install_codex
+}
+sw_codex_remove() { step "Remove Codex CLI"; remove_cli codex "$CODEX_NPM_PKG"; }
+
+# Best-effort uninstall of a user-space CLI installed via npm -g or the native
+# installer (~/.local/bin). Never uses sudo; warns about possible leftover data.
+remove_cli() {
+  local cli="$1" npm_pkg="$2" bin
+  if ! command -v "$cli" >/dev/null 2>&1; then
+    info "$cli is not installed — nothing to remove."
+    return 0
+  fi
+  if command -v npm >/dev/null 2>&1 && npm ls -g --depth 0 "$npm_pkg" >/dev/null 2>&1; then
+    info "Removing $cli via npm: $npm_pkg"
+    npm uninstall -g "$npm_pkg" || warn "npm uninstall -g $npm_pkg failed."
+  fi
+  bin="$HOME/.local/bin/$cli"
+  if [[ -e "$bin" || -L "$bin" ]]; then
+    info "Removing $bin"
+    rm -f "$bin"
+  fi
+  if command -v "$cli" >/dev/null 2>&1; then
+    warn "$cli is still on PATH ($(command -v "$cli")) — remove it manually if needed."
+  else
+    info "$cli removed. Some data under ~/.config or ~/.local/share may remain; delete it manually for a full cleanup."
+  fi
+}
+
+# Node.js + npm — reuse install_node; remove via apt -----------------------------
+sw_node_status()  { command -v node >/dev/null 2>&1 && command -v npm >/dev/null 2>&1; }
+sw_node_install() { install_node; }
+sw_node_remove() {
+  step "Remove Node.js + npm"
+  if ! sw_node_status; then info "Node.js/npm not installed — nothing to remove."; return 0; fi
+  apt_remove nodejs npm
+}
+
+# LLM skills — reuse deploy_skills; remove deletes the deployed copies -----------
+sw_skills_status() {
+  local target_home name
+  target_home="$(resolve_target_home)"
+  for name in "${SKILLS[@]}"; do
+    [[ -f "$target_home/.claude/skills/$name/SKILL.md" ]] || return 1
+  done
+  return 0
+}
+sw_skills_install() { ( deploy_skills ); }   # subshell: deploy_skills' exit can't kill run_op
+sw_skills_remove() {
+  step "Remove deployed skills"
+  local target_home name removed=0
+  target_home="$(resolve_target_home)"
+  for name in "${SKILLS[@]}"; do
+    if [[ -d "$target_home/.claude/skills/$name" ]]; then rm -rf "$target_home/.claude/skills/$name"; removed=1; info "Removed $target_home/.claude/skills/$name"; fi
+    if [[ -f "$target_home/.codex/prompts/$name.md" ]]; then rm -f "$target_home/.codex/prompts/$name.md"; removed=1; info "Removed $target_home/.codex/prompts/$name.md"; fi
+  done
+  [[ $removed -eq 0 ]] && info "No deployed skills found — nothing to remove."
+  return 0
+}
+
+# Does software <key> support operation <op> (install|remove|configure)?
+sw_supports_op() { declare -F "sw_${1}_${2}" >/dev/null 2>&1; }
+
+# --- Operation runner (progress bar + log) -------------------------------------
+
+op_label() {
+  case "$1" in
+    install)   t op_install ;;
+    remove)    t op_remove ;;
+    configure) t op_configure ;;
+    *)         printf '%s' "$1" ;;
+  esac
+}
+
+# Whether this (software, op) will touch apt / usermod / chsh and so needs sudo warmed
+# before it runs inside the progress-bar pipe (which can't prompt for a password).
+op_needs_sudo() {
+  local sw="$1" op="$2"
+  case "$op" in
+    configure) case "$sw" in zsh|docker) return 0 ;; esac ;;
+    install|remove)
+      case "$sw" in
+        git|curl|zsh|docker|node) return 0 ;;
+        claude|codex)
+          # A native install may need a curl/ca-certificates apt top-up.
+          [[ "$op" == install ]] && ! { command -v curl >/dev/null 2>&1 && pkg_installed ca-certificates; } && return 0
+          ;;
+      esac
+      ;;
+  esac
+  return 1
+}
+
+# Warm the sudo credential cache once, on the real terminal, if this op needs it.
+preauth_for_op() {
+  op_needs_sudo "$1" "$2" || return 0
+  command -v sudo >/dev/null 2>&1 || return 0
+  sudo -n true 2>/dev/null && return 0
+  if have_tty; then
+    info "This step needs sudo; you may be asked for your password once now."
+    sudo -v </dev/tty || true
+  fi
+}
+
+# Run a single (software, operation): whiptail gauge (text otherwise), all output to a
+# timestamped log, status to <log>.status (the gauge runs in a subshell, so status
+# travels through a file), result shown in a box. A failing op records FAIL and points
+# at the log — it never aborts the menu loop (re-run to retry; ops are idempotent).
+run_op() {
+  local sw="$1" op="$2" fn="sw_${1}_${2}"
+  local logdir logfile mark body
+  logdir="$(resolve_target_home)/.cache/ubuntu-setup"
+  ensure_user_dir "$logdir"
+  logfile="$logdir/${op}-${sw}-$(date +%Y%m%d-%H%M%S).log"
+  : >"$logfile"
+  : >"$logfile.status"
+
+  preauth_for_op "$sw" "$op"
+
+  if has_whiptail; then
+    {
+      # Ignore SIGPIPE: if the gauge closes early, finish the op and record its status
+      # rather than dying on the next write to a broken pipe.
+      trap '' PIPE
+      printf 'XXX\n0\n%s %s\nXXX\n' "$(op_label "$op")" "$(sw_label "$sw")"
+      if "$fn" >>"$logfile" 2>&1; then printf 'OK\n' >>"$logfile.status"; else printf 'FAIL\n' >>"$logfile.status"; fi
+      printf '100\n'
+    } | whiptail --gauge "$(op_label "$op") $(sw_label "$sw")" 8 70 0 || true
+  else
+    printf '%s %s ...\n' "$(op_label "$op")" "$(sw_label "$sw")" >/dev/tty
+    if "$fn" >>"$logfile" 2>&1; then printf 'OK\n' >>"$logfile.status"; else printf 'FAIL\n' >>"$logfile.status"; fi
+  fi
+
+  # An install of a CLI drops binaries in ~/.local/bin — keep it on PATH.
+  if [[ "$op" == install && ( "$sw" == claude || "$sw" == codex ) ]]; then
+    ensure_local_bin_on_path >>"$logfile" 2>&1 || true
+  fi
+  maybe_chown_user "$logfile" "$logfile.status"
+
+  if grep -q '^OK' "$logfile.status" 2>/dev/null; then mark="[$(t ok_label)]"; else mark="[$(t fail_label)]"; fi
+  body="$(printf '%s  %s %s\n\n%s %s' "$mark" "$(op_label "$op")" "$(sw_label "$sw")" "$(t log_at)" "$logfile")"
+  if [[ "$op" == install && ( "$sw" == claude || "$sw" == codex ) ]]; then
+    body+=$'\n\n'"$(t done_note)"
+  fi
+  ui_msgbox "$(t summary_title)" "$body"
+}
+
+# --- TUI flows -----------------------------------------------------------------
+
+cat_label() {
+  case "$1" in
+    essentials) t cat_essentials ;;
+    common)     t cat_common ;;
+    ai)         t cat_ai ;;
+    runtime)    t cat_runtime ;;
+    assets)     t cat_assets ;;
+    *)          printf '%s' "$1" ;;
+  esac
+}
+
+sw_label() {
   case "$1" in
     claude) t sw_claude ;;
     codex)  t sw_codex ;;
     node)   t sw_node ;;
     skills) t sw_skills ;;
+    git)    t sw_git ;;
+    curl)   t sw_curl ;;
+    zsh)    t sw_zsh ;;
+    docker) t sw_docker ;;
     *)      printf '%s' "$1" ;;
   esac
 }
 
-# Install one selected item. Skills run in a subshell so deploy_skills' `exit` on a
-# missing source only aborts that one item, not the whole loop.
-install_one() {
-  case "$1" in
-    claude) ensure_curl_deps; install_claude ;;
-    codex)  ensure_curl_deps; install_codex ;;
-    node)   install_node ;;
-    skills) ( deploy_skills ) ;;
-  esac
+# Software label with an [installed] tag when its status probe passes (live, uncached).
+sw_installed_tag() {
+  if "sw_${1}_status" >/dev/null 2>&1; then
+    printf '%s %s' "$(sw_label "$1")" "$(t tag_installed)"
+  else
+    sw_label "$1"
+  fi
 }
 
-# An apt step (Node, or a curl/ca-certificates top-up) needs sudo, which cannot prompt
-# from inside the progress-bar pipe. If passwordless isn't already granted, warm the
-# sudo credential cache once now, against the real terminal, so the background apt runs
-# don't stall waiting for a password they can never receive.
-preauth_sudo_if_needed() {
-  local need=0 item
-  for item in "$@"; do
-    case "$item" in
-      node) need=1 ;;
-      claude|codex)
-        if ! { command -v curl >/dev/null 2>&1 && pkg_installed ca-certificates; }; then
-          need=1
-        fi
-        ;;
+# Level 3: a software's action menu — only the operations it actually supports.
+tui_software() {
+  local sw="$1" choice
+  local -a args
+  while true; do
+    args=()
+    sw_supports_op "$sw" install   && args+=(install   "$(t op_install)")
+    sw_supports_op "$sw" remove    && args+=(remove    "$(t op_remove)")
+    sw_supports_op "$sw" configure && args+=(configure "$(t op_configure)")
+    args+=(back "$(t s_back)")
+    choice="$(ui_menu "$(sw_label "$sw")" "$(t software_prompt)" "${args[@]}")" || return 0
+    case "$choice" in
+      install|remove|configure) run_op "$sw" "$choice" ;;
+      back|"") return 0 ;;
     esac
   done
-  [[ $need -eq 0 ]] && return 0
-  command -v sudo >/dev/null 2>&1 || return 0
-  sudo -n true 2>/dev/null && return 0
-  if have_tty; then
-    info "An apt step needs sudo; you may be asked for your password once now."
-    sudo -v </dev/tty || true
-  fi
 }
 
-# Install every selected item, showing a whiptail gauge (text progress otherwise) and
-# writing all output to a timestamped log. Per-item status is recorded to <log>.status
-# (the gauge runs in a subshell, so status travels through a file, not a variable).
-run_installs() {
-  local -a sel=("$@")
-  local total i pct item logdir logfile
-  total=${#sel[@]}
-  logdir="$(resolve_target_home)/.cache/ubuntu-setup"
-  ensure_user_dir "$logdir"
-  logfile="$logdir/install-$(date +%Y%m%d-%H%M%S).log"
-  : >"$logfile"
-  : >"$logfile.status"
-  LAST_LOG="$logfile"
-
-  preauth_sudo_if_needed "${sel[@]}"
-
-  if has_whiptail; then
-    {
-      # Ignore SIGPIPE: if the gauge ever closes early, finish the installs and record
-      # their status rather than dying on the next write to a broken pipe.
-      trap '' PIPE
-      i=0
-      for item in "${sel[@]}"; do
-        pct=$(( i * 100 / total ))
-        printf 'XXX\n%d\n%s %s\nXXX\n' "$pct" "$(t installing)" "$(item_label "$item")"
-        if install_one "$item" >>"$logfile" 2>&1; then
-          printf 'OK %s\n' "$item" >>"$logfile.status"
-        else
-          printf 'FAIL %s\n' "$item" >>"$logfile.status"
-        fi
-        i=$((i+1))
-      done
-      printf '100\n'
-    } | whiptail --gauge "$(t installing)" 8 70 0 || true
-  else
-    for item in "${sel[@]}"; do
-      printf '%s %s ...\n' "$(t installing)" "$(item_label "$item")" >/dev/tty
-      if install_one "$item" >>"$logfile" 2>&1; then
-        printf 'OK %s\n' "$item" >>"$logfile.status"
-      else
-        printf 'FAIL %s\n' "$item" >>"$logfile.status"
-      fi
+# Level 2: software within a category (each tagged [installed] when present).
+tui_category() {
+  local cat="$1" choice sw
+  local -a items args
+  read -ra items <<<"${CAT_ITEMS[$cat]}"
+  while true; do
+    args=()
+    for sw in "${items[@]}"; do
+      args+=("$sw" "$(sw_installed_tag "$sw")")
     done
-  fi
-
-  # A CLI install drops binaries in ~/.local/bin — make sure it is on PATH.
-  case " ${sel[*]} " in
-    *" claude "*|*" codex "*) ensure_local_bin_on_path >>"$logfile" 2>&1 || true ;;
-  esac
-  maybe_chown_user "$logfile" "$logfile.status"
+    args+=(back "$(t s_back)")
+    choice="$(ui_menu "$(cat_label "$cat")" "$(t category_prompt)" "${args[@]}")" || return 0
+    case "$choice" in
+      back|"") return 0 ;;
+      *) tui_software "$choice" ;;
+    esac
+  done
 }
 
-# Build and show the post-install summary from <log>.status.
-show_install_summary() {
-  local summary="" st tag mark
-  while read -r st tag; do
-    [[ -z "$tag" ]] && continue
-    if [[ "$st" == OK ]]; then mark="[$(t ok_label)]"; else mark="[$(t fail_label)]"; fi
-    summary+="  ${mark}  $(item_label "$tag")"$'\n'
-  done <"$LAST_LOG.status"
-  summary+=$'\n'"$(t log_at) $LAST_LOG"$'\n\n'"$(t done_note)"
-  ui_msgbox "$(t summary_title)" "$summary"
-}
-
-# --- TUI flows -----------------------------------------------------------------
-
-# Default checklist state: already-installed items are pre-checked and tagged; node is
-# off by default (opt-in), everything else on.
-checklist_state() {
-  case "$1" in
-    node) { command -v node >/dev/null 2>&1 && command -v npm >/dev/null 2>&1; } && echo on || echo off ;;
-    *)    echo on ;;
-  esac
-}
-
-checklist_label() {
-  local tag="$1" label installed=""
-  label="$(item_label "$tag")"
-  case "$tag" in
-    claude) command -v claude >/dev/null 2>&1 && installed=" $(t tag_installed)" ;;
-    codex)  command -v codex  >/dev/null 2>&1 && installed=" $(t tag_installed)" ;;
-    node)   { command -v node >/dev/null 2>&1 && command -v npm >/dev/null 2>&1; } && installed=" $(t tag_installed)" ;;
-  esac
-  printf '%s%s' "$label" "$installed"
-}
-
-tui_install() {
-  local selection
-  selection="$(ui_checklist "$(t m_install)" "$(t sw_prompt)" \
-    claude "$(checklist_label claude)" "$(checklist_state claude)" \
-    codex  "$(checklist_label codex)"  "$(checklist_state codex)" \
-    node   "$(checklist_label node)"   "$(checklist_state node)" \
-    skills "$(checklist_label skills)" "$(checklist_state skills)")" || return 0
-
-  local -a sel=()
-  read -ra sel <<<"$selection"
-  if [[ ${#sel[@]} -eq 0 ]]; then
-    ui_msgbox "$(t m_install)" "$(t nothing_selected)"
-    return 0
-  fi
-
-  run_installs "${sel[@]}"
-  show_install_summary
+# Level 1: the category menu (entry point from the main menu).
+tui_catalog() {
+  local choice c
+  local -a args
+  while true; do
+    args=()
+    for c in "${CATALOG[@]}"; do
+      args+=("$c" "$(cat_label "$c")")
+    done
+    args+=(back "$(t s_back)")
+    choice="$(ui_menu "$(t m_install)" "$(t catalog_prompt)" "${args[@]}")" || return 0
+    case "$choice" in
+      back|"") return 0 ;;
+      *) tui_category "$choice" ;;
+    esac
+  done
 }
 
 tui_language() {
@@ -991,7 +1259,7 @@ run_tui() {
       settings "$(t m_settings)" \
       quit     "$(t m_quit)")" || break
     case "$choice" in
-      install)  tui_install ;;
+      install)  tui_catalog ;;
       settings) tui_settings ;;
       quit|"")  break ;;
     esac
