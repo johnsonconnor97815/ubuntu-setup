@@ -3,21 +3,23 @@
 # bootstrap.sh — turn a fresh Ubuntu machine into an LLM-driven software manager.
 #
 # The real work of installing/configuring software lives in a COLLECTION OF SCRIPTS
-# (lib/ + scripts/) — one script per piece of software, with a uniform interface
-# (install/remove/configure/status/meta). Three entry points drive those scripts:
-#   1. this TUI (whiptail, with a plain-text fallback),
+# (lib/ + scripts/) — one script per piece of software, each with a uniform interface
+# (install/remove/configure/status/meta) AND its own interactive screen (the `ui` entry
+# mode). Three entry points drive those scripts:
+#   1. this launcher's TUI (a modern full-screen renderer in lib/ui.sh, with a plain-text
+#      fallback and no whiptail dependency),
 #   2. a human running `swkit <software> <op>` directly,
 #   3. the LLM, via the bundled skills.
 # The LLM is special: besides RUNNING scripts it ORGANISES, RECOMMENDS, and EVOLVES
 # them — authoring a new script for software not yet covered, fixing stale ones. So
 # "coverage" grows over time; this bootstrap ships a seed set plus the machinery.
 #
-# bootstrap.sh itself: ensures a few dependencies (git/curl/ca-certificates), DEPLOYS
-# the script collection to a git-tracked dir ($KIT_HOME = ~/.local/share/ubuntu-setup)
-# so the LLM's edits are versioned and survive updates (vendor-branch + merge, never a
-# blind clobber), deploys the skills, then opens the TUI: "Install software" browses the
-# scripts (category → software → action, discovered dynamically from each script's meta)
-# and a Settings page switches language and toggles passwordless sudo for the LLM.
+# bootstrap.sh itself is a LAUNCHER: it ensures a few dependencies (git/curl/ca-certificates),
+# DEPLOYS the script collection to a git-tracked dir ($KIT_HOME = ~/.local/share/ubuntu-setup)
+# so the LLM's edits are versioned and survive updates (vendor-branch + merge, never a blind
+# clobber), deploys the skills, then opens the TUI: "Install software" hands off to the
+# shared catalog browser (ui_catalog) which lists scripts by category and drills into each
+# script's OWN ui(); a Settings page switches language and toggles passwordless sudo.
 #
 # Usage: ./bootstrap.sh [--only claude|codex] [--method native|npm] [--with-node]
 #                       [--skip-skills] [--headless] [--tui]
@@ -88,9 +90,10 @@ MSG[en:app_title]="ubuntu-setup"
 MSG[zh:app_title]="ubuntu-setup"
 MSG[ja:app_title]="ubuntu-setup"
 
-MSG[en:main_prompt]=$'LLM-driven Ubuntu setup.\nChoose an action:'
-MSG[zh:main_prompt]=$'LLM 驱动的 Ubuntu 配置。\n选择操作:'
-MSG[ja:main_prompt]=$'LLM 駆動の Ubuntu セットアップ。\n操作を選択してください:'
+# Top-menu subtitle (single line — drawn on one row by the UI).
+MSG[en:main_prompt]="LLM-driven Ubuntu software setup"
+MSG[zh:main_prompt]="LLM 驱动的 Ubuntu 软件配置"
+MSG[ja:main_prompt]="LLM 駆動の Ubuntu ソフトウェアセットアップ"
 
 MSG[en:m_install]="Install software"
 MSG[zh:m_install]="安装软件"
@@ -104,55 +107,8 @@ MSG[en:m_quit]="Quit"
 MSG[zh:m_quit]="退出"
 MSG[ja:m_quit]="終了"
 
-MSG[en:catalog_prompt]="Choose a category:"
-MSG[zh:catalog_prompt]="选择类别:"
-MSG[ja:catalog_prompt]="カテゴリを選択:"
-
-MSG[en:category_prompt]="Choose software:"
-MSG[zh:category_prompt]="选择软件:"
-MSG[ja:category_prompt]="ソフトウェアを選択:"
-
-MSG[en:software_prompt]="Choose an action:"
-MSG[zh:software_prompt]="选择操作:"
-MSG[ja:software_prompt]="操作を選択:"
-
-# Category labels (keys match each script's meta `category` field).
-MSG[en:cat_essentials]="Essentials"
-MSG[zh:cat_essentials]="装机必备"
-MSG[ja:cat_essentials]="必須ツール"
-
-MSG[en:cat_common]="Common software"
-MSG[zh:cat_common]="常用软件"
-MSG[ja:cat_common]="よく使うソフト"
-
-MSG[en:cat_ai]="AI coding CLIs"
-MSG[zh:cat_ai]="AI 编码 CLI"
-MSG[ja:cat_ai]="AI コーディング CLI"
-
-MSG[en:cat_runtime]="Runtime"
-MSG[zh:cat_runtime]="运行时"
-MSG[ja:cat_runtime]="ランタイム"
-
-MSG[en:cat_other]="Other"
-MSG[zh:cat_other]="其他"
-MSG[ja:cat_other]="その他"
-
-# Operation labels
-MSG[en:op_install]="Install"
-MSG[zh:op_install]="安装"
-MSG[ja:op_install]="インストール"
-
-MSG[en:op_remove]="Uninstall"
-MSG[zh:op_remove]="卸载"
-MSG[ja:op_remove]="アンインストール"
-
-MSG[en:op_configure]="Configure"
-MSG[zh:op_configure]="配置"
-MSG[ja:op_configure]="設定"
-
-MSG[en:tag_installed]="[installed]"
-MSG[zh:tag_installed]="[已安装]"
-MSG[ja:tag_installed]="[インストール済み]"
+# Catalog / per-software / operation chrome now lives in lib/ui.sh's ui_t table (the
+# scripts render their own UIs), so bootstrap keeps only its own top-menu/settings strings.
 
 MSG[en:set_prompt]="Settings:"
 MSG[zh:set_prompt]="设置:"
@@ -174,58 +130,18 @@ MSG[en:lang_prompt]="Choose the interface language:"
 MSG[zh:lang_prompt]="选择界面语言:"
 MSG[ja:lang_prompt]="インターフェース言語を選択:"
 
-MSG[en:summary_title]="Result"
-MSG[zh:summary_title]="操作结果"
-MSG[ja:summary_title]="結果"
-
-MSG[en:ok_label]="OK"
-MSG[zh:ok_label]="成功"
-MSG[ja:ok_label]="成功"
-
-MSG[en:fail_label]="FAILED"
-MSG[zh:fail_label]="失败"
-MSG[ja:fail_label]="失敗"
-
-MSG[en:log_at]="Full log:"
-MSG[zh:log_at]="完整日志:"
-MSG[ja:log_at]="詳細ログ:"
-
-MSG[en:no_scripts]="No scripts found. Re-run ./bootstrap.sh to (re)deploy the collection."
-MSG[zh:no_scripts]="未找到脚本。重跑 ./bootstrap.sh 以(重新)部署脚本集合。"
-MSG[ja:no_scripts]="スクリプトが見つかりません。./bootstrap.sh を再実行してコレクションを(再)展開してください。"
-
-MSG[en:done_note]=$'Run \'claude\' or \'codex\' and sign in, then ask the LLM to manage this machine.\nOpen a new shell first so they are on PATH.'
-MSG[zh:done_note]=$'运行 claude 或 codex 登录后,即可让 LLM 管理这台机器。\n请先打开新 shell,使它们出现在 PATH 中。'
-MSG[ja:done_note]=$'claude または codex を実行してサインインし、LLM にこのマシンの管理を依頼できます。\nまず新しいシェルを開くと PATH に反映されます。'
-
-MSG[en:press_enter]="Press Enter to continue..."
-MSG[zh:press_enter]="按回车继续……"
-MSG[ja:press_enter]="Enter キーで続行…"
-
 MSG[en:sudo_title]="ubuntu-setup: LLM passwordless sudo"
 MSG[zh:sudo_title]="ubuntu-setup:LLM 免密 sudo"
 MSG[ja:sudo_title]="ubuntu-setup:LLM 用パスワードなし sudo"
 
-MSG[en:state_enabled]="ENABLED"
-MSG[zh:state_enabled]="已启用"
-MSG[ja:state_enabled]="有効"
+# sudo_off_q: %s = user, %s = drop-in path. Shown when passwordless sudo is currently OFF.
+MSG[en:sudo_off_q]=$'The LLM runs sudo (e.g. apt) in its own shell, with no terminal\nto type a password — so it can only install software if sudo is\npasswordless. Enabling grants \'%s\' passwordless root via\n    %s\n(revoke any time:  sudo rm that file).\n\nEnable passwordless sudo for the LLM?'
+MSG[zh:sudo_off_q]=$'LLM 在自己的 shell 里执行 sudo(如 apt),该环境没有终端\n无法输入密码——所以只有 sudo 免密时它才能安装软件。开启将\n授予 \'%s\' 免密 root,写入\n    %s\n(随时可撤销:sudo rm 该文件)。\n\n为 LLM 开启免密 sudo?'
+MSG[ja:sudo_off_q]=$'LLM は自身のシェルで sudo(apt 等)を実行しますが、パスワード\nを入力する端末がありません。sudo がパスワードなしの場合のみ\nインストールできます。有効化は \'%s\' に免パス root を付与し\n    %s\nに書き込みます(取り消し:sudo rm 該当ファイル)。\n\nLLM 用にパスワードなし sudo を有効にしますか?'
 
-MSG[en:state_disabled]="disabled"
-MSG[zh:state_disabled]="未启用"
-MSG[ja:state_disabled]="無効"
-
-# Four %s, in order: drop-in path, user, drop-in path, current state.
-MSG[en:sudo_body]=$'The LLM runs sudo (e.g. apt) in its own shell, which has no\nterminal to type a password - so it can only install software\nif sudo is passwordless.\n\nEnabling writes:\n    %s\ngranting \'%s\' passwordless root. Revoke any time with:\n    sudo rm %s\n\nCurrently: %s\n\nTurn passwordless sudo ON for the LLM?'
-MSG[zh:sudo_body]=$'LLM 在自己的 shell 里执行 sudo(如 apt),该环境没有终端\n无法输入密码——所以只有在 sudo 免密时它才能安装软件。\n\n开启将写入:\n    %s\n授予 \'%s\' 免密 root。随时可撤销:\n    sudo rm %s\n\n当前状态:%s\n\n为 LLM 开启免密 sudo?'
-MSG[ja:sudo_body]=$'LLM は自身のシェルで sudo(apt など)を実行しますが、\nパスワードを入力する端末がありません。sudo がパスワード\nなしの場合のみソフトをインストールできます。\n\n有効にすると次を書き込みます:\n    %s\n\'%s\' にパスワードなし root を付与。取り消しは随時:\n    sudo rm %s\n\n現在: %s\n\nLLM 用にパスワードなし sudo を有効にしますか?'
-
-MSG[en:sudo_enabled_msg]="Passwordless sudo ENABLED for '%s'. The LLM can now run apt/sudo unprompted."
-MSG[zh:sudo_enabled_msg]="已为 '%s' 启用免密 sudo,LLM 现在可免密运行 apt/sudo。"
-MSG[ja:sudo_enabled_msg]="'%s' のパスワードなし sudo を有効化しました。LLM は apt/sudo を無確認で実行できます。"
-
-MSG[en:sudo_disabled_msg]="Passwordless sudo DISABLED."
-MSG[zh:sudo_disabled_msg]="已禁用免密 sudo。"
-MSG[ja:sudo_disabled_msg]="パスワードなし sudo を無効化しました。"
+MSG[en:sudo_on_q]="Passwordless sudo is currently ENABLED for the LLM. Disable it?"
+MSG[zh:sudo_on_q]="当前已为 LLM 启用免密 sudo。要禁用吗?"
+MSG[ja:sudo_on_q]="現在 LLM 用のパスワードなし sudo は有効です。無効にしますか?"
 
 MSG[en:no_sudo_msg]="sudo is not available — skipping. The LLM will need you to run sudo commands yourself."
 MSG[zh:no_sudo_msg]="系统没有 sudo,跳过。LLM 之后需要你自己执行 sudo 命令。"
@@ -251,10 +167,11 @@ install/configure logic lives in a collection of scripts (scripts/*.sh) backed b
 shared library (lib/common.sh); bootstrap deploys that collection to a git-tracked dir
 (~/.local/share/ubuntu-setup), deploys the skills, and provides a TUI front end.
 
-With a terminal and no scripting flags it opens the TUI: "Install software" browses the
-script collection (category -> software -> install/remove/configure, discovered from each
-script's metadata) and a Settings page switches language and toggles passwordless sudo
-for the LLM. Run scripts directly with `swkit <software> <op>` (deployed onto your PATH),
+With a terminal and no scripting flags it opens a modern full-screen TUI (lib/ui.sh, with a
+plain-text fallback — no whiptail needed): "Install software" browses the script collection
+by category and drills into each script's OWN interactive screen (install/remove/configure/
+plugins/…), and a Settings page switches language and toggles passwordless sudo for the LLM.
+Run scripts directly with `swkit <software> <op>` (or `swkit <software>` for its screen),
 or ask the LLM (it can also author/evolve scripts for software not yet covered).
 
 Headless options (any of these, or no terminal, switches off the TUI):
@@ -376,27 +293,9 @@ have_tty() {
   { true </dev/tty; } 2>/dev/null && { true >/dev/tty; } 2>/dev/null
 }
 
-has_whiptail() { command -v whiptail >/dev/null 2>&1; }
-
-# Interactive yes/no on the controlling terminal. $1 = question, $2 = default ("y"/"n").
-# Returns 0 for yes, 1 for no. Reads/writes /dev/tty directly (works under curl | bash).
-prompt_yes_no() {
-  local question="$1" default="${2:-y}" hint reply
-  case "$default" in
-    y|Y) hint="[Y/n]" ;;
-    *)   hint="[y/N]" ;;
-  esac
-  while true; do
-    printf '%s %s ' "$question" "$hint" >/dev/tty
-    read -r reply </dev/tty || reply=""
-    [[ -z "$reply" ]] && reply="$default"
-    case "$reply" in
-      y|Y|yes|YES|Yes) return 0 ;;
-      n|N|no|NO|No)    return 1 ;;
-      *) printf 'Please answer y or n.\n' >/dev/tty ;;
-    esac
-  done
-}
+# Interactive yes/no, info boxes and menus now come from lib/ui.sh (ui_confirm / ui_notify
+# / ui_pick / ui_catalog) — a modern full-screen renderer with a plain-text fallback, no
+# whiptail dependency. bootstrap composes those primitives below.
 
 # mkdir -p that hands ownership of newly created components back to the real user when we
 # are root acting for a sudo user.
@@ -424,60 +323,6 @@ strip_frontmatter() {
        fm && $0 == "---"      { fm = 0; next }
        fm                     { next }
                               { print }' "$1"
-}
-
-# --- TUI primitives ------------------------------------------------------------
-# Each falls back to a plain-text equivalent on /dev/tty when whiptail is absent, so a
-# minimal server with no whiptail still gets a usable menu. whiptail draws to the terminal
-# device, so menu results are captured off its stderr via the 3>&1 1>&2 2>&3 fd-swap.
-
-# ui_menu TITLE PROMPT  tag1 label1  tag2 label2 ...  -> prints chosen tag (empty on cancel)
-ui_menu() {
-  local title="$1" prompt="$2"; shift 2
-  if has_whiptail; then
-    local n=$(( $# / 2 ))
-    whiptail --title "$title" --menu "$prompt" 20 74 "$n" "$@" 3>&1 1>&2 2>&3 </dev/tty
-    return $?
-  fi
-  local -a tags=()
-  local i=1 tag label
-  {
-    printf '\n=== %s ===\n%s\n' "$title" "$prompt"
-    while (($#)); do
-      tag="$1"; label="$2"; shift 2
-      tags+=("$tag")
-      printf '  %d) %s\n' "$i" "$label"
-      i=$((i+1))
-    done
-    printf '  > '
-  } >/dev/tty
-  local reply
-  read -r reply </dev/tty || return 1
-  [[ "$reply" =~ ^[0-9]+$ ]] || return 1
-  (( reply >= 1 && reply <= ${#tags[@]} )) || return 1
-  printf '%s' "${tags[$((reply-1))]}"
-}
-
-# ui_yesno TITLE TEXT [default y|n] -> 0 yes, 1 no, >1 cancelled
-ui_yesno() {
-  local title="$1" text="$2" def="${3:-y}"
-  if has_whiptail; then
-    local -a a=(--title "$title")
-    [[ "$def" == n ]] && a+=(--defaultno)
-    whiptail "${a[@]}" --yesno "$text" 20 74 </dev/tty
-    return $?
-  fi
-  prompt_yes_no "$text" "$def"
-}
-
-ui_msgbox() {
-  local title="$1" text="$2"
-  if has_whiptail; then
-    whiptail --title "$title" --msgbox "$text" 20 74 </dev/tty || true
-  else
-    { printf '\n=== %s ===\n%s\n%s ' "$title" "$text" "$(t press_enter)"; } >/dev/tty
-    read -r _ </dev/tty || true
-  fi
 }
 
 # --- Language config (persisted under the target home) -------------------------
@@ -551,41 +396,34 @@ disable_passwordless() {
   fi
 }
 
-# Present the toggle (whiptail yes/no, text fallback) and flip it to match the choice.
-# Reflects the current state. Non-interactive runs are left untouched. UI-only, no flag.
+# Present the toggle (ui_confirm modal, text fallback) and flip it to match the choice.
+# The privileged write runs via ui_run, which leaves the full-screen UI so sudo can prompt
+# for the password on the real terminal. Non-interactive runs are left untouched (UI-only,
+# no flag — per the project's "toggle via UI prompt, not a CLI flag" rule).
 configure_passwordless_sudo() {
-  step "Passwordless sudo for the LLM"
   if ! command -v sudo >/dev/null 2>&1; then
-    if have_tty; then ui_msgbox "$(t sudo_title)" "$(t no_sudo_msg)"; else warn "sudo not available — skipping."; fi
+    if have_tty; then ui_notify "$(t sudo_title)" "$(t no_sudo_msg)"; else warn "sudo not available — skipping."; fi
     return 0
   fi
   if ! have_tty; then
-    warn "No terminal to show the toggle — leaving passwordless sudo unchanged."
+    warn "No terminal to show the passwordless-sudo toggle — leaving it unchanged."
     warn "Re-run ./bootstrap.sh in a terminal to turn it on or off."
     return 0
   fi
 
-  local user state body def rc=0 currently_on=0
+  local user currently_on=0
   user="$(resolve_target_user)"
   passwordless_enabled && currently_on=1
-  if [[ $currently_on -eq 1 ]]; then state="$(t state_enabled)"; def="y"; else state="$(t state_disabled)"; def="n"; fi
 
-  # shellcheck disable=SC2059
-  body="$(printf "$(t sudo_body)" "$SUDOERS_DROPIN" "$user" "$SUDOERS_DROPIN" "$state")"
-
-  if ui_yesno "$(t sudo_title)" "$body" "$def"; then rc=0; else rc=$?; fi
-  if [[ $rc -gt 1 ]]; then
-    info "Cancelled — passwordless sudo left ${state}."
-    return 0
-  fi
-
-  if [[ $rc -eq 0 && $currently_on -eq 0 ]]; then
-    enable_passwordless "$user"
+  if [[ $currently_on -eq 1 ]]; then
+    if ui_confirm "$(t sudo_on_q)" n; then
+      ui_run "$(t sudo_title)" -- disable_passwordless
+    fi
+  else
     # shellcheck disable=SC2059
-    ui_msgbox "$(t sudo_title)" "$(printf "$(t sudo_enabled_msg)" "$user")"
-  elif [[ $rc -eq 1 && $currently_on -eq 1 ]]; then
-    disable_passwordless
-    ui_msgbox "$(t sudo_title)" "$(t sudo_disabled_msg)"
+    if ui_confirm "$(printf "$(t sudo_off_q)" "$user" "$SUDOERS_DROPIN")" n; then
+      ui_run "$(t sudo_title)" -- enable_passwordless "$user"
+    fi
   fi
 }
 
@@ -604,14 +442,6 @@ kit_scripts_dir() {
   else
     printf '%s/scripts\n' "$SCRIPT_DIR"
   fi
-}
-
-# Read one "key=value" field from a script's `meta` output (first match). Tolerant: a
-# script whose `meta` exits non-zero (a broken/stale one — expected, since the LLM
-# authors/evolves scripts) yields an empty field instead of aborting the caller under
-# `set -e`/pipefail. kit_each_script additionally skips such scripts entirely.
-kit_meta_field() {
-  "$1" meta 2>/dev/null | awk -F= -v k="$2" '$1==k{sub(/^[^=]*=/,"");print;exit}' || true
 }
 
 # git wrapper for the kit repo, with a fixed identity (so commits never need user config).
@@ -762,207 +592,29 @@ deploy_skills() {
   done
 }
 
-# --- Operation runner (progress bar + log) -------------------------------------
-
-op_label() {
-  case "$1" in
-    install)   t op_install ;;
-    remove)    t op_remove ;;
-    configure) t op_configure ;;
-    *)         printf '%s' "$1" ;;
-  esac
-}
-
-# Warm the sudo credential cache once, on the real terminal, before an op runs inside the
-# progress-bar pipe (which can't show a password prompt). We can't cheaply know whether a
-# given script will escalate, so warm for any op when sudo isn't already passwordless.
-preauth_for_op() {
-  command -v sudo >/dev/null 2>&1 || return 0
-  sudo -n true 2>/dev/null && return 0
-  if have_tty; then
-    info "This step may need sudo; you may be asked for your password once now."
-    # /dev/tty is sudo's own stdin (so it can read the password) — not a privileged file.
-    # shellcheck disable=SC2024
-    sudo -v </dev/tty || true
-  fi
-}
-
-# Run a single (software, operation) by invoking its script: whiptail gauge (text
-# otherwise), all output to a timestamped log, status to <log>.status, result in a box.
-# A failing op records FAIL and points at the log — it never aborts the menu loop.
-run_op() {
-  local sw="$1" op="$2"
-  local script name logdir logfile mark body
-  script="$(kit_scripts_dir)/${sw}.sh"
-  name="$(kit_meta_field "$script" name)"; [[ -n "$name" ]] || name="$sw"
-
-  logdir="$(resolve_target_home)/.cache/ubuntu-setup"
-  ensure_user_dir "$logdir"
-  logfile="$logdir/${op}-${sw}-$(date +%Y%m%d-%H%M%S).log"
-  : >"$logfile"
-  : >"$logfile.status"
-
-  preauth_for_op
-
-  if has_whiptail; then
-    {
-      # Ignore SIGPIPE: if the gauge closes early, finish the op and record its status
-      # rather than dying on the next write to a broken pipe.
-      trap '' PIPE
-      printf 'XXX\n0\n%s %s\nXXX\n' "$(op_label "$op")" "$name"
-      if "$script" "$op" >>"$logfile" 2>&1; then printf 'OK\n' >>"$logfile.status"; else printf 'FAIL\n' >>"$logfile.status"; fi
-      printf '100\n'
-    } | whiptail --gauge "$(op_label "$op") $name" 8 70 0 || true
-  else
-    printf '%s %s ...\n' "$(op_label "$op")" "$name" >/dev/tty
-    if "$script" "$op" >>"$logfile" 2>&1; then printf 'OK\n' >>"$logfile.status"; else printf 'FAIL\n' >>"$logfile.status"; fi
-  fi
-
-  maybe_chown_user "$logfile" "$logfile.status"
-
-  if grep -q '^OK' "$logfile.status" 2>/dev/null; then mark="[$(t ok_label)]"; else mark="[$(t fail_label)]"; fi
-  body="$(printf '%s  %s %s\n\n%s %s' "$mark" "$(op_label "$op")" "$name" "$(t log_at)" "$logfile")"
-  if [[ "$op" == install && ( "$sw" == claude || "$sw" == codex ) ]]; then
-    body+=$'\n\n'"$(t done_note)"
-  fi
-  ui_msgbox "$(t summary_title)" "$body"
-}
-
-# --- TUI flows (catalog discovered dynamically from script metadata) -----------
-
-# Known categories, in display order. A script reporting anything else groups under "other".
-KNOWN_CATEGORIES=(essentials common ai runtime)
-
-cat_label() {
-  case "$1" in
-    essentials) t cat_essentials ;;
-    common)     t cat_common ;;
-    ai)         t cat_ai ;;
-    runtime)    t cat_runtime ;;
-    other)      t cat_other ;;
-    *)          printf '%s' "$1" ;;
-  esac
-}
-
-# Print "<category>\t<path>" for each runnable software script (skips TEMPLATE.sh). A
-# script whose `meta` fails is skipped with a warning (mirroring swkit) rather than
-# truncating the whole list — one broken/stale script must never hide the working ones.
-kit_each_script() {
-  local dir f blob cat
-  dir="$(kit_scripts_dir)"
-  shopt -s nullglob
-  for f in "$dir"/*.sh; do
-    [[ -x "$f" ]] || continue
-    [[ "$(basename "$f")" == "TEMPLATE.sh" ]] && continue
-    if ! blob="$("$f" meta 2>/dev/null)"; then
-      warn "Skipping $(basename "$f"): its 'meta' failed."
-      continue
-    fi
-    cat="$(printf '%s\n' "$blob" | awk -F= '$1=="category"{sub(/^[^=]*=/,"");print;exit}')"
-    [[ -n "$cat" ]] || cat="other"
-    printf '%s\t%s\n' "$cat" "$f"
-  done
-  shopt -u nullglob
-}
-
-# Level 3: a software's action menu — every operation its meta advertises (install/
-# remove/configure get translated labels; any custom action shows its raw op id).
-tui_software() {
-  local sw="$1" script name ops choice op
-  script="$(kit_scripts_dir)/${sw}.sh"
-  if [[ ! -x "$script" ]]; then ui_msgbox "$(t summary_title)" "No script: $sw"; return 0; fi
-  name="$(kit_meta_field "$script" name)"; [[ -n "$name" ]] || name="$sw"
-  ops="$(kit_meta_field "$script" ops)"
-  while true; do
-    local -a args=() oplist=()
-    IFS=',' read -ra oplist <<<"$ops"
-    for op in "${oplist[@]}"; do
-      op="${op//[[:space:]]/}"
-      [[ -n "$op" ]] || continue
-      args+=("$op" "$(op_label "$op")")
-    done
-    args+=(back "$(t s_back)")
-    choice="$(ui_menu "$name" "$(t software_prompt)" "${args[@]}")" || return 0
-    case "$choice" in
-      back|"") return 0 ;;
-      *) run_op "$sw" "$choice" ;;
-    esac
-  done
-}
-
-# Level 2: software within a category (each tagged [installed] when its status passes).
-tui_category() {
-  local cat="$1" choice c f key name
-  while true; do
-    local -a args=()
-    while IFS=$'\t' read -r c f; do
-      [[ "$c" == "$cat" ]] || continue
-      key="$(basename "$f" .sh)"
-      name="$(kit_meta_field "$f" name)"; [[ -n "$name" ]] || name="$key"
-      if "$f" status >/dev/null 2>&1; then name="$name $(t tag_installed)"; fi
-      args+=("$key" "$name")
-    done < <(kit_each_script)
-    args+=(back "$(t s_back)")
-    choice="$(ui_menu "$(cat_label "$cat")" "$(t category_prompt)" "${args[@]}")" || return 0
-    case "$choice" in
-      back|"") return 0 ;;
-      *) tui_software "$choice" ;;
-    esac
-  done
-}
-
-# Level 1: the category menu — categories that actually have at least one script.
-tui_catalog() {
-  local choice c f cat
-  while true; do
-    # Gather which categories are present.
-    local -A have=()
-    while IFS=$'\t' read -r cat f; do
-      have["$cat"]=1
-    done < <(kit_each_script)
-
-    if [[ ${#have[@]} -eq 0 ]]; then
-      ui_msgbox "$(t m_install)" "$(t no_scripts)"
-      return 0
-    fi
-
-    # Ordered: known categories first, then any others seen.
-    local -a cats=()
-    for c in "${KNOWN_CATEGORIES[@]}"; do [[ -n "${have[$c]:-}" ]] && cats+=("$c"); done
-    for c in "${!have[@]}"; do
-      case " ${KNOWN_CATEGORIES[*]} " in *" $c "*) ;; *) cats+=("$c") ;; esac
-    done
-
-    local -a args=()
-    for c in "${cats[@]}"; do args+=("$c" "$(cat_label "$c")"); done
-    args+=(back "$(t s_back)")
-    choice="$(ui_menu "$(t m_install)" "$(t catalog_prompt)" "${args[@]}")" || return 0
-    case "$choice" in
-      back|"") return 0 ;;
-      *) tui_category "$choice" ;;
-    esac
-  done
-}
+# --- Interactive flows (front end composed from lib/ui.sh) ---------------------
+# bootstrap is a launcher. It opens a top-level menu, hands "Install software" to the
+# shared catalog browser (ui_catalog — it lists every script by category, marks installed
+# ones, and drills into each script's OWN ui()), and keeps a Settings page for the two
+# things only bootstrap owns (interface language + passwordless sudo). The whole session
+# runs inside one alt-screen (ui_begin/ui_end); ui_catalog/ui_confirm/ui_run suspend and
+# restore it around child scripts and privileged commands as needed.
 
 tui_language() {
-  local choice
-  choice="$(ui_menu "$(t s_language)" "$(t lang_prompt)" \
-    zh "中文" \
-    en "English" \
-    ja "日本語")" || return 0
-  case "$choice" in
-    zh|en|ja) LANG_CODE="$choice"; save_lang ;;
+  ui_pick "$(t s_language)" "$(t lang_prompt)" "" -- \
+    zh "中文" en "English" ja "日本語" || return 0
+  case "$UI_PICK" in
+    zh|en|ja) LANG_CODE="$UI_PICK"; export UI_LANG="$LANG_CODE"; save_lang ;;
   esac
 }
 
 tui_settings() {
-  local choice
   while true; do
-    choice="$(ui_menu "$(t m_settings)" "$(t set_prompt)" \
+    ui_pick "$(t m_settings)" "$(t set_prompt)" "" -- \
       language "$(t s_language)" \
       sudo     "$(t s_sudo)" \
-      back     "$(t s_back)")" || return 0
-    case "$choice" in
+      back     "$(t s_back)" || return 0
+    case "$UI_PICK" in
       language) tui_language ;;
       sudo)     configure_passwordless_sudo ;;
       back|"")  return 0 ;;
@@ -971,18 +623,19 @@ tui_settings() {
 }
 
 run_tui() {
-  local choice
+  ui_begin || { warn "Could not open the interactive UI (no usable terminal)."; return 0; }
   while true; do
-    choice="$(ui_menu "$(t app_title)" "$(t main_prompt)" \
+    ui_pick "$(t app_title)" "$(t main_prompt)" "" -- \
       install  "$(t m_install)" \
       settings "$(t m_settings)" \
-      quit     "$(t m_quit)")" || break
-    case "$choice" in
-      install)  tui_catalog ;;
+      quit     "$(t m_quit)" || break
+    case "$UI_PICK" in
+      install)  ui_catalog "$(kit_scripts_dir)" ;;
       settings) tui_settings ;;
       quit|"")  break ;;
     esac
   done
+  ui_end
 }
 
 # --- Verification (headless) ---------------------------------------------------
@@ -1070,6 +723,7 @@ main() {
   fi
 
   load_config
+  export UI_LANG="$LANG_CODE"   # lib/ui.sh's ui_t renders the catalog/scripts in this language
   KIT_HOME_DIR="$(kit_home)"
 
   # TUI when there is a terminal and either nothing forces headless, or --tui overrides.
