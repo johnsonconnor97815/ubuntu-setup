@@ -1,41 +1,52 @@
 #!/usr/bin/env bash
 #
-# scripts/zsh.sh — install / configure / manage zsh on Ubuntu.
+# scripts/zsh.sh — install / configure / manage zsh on Ubuntu, as a COMPONENT MANAGER.
 #
-# `configure` is a MANAGEABLE config tool, not a one-time write: it (re)generates a
-# managed drop-in `~/.config/zsh/ubuntu-setup.zsh` wholesale on every run and sources it
-# from `~/.zshrc` via a single idempotent line, so re-running converges to the latest
-# settings without clobbering the user's own `~/.zshrc`. It covers a rich, headless-safe
-# baseline (history/options/completion/keybindings/aliases) plus, on request, common
-# setups: frameworks (Oh My Zsh) and prompts (git / plain / Starship / Powerlevel10k /
-# Pure), and can make zsh the default login shell (lockout-safe).
+# Beyond installing zsh, `configure` and a set of discrete actions manage zsh's components
+# independently — the framework (Oh My Zsh), the prompt, and individual plugins — and track
+# the enabled set in a small state file (~/.config/zsh/ubuntu-setup.conf). Any change
+# regenerates a managed drop-in (~/.config/zsh/ubuntu-setup.zsh) wholesale and sources it
+# from ~/.zshrc via one idempotent line, so re-running converges to the latest without
+# clobbering the user's own ~/.zshrc.
 #
-# Extra actions (shown in the TUI / swkit and routed by kit_dispatch): `oh-my-zsh`,
-# `starship`, `default-shell` — thin presets over `configure` / the shell switch.
+# Actions (kit_dispatch routes <op> -> do_<op>, hyphens -> underscores):
+#   install / remove / status            zsh itself (apt)
+#   configure [flags]                    full re-spec of the whole state (see usage)
+#   install-omz / uninstall-omz          install / remove the Oh My Zsh framework
+#   add-plugin <name|git-url>            enable a plugin (installs it; known names or any git repo)
+#   remove-plugin <name>                 disable a plugin (removes git clones; keeps apt packages)
+#   prompt <git|plain|starship|powerlevel10k|pure>   set the prompt
+#   default-shell                        make zsh the default login shell (lockout-safe)
 #
 # Files are written AS THE USER, never via sudo. Only the login-shell change escalates,
 # per command, via sudo_run.
 
 set -Eeuo pipefail
 
-# Locate and load the shared library (scripts/ sits next to lib/ under the kit root).
 _kit_here="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # shellcheck source=../lib/common.sh
 source "$_kit_here/lib/common.sh"
 
 readonly OMZ_INSTALL_URL="https://github.com/ohmyzsh/ohmyzsh/raw/master/tools/install.sh"
 readonly STARSHIP_INSTALL_URL="https://starship.rs/install.sh"
+readonly ZOXIDE_INSTALL_URL="https://raw.githubusercontent.com/ajeetdsouza/zoxide/main/install.sh"
 readonly P10K_REPO="https://github.com/romkatv/powerlevel10k"
 readonly PURE_REPO="https://github.com/sindresorhus/pure"
+readonly COMPLETIONS_REPO="https://github.com/zsh-users/zsh-completions"
+readonly HSS_REPO="https://github.com/zsh-users/zsh-history-substring-search"
 readonly ZSH_OLD_MARKER="# managed by ubuntu-setup zsh.sh"
+
+# Known plugin keys (named, first-class). Anything else is treated as an arbitrary git repo
+# cloned under ~/.config/zsh/plugins/<name>.
+readonly ZSH_KNOWN_PLUGINS="autosuggestions syntax-highlighting completions history-substring-search fzf zoxide"
 
 meta() {
   cat <<'META'
 key=zsh
 name=zsh
 category=essentials
-ops=install,remove,configure,oh-my-zsh,starship,default-shell
-desc=Z shell + managed config (frameworks: Oh My Zsh; prompts: git/starship/p10k/pure) + default login shell
+ops=install,remove,configure,install-omz,uninstall-omz,default-shell
+desc=Z shell — component manager: Oh My Zsh, prompts (git/starship/p10k/pure), plugins, default shell
 META
 }
 
@@ -54,7 +65,6 @@ do_remove() {
     log_info "zsh is not installed — nothing to remove."
     return 0
   fi
-  # Lockout guard: removing zsh while it is someone's login shell breaks their login.
   local user shell zsh_path
   user="${SUDO_USER:-$(id -un)}"
   zsh_path="$(command -v zsh)"
@@ -65,82 +75,215 @@ do_remove() {
   fi
   if [[ "$shell" == "$zsh_path" ]]; then
     log_err "zsh is the login shell for '$user'; removing it would break their login."
-    log_err "Switch back to bash first:  chsh -s /bin/bash"
-    log_err "(then re-run this remove), and verify with: getent passwd \"$user\" | cut -d: -f7"
+    log_err "Switch back to bash first:  chsh -s /bin/bash  (then re-run this remove)."
     return 1
   fi
   apt_remove zsh
 }
 
-# --- Idempotent installers for frameworks / prompts (run as the user) ----------
+# --- Target user / home + state -------------------------------------------------
+# Sets globals: _ZHOME _ZSHRC _ZCONF _ZDROPIN _ZPLUGDIR. Refuses a sudo-wrapped run so
+# dotfiles stay user-owned. $HOME is correct in the (only allowed) non-sudo case.
+_zsh_resolve_paths() {
+  if [[ $EUID -eq 0 && -n "${SUDO_USER:-}" ]]; then
+    log_err "Run zsh configuration as your normal user, not via sudo — ~/.zshrc and the"
+    log_err "managed files must stay user-owned. (Only the login-shell change needs root.)"
+    return 1
+  fi
+  local user; user="${SUDO_USER:-$(id -un)}"
+  _ZHOME="${HOME:-}"
+  [[ -n "$_ZHOME" ]] || _ZHOME="$(getent passwd "$user" | cut -d: -f6 || true)"
+  [[ -n "$_ZHOME" ]] || { log_err "Could not resolve the home directory for '$user'."; return 1; }
+  _ZSHRC="$_ZHOME/.zshrc"
+  _ZCONF="$_ZHOME/.config/zsh/ubuntu-setup.conf"
+  _ZDROPIN="$_ZHOME/.config/zsh/ubuntu-setup.zsh"
+  _ZPLUGDIR="$_ZHOME/.config/zsh/plugins"
+  mkdir -p "$_ZHOME/.config/zsh" "$_ZHOME/.cache/zsh" "$_ZPLUGDIR"
+}
+
+# Load state into FRAMEWORK / PROMPT / PLUGINS / ALIASES (with defaults).
+_zsh_load_state() {
+  FRAMEWORK="none"; PROMPT="git"; PLUGINS="autosuggestions syntax-highlighting"; ALIASES="1"
+  [[ -f "$_ZCONF" ]] || return 0
+  local k v
+  while IFS='=' read -r k v; do
+    case "$k" in
+      FRAMEWORK) FRAMEWORK="$v" ;;
+      PROMPT)    PROMPT="$v" ;;
+      PLUGINS)   PLUGINS="$v" ;;
+      ALIASES)   ALIASES="$v" ;;
+    esac
+  done <"$_ZCONF"
+}
+
+_zsh_save_state() {
+  {
+    printf '# ubuntu-setup zsh.sh state — managed by swkit zsh actions; do not hand-edit.\n'
+    printf 'FRAMEWORK=%s\n' "$FRAMEWORK"
+    printf 'PROMPT=%s\n'    "$PROMPT"
+    printf 'PLUGINS=%s\n'   "$PLUGINS"
+    printf 'ALIASES=%s\n'   "$ALIASES"
+  } >"$_ZCONF"
+}
+
+# --- Component installers (idempotent; install only if missing; run as the user) ----
 
 _zsh_ensure_omz() {
-  local home="$1"
-  if [[ -d "$home/.oh-my-zsh" ]]; then
-    log_info "Oh My Zsh already installed ($home/.oh-my-zsh) — skipping."
+  if [[ -d "$_ZHOME/.oh-my-zsh" ]]; then
+    log_info "Oh My Zsh already installed — skipping."
     return 0
   fi
   have_cmd curl || apt_install curl ca-certificates
-  log_info "Installing Oh My Zsh via the official installer: $OMZ_INSTALL_URL"
-  log_info "(unattended, keeping your ~/.zshrc — no shell change)."
-  # --unattended: no chsh, no interactive shell launch; --keep-zshrc: don't touch ~/.zshrc.
-  ZSH="$home/.oh-my-zsh" RUNZSH=no CHSH=no KEEP_ZSHRC=yes \
-    sh -c "$(curl -fsSL "$OMZ_INSTALL_URL")" "" --unattended --keep-zshrc
+  log_info "Installing Oh My Zsh via the official installer ($OMZ_INSTALL_URL) — unattended, keeping ~/.zshrc."
+  if ! ZSH="$_ZHOME/.oh-my-zsh" RUNZSH=no CHSH=no KEEP_ZSHRC=yes \
+        sh -c "$(curl -fsSL "$OMZ_INSTALL_URL")" "" --unattended --keep-zshrc; then
+    log_err "Oh My Zsh installation failed (see output above)."
+    return 1
+  fi
 }
 
 _zsh_ensure_starship() {
-  local home="$1"
-  if have_cmd starship; then
-    log_info "Starship already installed ($(starship --version 2>/dev/null | head -n1)) — skipping."
-    return 0
-  fi
+  have_cmd starship && { log_info "Starship already installed — skipping."; return 0; }
   have_cmd curl || apt_install curl ca-certificates
-  mkdir -p "$home/.local/bin"   # the installer requires the bin dir to already exist
-  log_info "Installing Starship via the official installer ($STARSHIP_INSTALL_URL) into ~/.local/bin (no sudo)."
-  if ! curl -fsSL "$STARSHIP_INSTALL_URL" | sh -s -- --bin-dir "$home/.local/bin" --yes; then
+  mkdir -p "$_ZHOME/.local/bin"   # the installer requires the bin dir to already exist
+  log_info "Installing Starship ($STARSHIP_INSTALL_URL) into ~/.local/bin (no sudo)."
+  if ! curl -fsSL "$STARSHIP_INSTALL_URL" | sh -s -- --bin-dir "$_ZHOME/.local/bin" --yes; then
     log_err "Starship installation failed (see output above)."
     return 1
   fi
   ensure_local_bin_on_path
 }
 
-_zsh_ensure_git_clone() {
-  local repo="$1" dir="$2" what="$3"
-  if [[ -d "$dir/.git" ]]; then
-    log_info "$what already present ($dir) — skipping."
-    return 0
+_zsh_ensure_zoxide() {
+  have_cmd zoxide && { log_info "zoxide already installed — skipping."; return 0; }
+  apt_install zoxide || log_warn "apt could not install zoxide; trying the official installer."
+  have_cmd zoxide && return 0
+  have_cmd curl || apt_install curl ca-certificates
+  mkdir -p "$_ZHOME/.local/bin"
+  if ! curl -fsSL "$ZOXIDE_INSTALL_URL" | sh; then
+    log_err "zoxide installation failed."
+    return 1
   fi
+  ensure_local_bin_on_path
+}
+
+# git clone <repo> into <dir> if absent (run as the user). $3 = friendly name.
+_zsh_git_clone() {
+  local repo="$1" dir="$2" what="$3"
+  [[ -d "$dir/.git" ]] && { log_info "$what already present — skipping."; return 0; }
   have_cmd git || apt_install git
   log_info "Cloning $what: $repo -> $dir"
   git clone --depth=1 "$repo" "$dir"
 }
 
-# --- Migrate the old whole-file ~/.zshrc to the drop-in model ------------------
-
-_zsh_migrate_old_zshrc() {
-  local zshrc="$1" first=""
-  [[ -f "$zshrc" ]] || return 0
-  IFS= read -r first <"$zshrc" || first=""
-  [[ "$first" == "$ZSH_OLD_MARKER" ]] || return 0
-  backup_file "$zshrc"
-  : >"$zshrc"
-  log_warn "Migrated an older fully-managed ~/.zshrc to the new drop-in model."
-  log_warn "It was backed up to ${zshrc}.bak.* — if you had added personal lines, copy"
-  log_warn "them from the backup into ~/.zshrc (it is sourced before the managed drop-in)."
+# Ensure a single enabled plugin is installed (install only if missing).
+_zsh_plugin_ensure() {
+  case "$1" in
+    autosuggestions)          pkg_installed zsh-autosuggestions || apt_install zsh-autosuggestions ;;
+    syntax-highlighting)      pkg_installed zsh-syntax-highlighting || apt_install zsh-syntax-highlighting ;;
+    completions)              _zsh_git_clone "$COMPLETIONS_REPO" "$_ZPLUGDIR/zsh-completions" "zsh-completions" ;;
+    history-substring-search) _zsh_git_clone "$HSS_REPO" "$_ZPLUGDIR/zsh-history-substring-search" "zsh-history-substring-search" ;;
+    fzf)                      have_cmd fzf || apt_install fzf ;;
+    zoxide)                   _zsh_ensure_zoxide ;;
+    *)                        return 0 ;;   # arbitrary git plugin — cloned by add-plugin
+  esac
 }
 
-# --- Emit the managed drop-in to stdout ----------------------------------------
-# Args: framework prompt want_plugins want_aliases autosuggest_src syntax_src p10k_dir pure_dir
-# Static sections use quoted heredocs (literal $HOME/$terminfo, expanded at shell start);
-# dynamic lines use printf so paths/values are interpolated now.
+# Uninstall a plugin's artifact. Git clones are removed; shared apt packages/tools are
+# left installed (just disabled) — they're cheap to re-enable and may be used elsewhere.
+_zsh_plugin_purge() {
+  case "$1" in
+    completions)              rm -rf "$_ZPLUGDIR/zsh-completions" ;;
+    history-substring-search) rm -rf "$_ZPLUGDIR/zsh-history-substring-search" ;;
+    autosuggestions)          log_info "Disabled; apt package 'zsh-autosuggestions' left installed (remove with apt if desired)." ;;
+    syntax-highlighting)      log_info "Disabled; apt package 'zsh-syntax-highlighting' left installed (remove with apt if desired)." ;;
+    fzf)                      log_info "Disabled; 'fzf' left installed (remove with apt if desired)." ;;
+    zoxide)                   log_info "Disabled; 'zoxide' left installed (remove with apt if desired)." ;;
+    *)                        rm -rf "${_ZPLUGDIR:?}/$1" ;;   # arbitrary git clone
+  esac
+}
+
+# --- Drop-in generation ---------------------------------------------------------
+
+# Emit the source/fpath/eval line(s) for one plugin (resolved live; empty if unresolved).
+_zsh_emit_plugin() {
+  local key="$1" src
+  case "$key" in
+    autosuggestions)
+      src="$(dpkg -L zsh-autosuggestions 2>/dev/null | grep -m1 '/zsh-autosuggestions\.zsh$' || true)"
+      [[ -n "$src" ]] && printf 'source %s\n' "$src"
+      ;;
+    syntax-highlighting)
+      src="$(dpkg -L zsh-syntax-highlighting 2>/dev/null | grep -m1 '/zsh-syntax-highlighting\.zsh$' || true)"
+      [[ -n "$src" ]] && printf 'source %s\n' "$src"
+      ;;
+    completions)
+      [[ -d "$_ZPLUGDIR/zsh-completions/src" ]] && printf 'fpath+=("%s/zsh-completions/src")\n' "$_ZPLUGDIR"
+      ;;
+    history-substring-search)
+      src="$_ZPLUGDIR/zsh-history-substring-search/zsh-history-substring-search.zsh"
+      if [[ -r "$src" ]]; then
+        printf 'source %s\n' "$src"
+        printf 'bindkey "%s" history-substring-search-up\n'   '^[[A'
+        printf 'bindkey "%s" history-substring-search-down\n' '^[[B'
+        # shellcheck disable=SC2016
+        printf '[[ -n "${terminfo[kcuu1]}" ]] && bindkey "${terminfo[kcuu1]}" history-substring-search-up\n'
+        # shellcheck disable=SC2016
+        printf '[[ -n "${terminfo[kcud1]}" ]] && bindkey "${terminfo[kcud1]}" history-substring-search-down\n'
+      fi
+      ;;
+    fzf)
+      # apt fzf (22.04/24.04) predates `fzf --zsh`; try it, else source the example files.
+      cat <<'ZRC'
+if command -v fzf >/dev/null 2>&1; then
+  if fzf --zsh >/dev/null 2>&1; then
+    source <(fzf --zsh)
+  else
+    for _f in /usr/share/doc/fzf/examples/key-bindings.zsh /usr/share/fzf/key-bindings.zsh; do [[ -r $_f ]] && source "$_f"; done
+    for _f in /usr/share/doc/fzf/examples/completion.zsh /usr/share/fzf/completion.zsh; do [[ -r $_f ]] && source "$_f"; done
+    unset _f
+  fi
+fi
+ZRC
+      ;;
+    zoxide)
+      # shellcheck disable=SC2016
+      printf 'command -v zoxide >/dev/null 2>&1 && eval "$(zoxide init zsh)"\n'
+      ;;
+    *)
+      # Arbitrary git plugin: resolve the conventional entry file (the file name often
+      # differs from the repo name, so prefer any *.plugin.zsh). nullglob is off, so a
+      # non-matching glob stays literal and fails the -r test.
+      local dir="$_ZPLUGDIR/$key" f
+      for f in "$dir"/*.plugin.zsh "$dir/$key.zsh" "$dir/init.zsh" "$dir"/*.zsh; do
+        if [[ -r "$f" ]]; then printf 'source %s\n' "$f"; break; fi
+      done
+      ;;
+  esac
+}
+
+# Print the names in PLUGINS whose slot matches $1 (fpath|normal|eval|syntax|post-syntax).
+_zsh_plugins_in_slot() {
+  local want="$1" p slot
+  for p in $PLUGINS; do
+    case "$p" in
+      completions)              slot="fpath" ;;
+      syntax-highlighting)      slot="syntax" ;;
+      history-substring-search) slot="post-syntax" ;;
+      fzf|zoxide)               slot="eval" ;;
+      *)                        slot="normal" ;;
+    esac
+    [[ "$slot" == "$want" ]] && printf '%s\n' "$p"
+  done
+}
+
 _zsh_emit_dropin() {
-  local fw="$1" prompt="$2" want_plugins="$3" want_aliases="$4"
-  local autosuggest_src="$5" syntax_src="$6" p10k_dir="$7" pure_dir="$8"
+  local p
 
   cat <<'ZRC'
 # ubuntu-setup zsh.sh — managed drop-in. DO NOT EDIT.
-# Regenerated wholesale on every `zsh configure`. Put personal settings in ~/.zshrc
-# (sourced before this file); remove its source line there to disable this.
+# Regenerated wholesale on every change. Put personal settings in ~/.zshrc (sourced before
+# this file). Manage components with `swkit zsh <action>`; state in ./ubuntu-setup.conf.
 
 # ---- History ----
 HISTFILE="$HOME/.zsh_history"
@@ -154,14 +297,15 @@ setopt AUTO_CD AUTO_PUSHD PUSHD_IGNORE_DUPS PUSHD_SILENT INTERACTIVE_COMMENTS \
        NO_BEEP EXTENDED_GLOB NOTIFY ALWAYS_TO_END COMPLETE_IN_WORD
 ZRC
 
-  if [[ "$fw" == "oh-my-zsh" ]]; then
-    # Oh My Zsh runs its own compinit, sets the theme and loads plugins. An external
-    # prompt (starship/p10k/pure) overrides the theme, so blank it in that case.
+  # fpath-slot plugins MUST be added before compinit (ours or Oh My Zsh's).
+  for p in $(_zsh_plugins_in_slot fpath); do _zsh_emit_plugin "$p"; done
+
+  if [[ "$FRAMEWORK" == "oh-my-zsh" ]]; then
     local omz_theme="robbyrussell"
-    case "$prompt" in starship|powerlevel10k|pure) omz_theme="" ;; esac
+    case "$PROMPT" in starship|powerlevel10k|pure) omz_theme="" ;; esac
     cat <<'ZRC'
 
-# ---- Oh My Zsh ----
+# ---- Oh My Zsh (runs its own compinit) ----
 export ZSH="$HOME/.oh-my-zsh"
 ZRC
     printf 'ZSH_THEME="%s"\n' "$omz_theme"
@@ -208,7 +352,7 @@ bindkey '^[[B' down-line-or-beginning-search
 bindkey '^[[Z' reverse-menu-complete
 ZRC
 
-  if [[ "$want_aliases" -eq 1 ]]; then
+  if [[ "$ALIASES" == "1" ]]; then
     cat <<'ZRC'
 
 # ---- Aliases / colors ---- (color only; rm/cp/mv left at stock behavior)
@@ -223,7 +367,7 @@ alias diff='diff --color=auto'
 ZRC
   fi
 
-  case "$prompt" in
+  case "$PROMPT" in
     git)
       cat <<'ZRC'
 
@@ -253,162 +397,210 @@ ZRC
       ;;
     powerlevel10k)
       printf '\n# ---- Prompt (Powerlevel10k) ----\n'
-      printf '[[ -r "%s/powerlevel10k.zsh-theme" ]] && source "%s/powerlevel10k.zsh-theme"\n' "$p10k_dir" "$p10k_dir"
-      # Literal $HOME — expands at shell-startup time.
+      printf '[[ -r "%s/powerlevel10k/powerlevel10k.zsh-theme" ]] && source "%s/powerlevel10k/powerlevel10k.zsh-theme"\n' "$_ZPLUGDIR" "$_ZPLUGDIR"
       # shellcheck disable=SC2016
       printf '[[ -r "$HOME/.p10k.zsh" ]] && source "$HOME/.p10k.zsh"\n'
       ;;
     pure)
       printf '\n# ---- Prompt (Pure) ----\n'
-      printf 'fpath+=("%s")\n' "$pure_dir"
+      printf 'fpath+=("%s/pure")\n' "$_ZPLUGDIR"
       printf 'autoload -Uz promptinit && promptinit\nprompt pure\n'
       ;;
   esac
 
-  if [[ "$want_plugins" -eq 1 ]]; then
-    cat <<'ZRC'
+  # Plugins by slot, in load order: normal (autosuggestions, arbitrary git) -> eval tools
+  # (fzf, zoxide) -> syntax-highlighting -> history-substring-search (must be after it).
+  local emitted=0
+  for p in $(_zsh_plugins_in_slot normal) $(_zsh_plugins_in_slot eval) \
+           $(_zsh_plugins_in_slot syntax) $(_zsh_plugins_in_slot post-syntax); do
+    if [[ $emitted -eq 0 ]]; then printf '\n# ---- Plugins ----\n'; emitted=1; fi
+    [[ "$p" == "autosuggestions" ]] && {
+      printf "ZSH_AUTOSUGGEST_STRATEGY=(history completion)\n"
+      printf "ZSH_AUTOSUGGEST_HIGHLIGHT_STYLE='fg=8'\n"
+      printf "ZSH_HIGHLIGHT_HIGHLIGHTERS=(main brackets)\n"
+    }
+    _zsh_emit_plugin "$p"
+  done
 
-# ---- Plugins (sourced last; syntax-highlighting must be final) ----
-ZSH_AUTOSUGGEST_STRATEGY=(history completion)
-ZSH_AUTOSUGGEST_HIGHLIGHT_STYLE='fg=8'
-ZSH_AUTOSUGGEST_BUFFER_MAX_SIZE=20
-ZSH_HIGHLIGHT_HIGHLIGHTERS=(main brackets)
-ZRC
-    [[ -n "$autosuggest_src" ]] && printf 'source %s\n' "$autosuggest_src"
-    [[ -n "$syntax_src" ]] && printf 'source %s\n' "$syntax_src"
-  fi
-
-  # Always end with a clean exit status — the prompt/plugin guards above can leave a
-  # non-zero $? (e.g. a missing optional file), which would otherwise trip a `zsh -i -c
-  # exit`-style check by whatever sources this file.
+  # Always end with a clean exit status (prompt/plugin guards above may end non-zero).
   printf '\ntrue\n'
 }
 
-# --- configure -----------------------------------------------------------------
+# Resolve everything that's enabled, regenerate the drop-in, and wire ~/.zshrc.
+_zsh_apply() {
+  local source_line p
+  # Migrate an old whole-file ~/.zshrc, then ensure the source line exists BEFORE installing
+  # a framework (so Oh My Zsh's --keep-zshrc keeps ours).
+  _zsh_migrate_old_zshrc
+  # shellcheck disable=SC2016
+  source_line='[[ -f "$HOME/.config/zsh/ubuntu-setup.zsh" ]] && source "$HOME/.config/zsh/ubuntu-setup.zsh"'
+  append_once "$source_line" "$_ZSHRC"
+
+  # Ensure every enabled component is actually installed (idempotent; only if missing).
+  [[ "$FRAMEWORK" == "oh-my-zsh" ]] && { _zsh_ensure_omz || return 1; }
+  case "$PROMPT" in
+    starship)      _zsh_ensure_starship || return 1;
+                   log_warn "Starship uses Nerd Font glyphs — install a Nerd Font in your LOCAL terminal." ;;
+    powerlevel10k) _zsh_git_clone "$P10K_REPO" "$_ZPLUGDIR/powerlevel10k" "Powerlevel10k" || return 1;
+                   log_warn "Powerlevel10k uses Nerd Font glyphs — install one in your LOCAL terminal.";
+                   log_info "Run 'p10k configure' yourself to customize it (interactive; not run here)." ;;
+    pure)          _zsh_git_clone "$PURE_REPO" "$_ZPLUGDIR/pure" "Pure prompt" || return 1 ;;
+  esac
+  for p in $PLUGINS; do _zsh_plugin_ensure "$p" || log_warn "Could not install plugin '$p' — its source line will be skipped."; done
+
+  backup_file "$_ZDROPIN"
+  _zsh_emit_dropin >"$_ZDROPIN"
+  _zsh_save_state
+  log_info "Applied zsh config: framework=$FRAMEWORK, prompt=$PROMPT, plugins=[${PLUGINS}]."
+  log_info "Re-run any 'swkit zsh ...' action to update; your own ~/.zshrc is kept."
+}
+
+_zsh_migrate_old_zshrc() {
+  local first=""
+  [[ -f "$_ZSHRC" ]] || return 0
+  IFS= read -r first <"$_ZSHRC" || first=""
+  [[ "$first" == "$ZSH_OLD_MARKER" ]] || return 0
+  backup_file "$_ZSHRC"
+  : >"$_ZSHRC"
+  log_warn "Migrated an older fully-managed ~/.zshrc to the drop-in model (backed up to ${_ZSHRC}.bak.*)."
+  log_warn "If you had personal lines there, copy them from the backup into ~/.zshrc."
+}
+
+# --- Actions -------------------------------------------------------------------
 
 do_configure() {
-  if ! status >/dev/null 2>&1; then
-    log_info "Install zsh first."
-    return 0
-  fi
+  if ! status >/dev/null 2>&1; then log_info "Install zsh first."; return 0; fi
+  _zsh_resolve_paths || return 1
+  _zsh_load_state
 
-  local framework="none" prompt="git" default_shell=0 want_plugins=1 want_aliases=1
+  local default_shell=0 want_plugins=1 plugins_set=""
   while [[ $# -gt 0 ]]; do
     case "$1" in
-      --framework)   framework="${2:-}"; shift 2 || { log_err "--framework needs a value (none|oh-my-zsh)."; return 2; } ;;
-      --framework=*) framework="${1#--framework=}"; shift ;;
-      --prompt)      prompt="${2:-}"; shift 2 || { log_err "--prompt needs a value."; return 2; } ;;
-      --prompt=*)    prompt="${1#--prompt=}"; shift ;;
-      --default-shell) default_shell=1; shift ;;
+      --framework)   FRAMEWORK="${2:-}"; shift 2 || { log_err "--framework needs a value."; return 2; } ;;
+      --framework=*) FRAMEWORK="${1#--framework=}"; shift ;;
+      --prompt)      PROMPT="${2:-}"; shift 2 || { log_err "--prompt needs a value."; return 2; } ;;
+      --prompt=*)    PROMPT="${1#--prompt=}"; shift ;;
+      --plugins)     plugins_set="${2:-}"; shift 2 || { log_err "--plugins needs a value."; return 2; } ;;
+      --plugins=*)   plugins_set="${1#--plugins=}"; shift ;;
       --no-plugins)  want_plugins=0; shift ;;
-      --no-aliases)  want_aliases=0; shift ;;
+      --no-aliases)  ALIASES=0; shift ;;
+      --default-shell) default_shell=1; shift ;;
       *) log_err "Unknown configure option: $1"; return 2 ;;
     esac
   done
-  case "$framework" in
-    none|oh-my-zsh) ;;
-    *) log_err "Unknown --framework '$framework' (expected: none|oh-my-zsh)."; return 2 ;;
-  esac
-  case "$prompt" in
-    git|plain|starship|powerlevel10k|pure) ;;
-    *) log_err "Unknown --prompt '$prompt' (expected: git|plain|starship|powerlevel10k|pure)."; return 2 ;;
-  esac
+  case "$FRAMEWORK" in none|oh-my-zsh) ;; *) log_err "Unknown --framework '$FRAMEWORK' (none|oh-my-zsh)."; return 2 ;; esac
+  case "$PROMPT" in git|plain|starship|powerlevel10k|pure) ;; *) log_err "Unknown --prompt '$PROMPT'."; return 2 ;; esac
 
-  # Files must stay user-owned — refuse a sudo-wrapped run (only --default-shell needs
-  # root, and it escalates per-command). Genuine root configuring root's own dotfiles is ok.
-  if [[ $EUID -eq 0 && -n "${SUDO_USER:-}" ]]; then
-    log_err "Run 'zsh configure' as your normal user, not via sudo — ~/.zshrc and the"
-    log_err "managed drop-in must stay user-owned. (Only the login-shell change needs root.)"
-    return 1
-  fi
-  # Sudo-wrap is refused above, so $HOME is the invoking user's real home — the correct,
-  # standard target for a dotfile tool (and it makes the flow sandbox-testable). Fall back
-  # to the passwd entry only if $HOME is somehow unset.
-  local user home zshrc dropin_dir dropin p10k_dir pure_dir
-  user="${SUDO_USER:-$(id -un)}"
-  home="${HOME:-}"
-  [[ -n "$home" ]] || home="$(getent passwd "$user" | cut -d: -f6 || true)"
-  if [[ -z "$home" ]]; then
-    log_err "Could not resolve the home directory for '$user'."
-    return 1
-  fi
-  zshrc="$home/.zshrc"
-  dropin_dir="$home/.config/zsh"
-  dropin="$dropin_dir/ubuntu-setup.zsh"
-  p10k_dir="$dropin_dir/powerlevel10k"
-  pure_dir="$dropin_dir/pure"
-  mkdir -p "$dropin_dir" "$home/.cache/zsh"
-
-  # The single, guarded source line in ~/.zshrc. Literal $HOME expands at shell start.
-  # shellcheck disable=SC2016
-  local source_line='[[ -f "$HOME/.config/zsh/ubuntu-setup.zsh" ]] && source "$HOME/.config/zsh/ubuntu-setup.zsh"'
-
-  # Migrate an old whole-file ~/.zshrc, then ensure our source line exists BEFORE
-  # installing a framework (so Oh My Zsh's --keep-zshrc keeps our ~/.zshrc, not its own).
-  _zsh_migrate_old_zshrc "$zshrc"
-  append_once "$source_line" "$zshrc"
-
-  # Install the selected framework / prompt (each idempotent, run as the user).
-  if [[ "$framework" == "oh-my-zsh" ]]; then
-    _zsh_ensure_omz "$home" || return 1
-  fi
-  case "$prompt" in
-    starship)
-      _zsh_ensure_starship "$home" || return 1
-      log_warn "Starship uses Nerd Font glyphs — install a Nerd Font in your LOCAL terminal for icons."
-      ;;
-    powerlevel10k)
-      _zsh_ensure_git_clone "$P10K_REPO" "$p10k_dir" "Powerlevel10k" || return 1
-      log_warn "Powerlevel10k uses Nerd Font glyphs — install a Nerd Font in your LOCAL terminal."
-      log_info "Run 'p10k configure' yourself to customize it (interactive; not run here)."
-      ;;
-    pure)
-      _zsh_ensure_git_clone "$PURE_REPO" "$pure_dir" "Pure prompt" || return 1
-      ;;
-  esac
-
-  # Resolve apt plugin source paths from the live package layout (never hardcoded).
-  local autosuggest_src="" syntax_src=""
-  if [[ "$want_plugins" -eq 1 ]]; then
-    apt_install zsh-autosuggestions zsh-syntax-highlighting
-    # Match the package's MAIN entry-point file by name — never just the first *.zsh
-    # (zsh-syntax-highlighting also ships highlighter sub-files that must NOT be sourced directly).
-    autosuggest_src="$(dpkg -L zsh-autosuggestions 2>/dev/null | grep -m1 '/zsh-autosuggestions\.zsh$' || true)"
-    syntax_src="$(dpkg -L zsh-syntax-highlighting 2>/dev/null | grep -m1 '/zsh-syntax-highlighting\.zsh$' || true)"
-    [[ -n "$autosuggest_src" ]] || log_warn "Could not locate zsh-autosuggestions source — skipping it."
-    [[ -n "$syntax_src" ]] || log_warn "Could not locate zsh-syntax-highlighting source — skipping it."
+  # Plugin set: --no-plugins clears; --plugins replaces (comma/space separated, known keys);
+  # otherwise keep the current set (default on a fresh machine = autosuggestions+syntax).
+  if [[ "$want_plugins" -eq 0 ]]; then
+    PLUGINS=""
+  elif [[ -n "$plugins_set" ]]; then
+    local list p; list="${plugins_set//,/ }"; PLUGINS=""
+    for p in $list; do
+      if _zsh_plugin_in "$p" "$ZSH_KNOWN_PLUGINS"; then PLUGINS="${PLUGINS:+$PLUGINS }$p"
+      else log_err "Unknown plugin '$p' for --plugins (known: $ZSH_KNOWN_PLUGINS). Use add-plugin <git-url> for arbitrary."; return 2; fi
+    done
   fi
 
-  # (Re)generate the managed drop-in wholesale — re-running converges to the latest.
-  backup_file "$dropin"
-  _zsh_emit_dropin "$framework" "$prompt" "$want_plugins" "$want_aliases" \
-    "$autosuggest_src" "$syntax_src" "$p10k_dir" "$pure_dir" >"$dropin"
-  log_info "Wrote managed drop-in $dropin (framework=$framework, prompt=$prompt)."
-  log_info "Re-run 'zsh configure …' anytime to update; your own ~/.zshrc edits are kept."
-
-  if [[ "$default_shell" -eq 1 ]]; then
-    do_default_shell || return 1
-  fi
+  _zsh_apply || return 1
+  if [[ "$default_shell" -eq 1 ]]; then do_default_shell || return 1; fi
+  return 0
 }
 
-# --- Presets (extra TUI/swkit actions; routed by kit_dispatch) -----------------
+# Membership test: is $1 a word in the space-separated list $2?
+_zsh_plugin_in() {
+  local needle="$1" hay=" $2 "
+  [[ "$hay" == *" $needle "* ]]
+}
 
-do_oh_my_zsh() { do_configure --framework oh-my-zsh "$@"; }   # action: oh-my-zsh
-do_starship()  { do_configure --prompt starship "$@"; }       # action: starship
+do_install_omz() {
+  if ! status >/dev/null 2>&1; then log_info "Install zsh first."; return 0; fi
+  _zsh_resolve_paths || return 1
+  _zsh_load_state
+  FRAMEWORK="oh-my-zsh"
+  _zsh_apply
+}
 
-# Make zsh the default login shell — lockout-safe, escalating per command. Used both as
-# the `default-shell` action and by `configure --default-shell`.
-do_default_shell() {
-  if ! status >/dev/null 2>&1; then
-    log_info "Install zsh first."
+do_uninstall_omz() {
+  if ! status >/dev/null 2>&1; then log_info "Install zsh first."; return 0; fi
+  _zsh_resolve_paths || return 1
+  _zsh_load_state
+  FRAMEWORK="none"
+  if [[ -d "$_ZHOME/.oh-my-zsh" ]]; then
+    rm -rf "$_ZHOME/.oh-my-zsh"
+    log_info "Removed $_ZHOME/.oh-my-zsh."
+  else
+    log_info "Oh My Zsh was not installed."
+  fi
+  _zsh_apply
+}
+
+do_add_plugin() {
+  if ! status >/dev/null 2>&1; then log_info "Install zsh first."; return 0; fi
+  local arg="${1:-}"
+  if [[ -z "$arg" ]]; then
+    log_err "Usage: zsh add-plugin <name|git-url>"
+    log_err "Known names: $ZSH_KNOWN_PLUGINS"
+    return 2
+  fi
+  _zsh_resolve_paths || return 1
+  _zsh_load_state
+  local key
+  if [[ "$arg" == *://* || "$arg" == git@* ]]; then
+    # Arbitrary git plugin: derive a name and clone it.
+    key="$(basename "$arg")"; key="${key%.git}"
+    _zsh_git_clone "$arg" "$_ZPLUGDIR/$key" "$key" || { log_err "Clone failed for $arg."; return 1; }
+  elif _zsh_plugin_in "$arg" "$ZSH_KNOWN_PLUGINS"; then
+    key="$arg"
+  else
+    log_err "Unknown plugin '$arg'. Known: $ZSH_KNOWN_PLUGINS. For others pass a git URL."
+    return 2
+  fi
+  if _zsh_plugin_in "$key" "$PLUGINS"; then
+    log_info "Plugin '$key' already enabled — refreshing config."
+  else
+    PLUGINS="${PLUGINS:+$PLUGINS }$key"
+  fi
+  _zsh_apply
+}
+
+do_remove_plugin() {
+  if ! status >/dev/null 2>&1; then log_info "Install zsh first."; return 0; fi
+  local key="${1:-}"
+  if [[ -z "$key" ]]; then log_err "Usage: zsh remove-plugin <name>"; return 2; fi
+  _zsh_resolve_paths || return 1
+  _zsh_load_state
+  if ! _zsh_plugin_in "$key" "$PLUGINS"; then
+    log_info "Plugin '$key' is not enabled — nothing to remove."
     return 0
   fi
+  local p new=""
+  for p in $PLUGINS; do [[ "$p" == "$key" ]] || new="${new:+$new }$p"; done
+  PLUGINS="$new"
+  _zsh_plugin_purge "$key"
+  _zsh_apply
+}
+
+do_prompt() {
+  if ! status >/dev/null 2>&1; then log_info "Install zsh first."; return 0; fi
+  local p="${1:-}"
+  case "$p" in
+    git|plain|starship|powerlevel10k|pure) ;;
+    *) log_err "Usage: zsh prompt <git|plain|starship|powerlevel10k|pure>"; return 2 ;;
+  esac
+  _zsh_resolve_paths || return 1
+  _zsh_load_state
+  PROMPT="$p"
+  _zsh_apply
+}
+
+# Make zsh the default login shell — lockout-safe, escalating per command.
+do_default_shell() {
+  if ! status >/dev/null 2>&1; then log_info "Install zsh first."; return 0; fi
   local user zsh_path current
   user="${SUDO_USER:-$(id -un)}"
   zsh_path="$(command -v zsh)"
-  # Lockout safety: never set a login shell that hangs or hard-fails to start. timeout
-  # guards against a hang (a stray compinit/newuser prompt); 'exit 0' ignores a benign
-  # non-zero status left by the last startup line.
   if ! timeout 15 zsh -i -c 'exit 0' >/dev/null 2>&1; then
     log_err "An interactive zsh did not start cleanly (it hung or errored)."
     log_err "Not changing the login shell. Run 'zsh configure' / fix your zsh config first."
@@ -431,27 +623,31 @@ usage() {
   cat <<EOF
 Usage: ${0##*/} <command>
 
-Commands:
-  install         Install zsh via apt (idempotent)
-  remove          Uninstall zsh (refuses if it is your login shell — chsh to bash first)
-  configure [opts]  (Re)generate a managed drop-in ~/.config/zsh/ubuntu-setup.zsh and
-                  source it from ~/.zshrc (one idempotent line). Re-running updates the
-                  managed settings without clobbering your own ~/.zshrc. Options:
-                    --framework none|oh-my-zsh        (default: none)
-                    --prompt git|plain|starship|powerlevel10k|pure   (default: git)
-                    --default-shell                   also make zsh the login shell
-                    --no-plugins                      skip apt autosuggest/syntax plugins
-                    --no-aliases                      skip the ls/grep color aliases
-  oh-my-zsh       Preset: configure with the Oh My Zsh framework
-  starship        Preset: configure with the Starship prompt
-  default-shell   Make zsh the default login shell (lockout-safe)
-  status          Print 'zsh --version'; exit 0 iff installed
-  meta            Print machine-readable metadata
-  help            Show this help
+zsh component manager. State lives in ~/.config/zsh/ubuntu-setup.conf; every change
+regenerates ~/.config/zsh/ubuntu-setup.zsh and is sourced from ~/.zshrc (one idempotent
+line). Re-running converges; your own ~/.zshrc is never clobbered.
 
-Default 'configure' (and the TUI's Configure action) is a conservative, headless-safe
-baseline: framework-free, a git-branch ASCII prompt, apt plugins, color aliases. Icon
-prompts (starship/powerlevel10k) need a Nerd Font in your LOCAL terminal.
+  install            Install zsh via apt
+  remove             Uninstall zsh (refuses if it is your login shell)
+  configure [opts]   Full re-spec of the whole config. Options:
+                       --framework none|oh-my-zsh                 (default: none)
+                       --prompt git|plain|starship|powerlevel10k|pure   (default: git)
+                       --plugins "a b c"   set the enabled plugins (known names below)
+                       --no-plugins · --no-aliases · --default-shell
+  install-omz        Install the Oh My Zsh framework
+  uninstall-omz      Remove Oh My Zsh (deletes ~/.oh-my-zsh)
+  add-plugin <name|git-url>   Enable a plugin (installs it). Known names:
+                       $ZSH_KNOWN_PLUGINS
+                     Any other value is treated as a git repo URL and cloned.
+  remove-plugin <name>        Disable a plugin (removes git clones; keeps apt packages)
+  prompt <name>      Set the prompt (git|plain|starship|powerlevel10k|pure)
+  default-shell      Make zsh the default login shell (lockout-safe)
+  status / meta / help
+
+Default config is a conservative, headless-safe baseline (framework-free, git-branch ASCII
+prompt, autosuggestions + syntax-highlighting, color aliases). Starship/Powerlevel10k need a
+Nerd Font in your LOCAL terminal. The TUI lists the no-argument actions; the argument-taking
+ones (add-plugin/remove-plugin/prompt) are run via 'swkit zsh ...' or the LLM.
 EOF
 }
 
