@@ -1,16 +1,23 @@
 #!/usr/bin/env bash
 #
-# bootstrap.sh — set up a fresh Ubuntu machine for LLM-driven software management.
+# bootstrap.sh — turn a fresh Ubuntu machine into an LLM-driven software manager.
 #
-# Run with no arguments in a terminal and it opens a TUI (whiptail, with a plain-text
-# fallback): a main menu with "Install software" and a settings page. "Install software"
-# is a curated, hand-written catalog browsed in three levels — category (Essentials,
-# Common software, AI coding CLIs, Runtime, LLM assets) → software → action (install /
-# uninstall / configure). The catalog is pure bash and bounded; arbitrary/long-tail
-# software (and deep configuration) is still handled by the LLM via the bundled skills.
-# Settings lets you switch the interface language (中文 / English / 日本語) and toggle
-# passwordless sudo for the LLM. Each action runs behind a progress bar, with full output
-# written to a log file, and you land back on the action menu when it finishes.
+# The real work of installing/configuring software lives in a COLLECTION OF SCRIPTS
+# (lib/ + scripts/) — one script per piece of software, with a uniform interface
+# (install/remove/configure/status/meta). Three entry points drive those scripts:
+#   1. this TUI (whiptail, with a plain-text fallback),
+#   2. a human running `swkit <software> <op>` directly,
+#   3. the LLM, via the bundled skills.
+# The LLM is special: besides RUNNING scripts it ORGANISES, RECOMMENDS, and EVOLVES
+# them — authoring a new script for software not yet covered, fixing stale ones. So
+# "coverage" grows over time; this bootstrap ships a seed set plus the machinery.
+#
+# bootstrap.sh itself: ensures a few dependencies (git/curl/ca-certificates), DEPLOYS
+# the script collection to a git-tracked dir ($KIT_HOME = ~/.local/share/ubuntu-setup)
+# so the LLM's edits are versioned and survive updates (vendor-branch + merge, never a
+# blind clobber), deploys the skills, then opens the TUI: "Install software" browses the
+# scripts (category → software → action, discovered dynamically from each script's meta)
+# and a Settings page switches language and toggles passwordless sudo for the LLM.
 #
 # Usage: ./bootstrap.sh [--only claude|codex] [--method native|npm] [--with-node]
 #                       [--skip-skills] [--headless] [--tui]
@@ -18,35 +25,23 @@
 # With a terminal and no scripting flags it runs the TUI. Pass any install flag (or run
 # without a terminal, e.g. in CI) and it runs headless instead, honouring those flags.
 #
-# Idempotent: every step checks the live system first and skips what is already
-# in place, so the script is safe to re-run (e.g. after a failure).
-#
-# Privilege model: run as a normal user. Only apt steps (the dependency top-up and the
-# optional Node.js install) escalate, one command at a time, via sudo. Running as root
-# also works but is not required; `sudo npm install -g` is never used.
-#
-# Passwordless sudo: after bootstrap the LLM runs `sudo apt-get …` through its own
-# Bash tool, which has NO interactive terminal — so it cannot type a sudo password
-# and could not install anything. So the Settings page offers a toggle (a whiptail
-# dialog, falling back to a text [Y/n] prompt) to turn passwordless sudo ON or OFF for
-# the invoking user. ON writes a NOPASSWD sudoers drop-in (/etc/sudoers.d/ubuntu-setup-llm)
-# granting passwordless root; OFF removes it. The toggle shows the current state, so you
-# can flip it either way on any run. Non-interactive runs (no terminal) leave it
-# unchanged. There is no command-line flag for this — the choice is made through the UI;
-# revoke any time with `sudo rm /etc/sudoers.d/ubuntu-setup-llm`.
+# Idempotent: every step checks the live system and skips what is already in place, so
+# the script is safe to re-run. Privilege model: run as a normal user; only apt and a
+# couple of config steps escalate, one command at a time, via sudo. `sudo npm install -g`
+# is never used. See lib/common.sh for the shared safety contract.
 
 set -Eeuo pipefail
 
-# --- Constants ----------------------------------------------------------------
+# --- Constants & shared library ------------------------------------------------
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 readonly SCRIPT_DIR
 
-readonly CLAUDE_INSTALL_URL="https://claude.ai/install.sh"
-readonly CODEX_INSTALL_URL="https://chatgpt.com/codex/install.sh"
-readonly CLAUDE_NPM_PKG="@anthropic-ai/claude-code"
-readonly CODEX_NPM_PKG="@openai/codex"
-readonly MIN_NODE_MAJOR=18
+# The safety primitives (sudo_run, apt_install/apt_remove, pkg_installed, have_cmd,
+# backup_file, append_once, ensure_local_bin_on_path, …) live in the library the scripts
+# also use, so bootstrap and the scripts share one implementation.
+# shellcheck source=lib/common.sh
+source "$SCRIPT_DIR/lib/common.sh"
 
 # Run state (set by parse_args / main)
 ONLY=""           # "" = both, or "claude" / "codex"  (headless only)
@@ -57,8 +52,12 @@ HEADLESS=0        # forced headless by a scripting flag
 FORCE_TUI=0       # --tui forces the menu when a terminal is present
 LANG_CODE="en"    # interface language: en / zh / ja
 CURRENT_STEP="startup"
+KIT_HOME_DIR=""   # resolved in main(): ~/.local/share/ubuntu-setup
 
 # --- Logging (stderr; colors only on a tty) ------------------------------------
+# bootstrap keeps its own step-aware logger; the library's log_* names coexist and are
+# used by the scripts. User-facing TUI strings are translated; these logs stay English
+# (they land in a log file or the boot console, not in front of the menu user).
 
 if [[ -t 2 && "${TERM:-dumb}" != "dumb" ]]; then
   C_INFO=$'\033[1;34m' C_WARN=$'\033[1;33m' C_ERR=$'\033[1;31m' C_OFF=$'\033[0m'
@@ -79,10 +78,9 @@ on_error() {
 trap on_error ERR
 
 # --- Interface strings (i18n) --------------------------------------------------
-#
-# Only the user-facing TUI is translated; internal info()/warn()/error() logs stay in
-# English (they land in a log file, not in front of the user). t KEY prints the string
-# for the active LANG_CODE, falling back to English, then to the raw key.
+# t KEY prints the string for the active LANG_CODE, falling back to English then the key.
+# Only fixed UI chrome is translated; software DISPLAY NAMES come from each script's meta
+# (the collection is open/LLM-extensible, so per-software names can't be pre-translated).
 
 declare -A MSG
 
@@ -118,7 +116,7 @@ MSG[en:software_prompt]="Choose an action:"
 MSG[zh:software_prompt]="选择操作:"
 MSG[ja:software_prompt]="操作を選択:"
 
-# Category labels
+# Category labels (keys match each script's meta `category` field).
 MSG[en:cat_essentials]="Essentials"
 MSG[zh:cat_essentials]="装机必备"
 MSG[ja:cat_essentials]="必須ツール"
@@ -135,9 +133,9 @@ MSG[en:cat_runtime]="Runtime"
 MSG[zh:cat_runtime]="运行时"
 MSG[ja:cat_runtime]="ランタイム"
 
-MSG[en:cat_assets]="LLM assets"
-MSG[zh:cat_assets]="LLM 资产"
-MSG[ja:cat_assets]="LLM アセット"
+MSG[en:cat_other]="Other"
+MSG[zh:cat_other]="其他"
+MSG[ja:cat_other]="その他"
 
 # Operation labels
 MSG[en:op_install]="Install"
@@ -151,38 +149,6 @@ MSG[ja:op_remove]="アンインストール"
 MSG[en:op_configure]="Configure"
 MSG[zh:op_configure]="配置"
 MSG[ja:op_configure]="設定"
-
-MSG[en:sw_claude]="Claude Code CLI"
-MSG[zh:sw_claude]="Claude Code CLI"
-MSG[ja:sw_claude]="Claude Code CLI"
-
-MSG[en:sw_codex]="Codex CLI"
-MSG[zh:sw_codex]="Codex CLI"
-MSG[ja:sw_codex]="Codex CLI"
-
-MSG[en:sw_node]="Node.js + npm (apt)"
-MSG[zh:sw_node]="Node.js + npm(apt 安装)"
-MSG[ja:sw_node]="Node.js + npm(apt)"
-
-MSG[en:sw_skills]="LLM skills (ubuntu-install, zsh-setup)"
-MSG[zh:sw_skills]="LLM 技能(ubuntu-install、zsh-setup)"
-MSG[ja:sw_skills]="LLM スキル(ubuntu-install、zsh-setup)"
-
-MSG[en:sw_git]="git"
-MSG[zh:sw_git]="git"
-MSG[ja:sw_git]="git"
-
-MSG[en:sw_curl]="curl"
-MSG[zh:sw_curl]="curl"
-MSG[ja:sw_curl]="curl"
-
-MSG[en:sw_zsh]="zsh"
-MSG[zh:sw_zsh]="zsh"
-MSG[ja:sw_zsh]="zsh"
-
-MSG[en:sw_docker]="Docker (docker.io)"
-MSG[zh:sw_docker]="Docker(docker.io)"
-MSG[ja:sw_docker]="Docker(docker.io)"
 
 MSG[en:tag_installed]="[installed]"
 MSG[zh:tag_installed]="[已安装]"
@@ -223,6 +189,10 @@ MSG[ja:fail_label]="失敗"
 MSG[en:log_at]="Full log:"
 MSG[zh:log_at]="完整日志:"
 MSG[ja:log_at]="詳細ログ:"
+
+MSG[en:no_scripts]="No scripts found. Re-run ./bootstrap.sh to (re)deploy the collection."
+MSG[zh:no_scripts]="未找到脚本。重跑 ./bootstrap.sh 以(重新)部署脚本集合。"
+MSG[ja:no_scripts]="スクリプトが見つかりません。./bootstrap.sh を再実行してコレクションを(再)展開してください。"
 
 MSG[en:done_note]=$'Run \'claude\' or \'codex\' and sign in, then ask the LLM to manage this machine.\nOpen a new shell first so they are on PATH.'
 MSG[zh:done_note]=$'运行 claude 或 codex 登录后,即可让 LLM 管理这台机器。\n请先打开新 shell,使它们出现在 PATH 中。'
@@ -276,16 +246,16 @@ usage() {
   cat <<'EOF'
 Usage: ./bootstrap.sh [options]
 
-Sets up a fresh Ubuntu (20.04+) machine for LLM-driven software management.
+Sets up a fresh Ubuntu (20.04+) machine for LLM-driven software management. The actual
+install/configure logic lives in a collection of scripts (scripts/*.sh) backed by a
+shared library (lib/common.sh); bootstrap deploys that collection to a git-tracked dir
+(~/.local/share/ubuntu-setup), deploys the skills, and provides a TUI front end.
 
-With a terminal and no scripting flags, it opens a TUI: "Install software" browses a
-curated catalog in three levels — category (Essentials, Common software, AI coding
-CLIs, Runtime, LLM assets) -> software (git, curl, zsh, docker, Claude Code CLI,
-Codex CLI, Node.js + npm, the bundled skills) -> action (install / uninstall /
-configure). A Settings page switches the interface language (中文 / English / 日本語)
-and toggles passwordless sudo for the LLM. Each action runs behind a progress bar;
-output goes to a log under ~/.cache/ubuntu-setup/. Long-tail software and deep
-configuration stay with the LLM via the bundled skills.
+With a terminal and no scripting flags it opens the TUI: "Install software" browses the
+script collection (category -> software -> install/remove/configure, discovered from each
+script's metadata) and a Settings page switches language and toggles passwordless sudo
+for the LLM. Run scripts directly with `swkit <software> <op>` (deployed onto your PATH),
+or ask the LLM (it can also author/evolve scripts for software not yet covered).
 
 Headless options (any of these, or no terminal, switches off the TUI):
   --only claude|codex   Install only one of the two CLIs (default: both)
@@ -301,8 +271,8 @@ Passwordless sudo for the LLM is toggled only through the UI (Settings page or, 
 headless runs, a one-off prompt) — there is no flag. Revoke later with:
   sudo rm /etc/sudoers.d/ubuntu-setup-llm
 
-The script is idempotent: already-installed components are detected on the live
-system and skipped, so it is safe to re-run at any time.
+The script is idempotent: already-installed components are detected on the live system
+and skipped, so it is safe to re-run at any time.
 EOF
 }
 
@@ -374,21 +344,13 @@ parse_args() {
 
 # --- Helpers -------------------------------------------------------------------
 
-# True only for fully installed dpkg packages ("install ok installed";
-# a removed-but-not-purged package must not count as installed).
-pkg_installed() {
-  local status
-  status="$(dpkg-query -W -f '${Status}' "$1" 2>/dev/null)" || return 1
-  [[ "$status" == "install ok installed" ]]
-}
-
 # Whether this run is "root acting on behalf of a sudo user".
 running_as_sudo_wrapper() {
   [[ $EUID -eq 0 && -n "${SUDO_USER:-}" && "${SUDO_USER}" != "root" ]]
 }
 
-# Home directory the skills should land in: the real user's home when the
-# script itself was wrapped in sudo, $HOME otherwise. Never the literal `~`.
+# Home directory the kit/skills should land in: the real user's home when the script
+# itself was wrapped in sudo, $HOME otherwise. Never the literal `~`.
 resolve_target_home() {
   if running_as_sudo_wrapper; then
     getent passwd "$SUDO_USER" | cut -d: -f6
@@ -397,8 +359,7 @@ resolve_target_home() {
   fi
 }
 
-# The real user the LLM will run as (the sudo caller when wrapped, else the
-# current user) — the account that should get passwordless sudo.
+# The real user the LLM will run as (the sudo caller when wrapped, else the current user).
 resolve_target_user() {
   if running_as_sudo_wrapper; then
     printf '%s\n' "$SUDO_USER"
@@ -407,20 +368,18 @@ resolve_target_user() {
   fi
 }
 
-# Can we prompt the user? Use the controlling terminal, not stdin, so prompts work
-# even when the script is piped (curl … | bash). Actually try to OPEN /dev/tty for
-# read and write — the device node can exist (passing -r/-w bit tests) yet fail to
-# open with ENXIO when there is no controlling terminal (cron, nohup, no PTY), which
-# would wrongly route us into the interactive TUI. No openable /dev/tty -> headless.
+# Can we prompt the user? Actually try to OPEN /dev/tty for read and write — the device
+# node can exist (passing -r/-w tests) yet fail to open with ENXIO when there is no
+# controlling terminal (cron, nohup, the LLM's shell), which would wrongly route us into
+# the TUI. No openable /dev/tty -> headless.
 have_tty() {
   { true </dev/tty; } 2>/dev/null && { true >/dev/tty; } 2>/dev/null
 }
 
 has_whiptail() { command -v whiptail >/dev/null 2>&1; }
 
-# Interactive yes/no prompt on the controlling terminal. $1 = question, $2 = default
-# ("y" or "n", used on a bare Enter). Returns 0 for yes, 1 for no. Reads/writes
-# /dev/tty directly (never stdin). Caller must have checked have_tty first.
+# Interactive yes/no on the controlling terminal. $1 = question, $2 = default ("y"/"n").
+# Returns 0 for yes, 1 for no. Reads/writes /dev/tty directly (works under curl | bash).
 prompt_yes_no() {
   local question="$1" default="${2:-y}" hint reply
   case "$default" in
@@ -439,8 +398,8 @@ prompt_yes_no() {
   done
 }
 
-# mkdir -p that hands ownership of newly created components back to the real
-# user when we are root acting for a sudo user.
+# mkdir -p that hands ownership of newly created components back to the real user when we
+# are root acting for a sudo user.
 ensure_user_dir() {
   local dir="$1" d="$1" missing_top=""
   while [[ ! -d "$d" ]]; do
@@ -467,21 +426,10 @@ strip_frontmatter() {
                               { print }' "$1"
 }
 
-report_version() {
-  local cli="$1" ver
-  if ver="$("$cli" --version 2>/dev/null)"; then
-    info "$cli already installed: $ver — skipping."
-  else
-    info "$cli already installed (version probe failed) — skipping."
-  fi
-}
-
 # --- TUI primitives ------------------------------------------------------------
-#
-# Each falls back to a plain-text equivalent on /dev/tty when whiptail is absent, so
-# a minimal Ubuntu server with no whiptail still gets a usable menu. whiptail's newt
-# backend draws straight to the terminal device, so menu results are captured off its
-# stderr via the 3>&1 1>&2 2>&3 fd-swap and printed on this function's stdout.
+# Each falls back to a plain-text equivalent on /dev/tty when whiptail is absent, so a
+# minimal server with no whiptail still gets a usable menu. whiptail draws to the terminal
+# device, so menu results are captured off its stderr via the 3>&1 1>&2 2>&3 fd-swap.
 
 # ui_menu TITLE PROMPT  tag1 label1  tag2 label2 ...  -> prints chosen tag (empty on cancel)
 ui_menu() {
@@ -564,228 +512,17 @@ save_lang() {
   maybe_chown_user "$f"
 }
 
-# --- Dependency checks ---------------------------------------------------------
-
-# Install apt packages: plain apt-get as root, per-command sudo otherwise.
-# Never re-executes the whole script as root.
-apt_install() {
-  local apt_prefix=()
-  if [[ $EUID -ne 0 ]]; then
-    if ! command -v sudo >/dev/null 2>&1; then
-      error "Missing packages: $* — and neither root nor sudo is available."
-      error "Ask an administrator to run:"
-      error "  apt-get update && apt-get install -y --no-install-recommends $*"
-      exit 1
-    fi
-    apt_prefix=(sudo)
-  fi
-  info "Installing missing packages (may prompt for your sudo password): $*"
-  "${apt_prefix[@]}" DEBIAN_FRONTEND=noninteractive apt-get update
-  "${apt_prefix[@]}" DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends "$@"
-}
-
-# Remove apt packages: plain apt-get as root, per-command sudo otherwise. Uses
-# `remove` (not `purge`) so user configuration survives. Never re-executes as root.
-apt_remove() {
-  local apt_prefix=()
-  if [[ $EUID -ne 0 ]]; then
-    if ! command -v sudo >/dev/null 2>&1; then
-      error "Cannot remove $* — neither root nor sudo is available."
-      error "Ask an administrator to run: apt-get remove -y $*"
-      return 1
-    fi
-    apt_prefix=(sudo)
-  fi
-  info "Removing packages (may prompt for your sudo password): $*"
-  "${apt_prefix[@]}" DEBIAN_FRONTEND=noninteractive apt-get remove -y "$@"
-}
-
-# Dependencies for the native (curl) install method.
-ensure_curl_deps() {
-  local missing=()
-  if ! command -v curl >/dev/null 2>&1; then
-    missing+=(curl)
-  fi
-  if ! pkg_installed ca-certificates; then
-    missing+=(ca-certificates)
-  fi
-  if ((${#missing[@]})); then
-    apt_install "${missing[@]}"
-  else
-    info "curl and ca-certificates already present."
-  fi
-}
-
-# Prints the major version of an installed node, or fails if node is missing.
-node_major_version() {
-  local v
-  command -v node >/dev/null 2>&1 || return 1
-  v="$(node --version 2>/dev/null)" || return 1
-  v="${v#v}"
-  printf '%s\n' "${v%%.*}"
-}
-
-# Dependencies for --method npm. Refuses to install Node.js and refuses any
-# path that would lead to `sudo npm install -g`. (Installing Node yourself is a
-# separate, explicit choice — the "node" software item / --with-node — and never
-# happens implicitly to satisfy the npm method.)
-ensure_npm_deps() {
-  local major prefix target
-  if ! major="$(node_major_version)"; then
-    error "--method npm requires Node.js >= ${MIN_NODE_MAJOR}, but 'node' was not found."
-    error "This script will not install Node.js to satisfy the npm method."
-    error "Use the default native method instead: ./bootstrap.sh (no --method needed),"
-    error "or install Node explicitly first (software list / --with-node)."
-    exit 1
-  fi
-  if ((major < MIN_NODE_MAJOR)); then
-    error "--method npm requires Node.js >= ${MIN_NODE_MAJOR}, found major version ${major}."
-    error "Upgrade Node.js yourself, or use the default native method: ./bootstrap.sh"
-    exit 1
-  fi
-  if ! command -v npm >/dev/null 2>&1; then
-    error "--method npm requires 'npm', which was not found (node is present)."
-    error "Install npm yourself, or use the default native method: ./bootstrap.sh"
-    exit 1
-  fi
-  # Never `sudo npm install -g`: if the global prefix is not user-writable,
-  # tell the user the supported fix and stop.
-  prefix="$(npm config get prefix)"
-  target="$prefix/lib/node_modules"
-  [[ -d "$target" ]] || target="$prefix"
-  if [[ ! -w "$target" ]]; then
-    error "npm's global prefix ($prefix) is not writable by $(id -un)."
-    error "Refusing to use 'sudo npm install -g'. Point npm at a user-writable prefix instead:"
-    error "  npm config set prefix \"\$HOME/.local\""
-    error "then re-run this script."
-    exit 1
-  fi
-  info "Node.js v${major}.x and a user-writable npm prefix ($prefix) found."
-}
-
-# --- CLI / runtime installs ----------------------------------------------------
-
-install_claude() {
-  step "Install Claude Code CLI"
-  if command -v claude >/dev/null 2>&1; then
-    report_version claude
-    return 0
-  fi
-  if [[ "$METHOD" == "npm" ]]; then
-    info "Installing via npm: $CLAUDE_NPM_PKG"
-    npm install -g "$CLAUDE_NPM_PKG"
-  else
-    info "Installing via official installer: $CLAUDE_INSTALL_URL"
-    curl -fsSL "$CLAUDE_INSTALL_URL" | bash
-  fi
-}
-
-install_codex() {
-  step "Install Codex CLI"
-  if command -v codex >/dev/null 2>&1; then
-    report_version codex
-    return 0
-  fi
-  if [[ "$METHOD" == "npm" ]]; then
-    info "Installing via npm: $CODEX_NPM_PKG"
-    npm install -g "$CODEX_NPM_PKG"
-  else
-    info "Installing via official installer: $CODEX_INSTALL_URL"
-    curl -fsSL "$CODEX_INSTALL_URL" | sh
-  fi
-}
-
-# Node.js + npm from Ubuntu's apt repos — an explicit, opt-in choice (software list
-# or --with-node). apt-first per the project's channel-conservative policy; whatever
-# version the distro ships is fine for the user who asked for it.
-install_node() {
-  step "Install Node.js + npm"
-  if command -v node >/dev/null 2>&1 && command -v npm >/dev/null 2>&1; then
-    info "node $(node --version 2>/dev/null) / npm $(npm --version 2>/dev/null) already installed — skipping."
-    return 0
-  fi
-  apt_install nodejs npm
-}
-
-# --- PATH handling -------------------------------------------------------------
-
-# The native installers land in ~/.local/bin. Make sure it is on PATH: export
-# for this process (so verification below works) and append a guarded line to
-# the user's shell rc (grep first — never append twice).
-ensure_local_bin_on_path() {
-  step "Ensure ~/.local/bin is on PATH"
-  local local_bin="$HOME/.local/bin" rc_file line
-  case ":$PATH:" in
-    *":$local_bin:"*)
-      info "$local_bin already on PATH."
-      return 0
-      ;;
-  esac
-  if [[ ! -d "$local_bin" ]]; then
-    info "$local_bin does not exist (nothing was installed there); leaving PATH alone."
-    return 0
-  fi
-  export PATH="$local_bin:$PATH"
-  case "${SHELL:-/bin/bash}" in
-    */zsh) rc_file="$HOME/.zshrc" ;;
-    *)     rc_file="$HOME/.bashrc" ;;
-  esac
-  line='export PATH="$HOME/.local/bin:$PATH"'
-  if [[ -f "$rc_file" ]] && grep -qF "$line" "$rc_file"; then
-    info "PATH line already present in $rc_file."
-  else
-    printf '\n# Added by ubuntu-setup bootstrap.sh\n%s\n' "$line" >>"$rc_file"
-    info "Appended PATH line to $rc_file."
-  fi
-  warn "Run 'source $rc_file' (or open a new shell) so 'claude'/'codex' are found later."
-}
-
-# --- Skill deployment ----------------------------------------------------------
-
-# Skills shipped to the user's machine. Add a directory under skills/ and its
-# name here to deploy it; each must contain a SKILL.md.
-SKILLS=(ubuntu-install zsh-setup)
-
-deploy_skills() {
-  step "Deploy skills"
-  local target_home name src claude_dst codex_prompts
-  target_home="$(resolve_target_home)"
-  codex_prompts="$target_home/.codex/prompts"
-
-  for name in "${SKILLS[@]}"; do
-    src="$SCRIPT_DIR/skills/$name"
-    if [[ ! -f "$src/SKILL.md" ]]; then
-      error "Skill source not found: $src/SKILL.md (run from a full clone of the repo)."
-      exit 1
-    fi
-
-    # Claude Code: user-level skill directory (overwrite = idempotent update).
-    claude_dst="$target_home/.claude/skills/$name"
-    ensure_user_dir "$claude_dst"
-    cp -R "$src/." "$claude_dst/"
-    maybe_chown_user "$claude_dst"
-    info "Claude Code skill -> $claude_dst/"
-
-    # Codex: skill body (frontmatter stripped) as a custom prompt, /$name.
-    ensure_user_dir "$codex_prompts"
-    strip_frontmatter "$src/SKILL.md" >"$codex_prompts/$name.md"
-    maybe_chown_user "$codex_prompts/$name.md"
-    info "Codex prompt -> $codex_prompts/$name.md"
-  done
-}
-
 # --- Passwordless sudo (interactive toggle, Settings page) ---------------------
 
 readonly SUDOERS_DROPIN="/etc/sudoers.d/ubuntu-setup-llm"
 
-# Is our NOPASSWD drop-in currently active? Probe without ever prompting (sudo -n):
-# if sudo itself needs a password, the drop-in can't be granting passwordless access.
+# Is our NOPASSWD drop-in currently active? Probe without ever prompting (sudo -n).
 passwordless_enabled() {
   sudo -n test -f "$SUDOERS_DROPIN" 2>/dev/null
 }
 
-# Write the NOPASSWD drop-in. Best-effort: warn + return (non-fatal) on any failure,
-# and never leave an invalid sudoers file behind.
+# Write the NOPASSWD drop-in. Best-effort: warn + return on any failure, never leave an
+# invalid sudoers file behind.
 enable_passwordless() {
   local user="$1" line
   line="$user ALL=(ALL) NOPASSWD:ALL"
@@ -814,10 +551,8 @@ disable_passwordless() {
   fi
 }
 
-# Present the passwordless-sudo toggle (whiptail yes/no, text fallback) and turn it
-# on/off to match the choice. Reflects the current state, so it flips either way.
-# Non-interactive runs are left untouched. The choice is made entirely through the UI
-# — there is no command-line flag.
+# Present the toggle (whiptail yes/no, text fallback) and flip it to match the choice.
+# Reflects the current state. Non-interactive runs are left untouched. UI-only, no flag.
 configure_passwordless_sudo() {
   step "Passwordless sudo for the LLM"
   if ! command -v sudo >/dev/null 2>&1; then
@@ -854,201 +589,166 @@ configure_passwordless_sudo() {
   fi
 }
 
-# --- Software catalog ----------------------------------------------------------
-#
-# A curated, hand-written catalog browsed as category -> software -> action. Pure
-# bash and bounded (NOT a data-driven engine): each software <key> is described by a
-# few functions following a naming convention, and the menus dispatch to them by name:
-#
-#   sw_<key>_status      return 0 iff installed/deployed (the idempotency probe)
-#   sw_<key>_install     install it
-#   sw_<key>_remove      uninstall it
-#   sw_<key>_configure   OPTIONAL — its presence makes "Configure" appear in the menu
-#
-# To add software: write these functions and add the key to a CAT_ITEMS category.
-# Arbitrary/long-tail software (and deep configuration) stays with the LLM skills.
+# --- Kit deployment (the script collection -> a git-tracked $KIT_HOME) ----------
+# The collection (lib/ scripts/ swkit) is deployed to ~/.local/share/ubuntu-setup, which
+# is a git repo. The shipped tree lives on a `vendor` branch; the user/LLM work on `main`.
+# Updates refresh `vendor` and `git merge` it into `main`, so LLM-authored scripts are
+# preserved and shipped changes that conflict with local edits are surfaced (not clobbered).
 
-# Categories in display order; each maps to a space-separated list of software keys.
-CATALOG=(essentials common ai runtime assets)
-declare -A CAT_ITEMS=(
-  [essentials]="git curl zsh"
-  [common]="docker"
-  [ai]="claude codex"
-  [runtime]="node"
-  [assets]="skills"
-)
+kit_home() { printf '%s/.local/share/ubuntu-setup\n' "$(resolve_target_home)"; }
 
-# git --------------------------------------------------------------------------
-sw_git_status()  { command -v git >/dev/null 2>&1; }
-sw_git_install() {
-  step "Install git"
-  if sw_git_status; then info "git already installed: $(git --version 2>/dev/null) — skipping."; return 0; fi
-  apt_install git
-}
-sw_git_remove() {
-  step "Remove git"
-  if ! sw_git_status; then info "git is not installed — nothing to remove."; return 0; fi
-  apt_remove git
-}
-
-# curl -------------------------------------------------------------------------
-sw_curl_status()  { command -v curl >/dev/null 2>&1; }
-sw_curl_install() {
-  step "Install curl"
-  if sw_curl_status; then info "curl already installed — skipping."; return 0; fi
-  apt_install curl
-}
-sw_curl_remove() {
-  step "Remove curl"
-  if ! sw_curl_status; then info "curl is not installed — nothing to remove."; return 0; fi
-  apt_remove curl
-}
-
-# zsh --------------------------------------------------------------------------
-sw_zsh_status()  { command -v zsh >/dev/null 2>&1; }
-sw_zsh_install() {
-  step "Install zsh"
-  if sw_zsh_status; then info "zsh already installed: $(zsh --version 2>/dev/null) — skipping."; return 0; fi
-  apt_install zsh
-}
-sw_zsh_remove() {
-  step "Remove zsh"
-  if ! sw_zsh_status; then info "zsh is not installed — nothing to remove."; return 0; fi
-  apt_remove zsh
-}
-# Minimal, safe configuration only: make zsh the user's default login shell, via
-# per-command sudo (so it never depends on the user's password). Deep customization
-# (Starship/plugins/.zshrc) is the zsh-setup skill's job, NOT the TUI's.
-sw_zsh_configure() {
-  step "Configure zsh (default login shell)"
-  if ! sw_zsh_status; then info "zsh is not installed — install it first."; return 0; fi
-  local user shell_path current
-  user="$(resolve_target_user)"
-  shell_path="$(command -v zsh)"
-  current="$(getent passwd "$user" | cut -d: -f7)"
-  if [[ "$current" == "$shell_path" ]]; then
-    info "zsh is already $user's login shell — skipping."
+# Directory bootstrap runs scripts from: the deployed kit when present, else the repo.
+kit_scripts_dir() {
+  if [[ -d "$KIT_HOME_DIR/scripts" ]]; then
+    printf '%s/scripts\n' "$KIT_HOME_DIR"
   else
-    if [[ $EUID -ne 0 ]] && command -v sudo >/dev/null 2>&1; then
-      sudo chsh -s "$shell_path" "$user"
-    else
-      chsh -s "$shell_path" "$user"
-    fi
-    info "Set $user's login shell to $shell_path — log out and back in for it to take effect."
-  fi
-  info "For a richer zsh setup (Starship/plugins/.zshrc), ask the LLM to use the zsh-setup skill."
-}
-
-# docker -----------------------------------------------------------------------
-# Channel-conservative: Ubuntu's docker.io, not Docker's docker-ce repo. The repo
-# route (and anything fancier) stays with the LLM skill.
-sw_docker_status()  { command -v docker >/dev/null 2>&1; }
-sw_docker_install() {
-  step "Install Docker"
-  if sw_docker_status; then info "docker already installed: $(docker --version 2>/dev/null) — skipping."; return 0; fi
-  apt_install docker.io
-}
-sw_docker_remove() {
-  step "Remove Docker"
-  if ! sw_docker_status; then info "docker is not installed — nothing to remove."; return 0; fi
-  apt_remove docker.io
-}
-# Add the user to the docker group and enable the service (both idempotent).
-sw_docker_configure() {
-  step "Configure Docker (group + service)"
-  if ! sw_docker_status; then info "docker is not installed — install it first."; return 0; fi
-  local user
-  local -a sudo_pfx=()
-  user="$(resolve_target_user)"
-  if [[ $EUID -ne 0 ]] && command -v sudo >/dev/null 2>&1; then sudo_pfx=(sudo); fi
-  if id -nG "$user" 2>/dev/null | tr ' ' '\n' | grep -qx docker; then
-    info "$user is already in the docker group — skipping group add."
-  else
-    "${sudo_pfx[@]}" usermod -aG docker "$user"
-    info "Added $user to the docker group — log out and back in for it to take effect."
-  fi
-  if command -v systemctl >/dev/null 2>&1; then
-    "${sudo_pfx[@]}" systemctl enable --now docker || warn "Could not enable/start the docker service."
-    info "Enabled and started the docker service."
-  else
-    info "systemctl not found — start the docker daemon yourself if needed."
+    printf '%s/scripts\n' "$SCRIPT_DIR"
   fi
 }
 
-# Claude / Codex CLI — reuse the existing installers; uninstall is best-effort -----
-sw_claude_status()  { command -v claude >/dev/null 2>&1; }
-sw_claude_install() {
-  if sw_claude_status; then step "Install Claude Code CLI"; report_version claude; return 0; fi
-  ensure_curl_deps
-  install_claude
+# Read one "key=value" field from a script's `meta` output (first match).
+kit_meta_field() {
+  "$1" meta 2>/dev/null | awk -F= -v k="$2" '$1==k{sub(/^[^=]*=/,"");print;exit}'
 }
-sw_claude_remove() { step "Remove Claude Code CLI"; remove_cli claude "$CLAUDE_NPM_PKG"; }
 
-sw_codex_status()  { command -v codex >/dev/null 2>&1; }
-sw_codex_install() {
-  if sw_codex_status; then step "Install Codex CLI"; report_version codex; return 0; fi
-  ensure_curl_deps
-  install_codex
+# git wrapper for the kit repo, with a fixed identity (so commits never need user config).
+kit_git() {
+  git -C "$KIT_HOME_DIR" -c user.name='ubuntu-setup' -c user.email='ubuntu-setup@localhost' "$@"
 }
-sw_codex_remove() { step "Remove Codex CLI"; remove_cli codex "$CODEX_NPM_PKG"; }
 
-# Best-effort uninstall of a user-space CLI installed via npm -g or the native
-# installer (~/.local/bin). Never uses sudo; warns about possible leftover data.
-remove_cli() {
-  local cli="$1" npm_pkg="$2" bin
-  if ! command -v "$cli" >/dev/null 2>&1; then
-    info "$cli is not installed — nothing to remove."
+# Replace the vendored entries (lib/ scripts/ swkit) with a pristine copy from the repo.
+# rm-then-copy so files removed upstream don't linger; never touches non-vendored files.
+kit_lay_down_vendor() {
+  local e
+  for e in lib scripts; do
+    rm -rf "${KIT_HOME_DIR:?}/$e"
+    cp -R "$SCRIPT_DIR/$e" "$KIT_HOME_DIR/$e"
+  done
+  cp -f "$SCRIPT_DIR/swkit" "$KIT_HOME_DIR/swkit"
+  chmod +x "$KIT_HOME_DIR/swkit" "$KIT_HOME_DIR"/scripts/*.sh 2>/dev/null || true
+}
+
+# Plain (untracked) copy — used when git is unavailable or under a sudo wrapper. Merges
+# the shipped files in, overwriting same-named files but keeping any others.
+deploy_kit_copy() {
+  local e
+  for e in lib scripts; do
+    ensure_user_dir "$KIT_HOME_DIR/$e"
+    cp -R "$SCRIPT_DIR/$e/." "$KIT_HOME_DIR/$e/"
+  done
+  cp -f "$SCRIPT_DIR/swkit" "$KIT_HOME_DIR/swkit"
+  chmod +x "$KIT_HOME_DIR/swkit" "$KIT_HOME_DIR"/scripts/*.sh 2>/dev/null || true
+}
+
+# git-tracked deploy: init on first run (main + vendor), else refresh vendor and merge
+# into main. Each fallible git step is checked explicitly so it works regardless of the
+# surrounding errexit context, returning non-zero to let the caller fall back to a copy.
+deploy_kit_git() {
+  if [[ ! -d "$KIT_HOME_DIR/.git" ]]; then
+    kit_git init -q || return 1
+    kit_git checkout -q -B main || return 1
+    kit_lay_down_vendor
+    kit_git add -A || return 1
+    kit_git commit -q -m "Initial kit (shipped by bootstrap.sh)" || return 1
+    kit_git branch -f vendor || return 1
+    info "Initialized kit repo at $KIT_HOME_DIR (branches: main, vendor)."
     return 0
   fi
-  if command -v npm >/dev/null 2>&1 && npm ls -g --depth 0 "$npm_pkg" >/dev/null 2>&1; then
-    info "Removing $cli via npm: $npm_pkg"
-    npm uninstall -g "$npm_pkg" || warn "npm uninstall -g $npm_pkg failed."
+
+  kit_git checkout -q main 2>/dev/null || true
+  if ! kit_git diff --quiet || ! kit_git diff --cached --quiet; then
+    info "Local changes in $KIT_HOME_DIR — committing a snapshot before updating."
+    kit_git add -A || return 1
+    kit_git commit -q -m "Snapshot of local changes before kit update" || true
   fi
-  bin="$HOME/.local/bin/$cli"
-  if [[ -e "$bin" || -L "$bin" ]]; then
-    info "Removing $bin"
-    rm -f "$bin"
+
+  kit_git checkout -q vendor || return 1
+  kit_lay_down_vendor
+  kit_git add -A || return 1
+  if kit_git diff --cached --quiet; then
+    info "Shipped kit unchanged — nothing to update."
+    kit_git checkout -q main || return 1
+    return 0
   fi
-  if command -v "$cli" >/dev/null 2>&1; then
-    warn "$cli is still on PATH ($(command -v "$cli")) — remove it manually if needed."
+  kit_git commit -q -m "vendor: sync shipped kit" || return 1
+  kit_git checkout -q main || return 1
+
+  if kit_git merge --no-edit vendor >/dev/null 2>&1; then
+    info "Merged shipped kit updates into $KIT_HOME_DIR."
   else
-    info "$cli removed. Some data under ~/.config or ~/.local/share may remain; delete it manually for a full cleanup."
+    local conflicts
+    conflicts="$(kit_git diff --name-only --diff-filter=U 2>/dev/null | tr '\n' ' ')"
+    kit_git merge --abort 2>/dev/null || true
+    warn "Shipped updates conflict with your local changes to: ${conflicts}"
+    warn "Left your version in place. Reconcile with:  git -C $KIT_HOME_DIR merge vendor"
   fi
 }
 
-# Node.js + npm — reuse install_node; remove via apt -----------------------------
-sw_node_status()  { command -v node >/dev/null 2>&1 && command -v npm >/dev/null 2>&1; }
-sw_node_install() { install_node; }
-sw_node_remove() {
-  step "Remove Node.js + npm"
-  if ! sw_node_status; then info "Node.js/npm not installed — nothing to remove."; return 0; fi
-  apt_remove nodejs npm
+deploy_kit() {
+  step "Deploy script collection to $KIT_HOME_DIR"
+  ensure_user_dir "$KIT_HOME_DIR"
+
+  if running_as_sudo_wrapper; then
+    warn "Running under sudo — deploying the kit without git tracking."
+    warn "Run as your normal user for a tracked, LLM-evolvable deployment."
+    deploy_kit_copy
+    maybe_chown_user "$KIT_HOME_DIR"
+    return 0
+  fi
+
+  if ! command -v git >/dev/null 2>&1; then
+    info "git not found; trying to install it for change-tracked deployment..."
+    apt_install git || { warn "Could not install git — deploying without version tracking."; deploy_kit_copy; return 0; }
+  fi
+
+  deploy_kit_git || { warn "git deploy hit a problem — falling back to a plain copy."; deploy_kit_copy; }
 }
 
-# LLM skills — reuse deploy_skills; remove deletes the deployed copies -----------
-sw_skills_status() {
-  local target_home name
-  target_home="$(resolve_target_home)"
-  for name in "${SKILLS[@]}"; do
-    [[ -f "$target_home/.claude/skills/$name/SKILL.md" ]] || return 1
-  done
-  return 0
-}
-sw_skills_install() { ( deploy_skills ); }   # subshell: deploy_skills' exit can't kill run_op
-sw_skills_remove() {
-  step "Remove deployed skills"
-  local target_home name removed=0
-  target_home="$(resolve_target_home)"
-  for name in "${SKILLS[@]}"; do
-    if [[ -d "$target_home/.claude/skills/$name" ]]; then rm -rf "$target_home/.claude/skills/$name"; removed=1; info "Removed $target_home/.claude/skills/$name"; fi
-    if [[ -f "$target_home/.codex/prompts/$name.md" ]]; then rm -f "$target_home/.codex/prompts/$name.md"; removed=1; info "Removed $target_home/.codex/prompts/$name.md"; fi
-  done
-  [[ $removed -eq 0 ]] && info "No deployed skills found — nothing to remove."
-  return 0
+# Symlink swkit onto the user's PATH and make sure ~/.local/bin is on PATH.
+install_swkit_path() {
+  local bindir
+  bindir="$(resolve_target_home)/.local/bin"
+  ensure_user_dir "$bindir"
+  ln -sf "$KIT_HOME_DIR/swkit" "$bindir/swkit"
+  if running_as_sudo_wrapper; then
+    chown -h "$SUDO_USER:$(id -gn "$SUDO_USER")" "$bindir/swkit" 2>/dev/null || true
+  fi
+  ensure_local_bin_on_path
+  info "swkit -> $bindir/swkit (run 'swkit list' to browse the collection)."
 }
 
-# Does software <key> support operation <op> (install|remove|configure)?
-sw_supports_op() { declare -F "sw_${1}_${2}" >/dev/null 2>&1; }
+# --- Skill deployment ----------------------------------------------------------
+# Skills shipped to the user's machine. Add a directory under skills/ and its name here.
+
+SKILLS=(ubuntu-install zsh-setup)
+
+deploy_skills() {
+  step "Deploy skills"
+  local target_home name src claude_dst codex_prompts
+  target_home="$(resolve_target_home)"
+  codex_prompts="$target_home/.codex/prompts"
+
+  for name in "${SKILLS[@]}"; do
+    src="$SCRIPT_DIR/skills/$name"
+    if [[ ! -f "$src/SKILL.md" ]]; then
+      error "Skill source not found: $src/SKILL.md (run from a full clone of the repo)."
+      exit 1
+    fi
+
+    # Claude Code: user-level skill directory (overwrite = idempotent update).
+    claude_dst="$target_home/.claude/skills/$name"
+    ensure_user_dir "$claude_dst"
+    cp -R "$src/." "$claude_dst/"
+    maybe_chown_user "$claude_dst"
+    info "Claude Code skill -> $claude_dst/"
+
+    # Codex: skill body (frontmatter stripped) as a custom prompt, /$name.
+    ensure_user_dir "$codex_prompts"
+    strip_frontmatter "$src/SKILL.md" >"$codex_prompts/$name.md"
+    maybe_chown_user "$codex_prompts/$name.md"
+    info "Codex prompt -> $codex_prompts/$name.md"
+  done
+}
 
 # --- Operation runner (progress bar + log) -------------------------------------
 
@@ -1061,80 +761,65 @@ op_label() {
   esac
 }
 
-# Whether this (software, op) will touch apt / usermod / chsh and so needs sudo warmed
-# before it runs inside the progress-bar pipe (which can't prompt for a password).
-op_needs_sudo() {
-  local sw="$1" op="$2"
-  case "$op" in
-    configure) case "$sw" in zsh|docker) return 0 ;; esac ;;
-    install|remove)
-      case "$sw" in
-        git|curl|zsh|docker|node) return 0 ;;
-        claude|codex)
-          # A native install may need a curl/ca-certificates apt top-up.
-          [[ "$op" == install ]] && ! { command -v curl >/dev/null 2>&1 && pkg_installed ca-certificates; } && return 0
-          ;;
-      esac
-      ;;
-  esac
-  return 1
-}
-
-# Warm the sudo credential cache once, on the real terminal, if this op needs it.
+# Warm the sudo credential cache once, on the real terminal, before an op runs inside the
+# progress-bar pipe (which can't show a password prompt). We can't cheaply know whether a
+# given script will escalate, so warm for any op when sudo isn't already passwordless.
 preauth_for_op() {
-  op_needs_sudo "$1" "$2" || return 0
   command -v sudo >/dev/null 2>&1 || return 0
   sudo -n true 2>/dev/null && return 0
   if have_tty; then
-    info "This step needs sudo; you may be asked for your password once now."
+    info "This step may need sudo; you may be asked for your password once now."
+    # /dev/tty is sudo's own stdin (so it can read the password) — not a privileged file.
+    # shellcheck disable=SC2024
     sudo -v </dev/tty || true
   fi
 }
 
-# Run a single (software, operation): whiptail gauge (text otherwise), all output to a
-# timestamped log, status to <log>.status (the gauge runs in a subshell, so status
-# travels through a file), result shown in a box. A failing op records FAIL and points
-# at the log — it never aborts the menu loop (re-run to retry; ops are idempotent).
+# Run a single (software, operation) by invoking its script: whiptail gauge (text
+# otherwise), all output to a timestamped log, status to <log>.status, result in a box.
+# A failing op records FAIL and points at the log — it never aborts the menu loop.
 run_op() {
-  local sw="$1" op="$2" fn="sw_${1}_${2}"
-  local logdir logfile mark body
+  local sw="$1" op="$2"
+  local script name logdir logfile mark body
+  script="$(kit_scripts_dir)/${sw}.sh"
+  name="$(kit_meta_field "$script" name)"; [[ -n "$name" ]] || name="$sw"
+
   logdir="$(resolve_target_home)/.cache/ubuntu-setup"
   ensure_user_dir "$logdir"
   logfile="$logdir/${op}-${sw}-$(date +%Y%m%d-%H%M%S).log"
   : >"$logfile"
   : >"$logfile.status"
 
-  preauth_for_op "$sw" "$op"
+  preauth_for_op
 
   if has_whiptail; then
     {
       # Ignore SIGPIPE: if the gauge closes early, finish the op and record its status
       # rather than dying on the next write to a broken pipe.
       trap '' PIPE
-      printf 'XXX\n0\n%s %s\nXXX\n' "$(op_label "$op")" "$(sw_label "$sw")"
-      if "$fn" >>"$logfile" 2>&1; then printf 'OK\n' >>"$logfile.status"; else printf 'FAIL\n' >>"$logfile.status"; fi
+      printf 'XXX\n0\n%s %s\nXXX\n' "$(op_label "$op")" "$name"
+      if "$script" "$op" >>"$logfile" 2>&1; then printf 'OK\n' >>"$logfile.status"; else printf 'FAIL\n' >>"$logfile.status"; fi
       printf '100\n'
-    } | whiptail --gauge "$(op_label "$op") $(sw_label "$sw")" 8 70 0 || true
+    } | whiptail --gauge "$(op_label "$op") $name" 8 70 0 || true
   else
-    printf '%s %s ...\n' "$(op_label "$op")" "$(sw_label "$sw")" >/dev/tty
-    if "$fn" >>"$logfile" 2>&1; then printf 'OK\n' >>"$logfile.status"; else printf 'FAIL\n' >>"$logfile.status"; fi
+    printf '%s %s ...\n' "$(op_label "$op")" "$name" >/dev/tty
+    if "$script" "$op" >>"$logfile" 2>&1; then printf 'OK\n' >>"$logfile.status"; else printf 'FAIL\n' >>"$logfile.status"; fi
   fi
 
-  # An install of a CLI drops binaries in ~/.local/bin — keep it on PATH.
-  if [[ "$op" == install && ( "$sw" == claude || "$sw" == codex ) ]]; then
-    ensure_local_bin_on_path >>"$logfile" 2>&1 || true
-  fi
   maybe_chown_user "$logfile" "$logfile.status"
 
   if grep -q '^OK' "$logfile.status" 2>/dev/null; then mark="[$(t ok_label)]"; else mark="[$(t fail_label)]"; fi
-  body="$(printf '%s  %s %s\n\n%s %s' "$mark" "$(op_label "$op")" "$(sw_label "$sw")" "$(t log_at)" "$logfile")"
+  body="$(printf '%s  %s %s\n\n%s %s' "$mark" "$(op_label "$op")" "$name" "$(t log_at)" "$logfile")"
   if [[ "$op" == install && ( "$sw" == claude || "$sw" == codex ) ]]; then
     body+=$'\n\n'"$(t done_note)"
   fi
   ui_msgbox "$(t summary_title)" "$body"
 }
 
-# --- TUI flows -----------------------------------------------------------------
+# --- TUI flows (catalog discovered dynamically from script metadata) -----------
+
+# Known categories, in display order. A script reporting anything else groups under "other".
+KNOWN_CATEGORIES=(essentials common ai runtime)
 
 cat_label() {
   case "$1" in
@@ -1142,45 +827,39 @@ cat_label() {
     common)     t cat_common ;;
     ai)         t cat_ai ;;
     runtime)    t cat_runtime ;;
-    assets)     t cat_assets ;;
+    other)      t cat_other ;;
     *)          printf '%s' "$1" ;;
   esac
 }
 
-sw_label() {
-  case "$1" in
-    claude) t sw_claude ;;
-    codex)  t sw_codex ;;
-    node)   t sw_node ;;
-    skills) t sw_skills ;;
-    git)    t sw_git ;;
-    curl)   t sw_curl ;;
-    zsh)    t sw_zsh ;;
-    docker) t sw_docker ;;
-    *)      printf '%s' "$1" ;;
-  esac
+# Print "<category>\t<path>" for each runnable software script (skips TEMPLATE.sh).
+kit_each_script() {
+  local dir f cat
+  dir="$(kit_scripts_dir)"
+  shopt -s nullglob
+  for f in "$dir"/*.sh; do
+    [[ -x "$f" ]] || continue
+    [[ "$(basename "$f")" == "TEMPLATE.sh" ]] && continue
+    cat="$(kit_meta_field "$f" category)"; [[ -n "$cat" ]] || cat="other"
+    printf '%s\t%s\n' "$cat" "$f"
+  done
+  shopt -u nullglob
 }
 
-# Software label with an [installed] tag when its status probe passes (live, uncached).
-sw_installed_tag() {
-  if "sw_${1}_status" >/dev/null 2>&1; then
-    printf '%s %s' "$(sw_label "$1")" "$(t tag_installed)"
-  else
-    sw_label "$1"
-  fi
-}
-
-# Level 3: a software's action menu — only the operations it actually supports.
+# Level 3: a software's action menu — only the operations its meta advertises.
 tui_software() {
-  local sw="$1" choice
-  local -a args
+  local sw="$1" script name ops choice
+  script="$(kit_scripts_dir)/${sw}.sh"
+  if [[ ! -x "$script" ]]; then ui_msgbox "$(t summary_title)" "No script: $sw"; return 0; fi
+  name="$(kit_meta_field "$script" name)"; [[ -n "$name" ]] || name="$sw"
+  ops="$(kit_meta_field "$script" ops)"
   while true; do
-    args=()
-    sw_supports_op "$sw" install   && args+=(install   "$(t op_install)")
-    sw_supports_op "$sw" remove    && args+=(remove    "$(t op_remove)")
-    sw_supports_op "$sw" configure && args+=(configure "$(t op_configure)")
+    local -a args=()
+    case ",$ops," in *",install,"*)   args+=(install   "$(t op_install)") ;; esac
+    case ",$ops," in *",remove,"*)    args+=(remove    "$(t op_remove)") ;; esac
+    case ",$ops," in *",configure,"*) args+=(configure "$(t op_configure)") ;; esac
     args+=(back "$(t s_back)")
-    choice="$(ui_menu "$(sw_label "$sw")" "$(t software_prompt)" "${args[@]}")" || return 0
+    choice="$(ui_menu "$name" "$(t software_prompt)" "${args[@]}")" || return 0
     case "$choice" in
       install|remove|configure) run_op "$sw" "$choice" ;;
       back|"") return 0 ;;
@@ -1188,16 +867,18 @@ tui_software() {
   done
 }
 
-# Level 2: software within a category (each tagged [installed] when present).
+# Level 2: software within a category (each tagged [installed] when its status passes).
 tui_category() {
-  local cat="$1" choice sw
-  local -a items args
-  read -ra items <<<"${CAT_ITEMS[$cat]}"
+  local cat="$1" choice c f key name
   while true; do
-    args=()
-    for sw in "${items[@]}"; do
-      args+=("$sw" "$(sw_installed_tag "$sw")")
-    done
+    local -a args=()
+    while IFS=$'\t' read -r c f; do
+      [[ "$c" == "$cat" ]] || continue
+      key="$(basename "$f" .sh)"
+      name="$(kit_meta_field "$f" name)"; [[ -n "$name" ]] || name="$key"
+      if "$f" status >/dev/null 2>&1; then name="$name $(t tag_installed)"; fi
+      args+=("$key" "$name")
+    done < <(kit_each_script)
     args+=(back "$(t s_back)")
     choice="$(ui_menu "$(cat_label "$cat")" "$(t category_prompt)" "${args[@]}")" || return 0
     case "$choice" in
@@ -1207,15 +888,30 @@ tui_category() {
   done
 }
 
-# Level 1: the category menu (entry point from the main menu).
+# Level 1: the category menu — categories that actually have at least one script.
 tui_catalog() {
-  local choice c
-  local -a args
+  local choice c f cat
   while true; do
-    args=()
-    for c in "${CATALOG[@]}"; do
-      args+=("$c" "$(cat_label "$c")")
+    # Gather which categories are present.
+    local -A have=()
+    while IFS=$'\t' read -r cat f; do
+      have["$cat"]=1
+    done < <(kit_each_script)
+
+    if [[ ${#have[@]} -eq 0 ]]; then
+      ui_msgbox "$(t m_install)" "$(t no_scripts)"
+      return 0
+    fi
+
+    # Ordered: known categories first, then any others seen.
+    local -a cats=()
+    for c in "${KNOWN_CATEGORIES[@]}"; do [[ -n "${have[$c]:-}" ]] && cats+=("$c"); done
+    for c in "${!have[@]}"; do
+      case " ${KNOWN_CATEGORIES[*]} " in *" $c "*) ;; *) cats+=("$c") ;; esac
     done
+
+    local -a args=()
+    for c in "${cats[@]}"; do args+=("$c" "$(cat_label "$c")"); done
     args+=(back "$(t s_back)")
     choice="$(ui_menu "$(t m_install)" "$(t catalog_prompt)" "${args[@]}")" || return 0
     case "$choice" in
@@ -1288,58 +984,41 @@ All done. Next steps:
 
   1. Sign in to Claude Code:  run 'claude' and follow the login flow.
   2. Sign in to Codex:        run 'codex' and follow the login flow.
-  3. Manage the machine through the LLM, from any directory, e.g.:
+  3. Manage the machine through the LLM, or directly with swkit, e.g.:
+       swkit list                       # browse the script collection
+       swkit docker install             # run a script yourself
        claude:  "Use the ubuntu-install skill to install docker"
        codex:   type '/ubuntu-install' and then ask it to install docker
-       claude:  "Use the zsh-setup skill to install and configure zsh"
-       codex:   type '/zsh-setup' and ask it to set zsh up safely
 
-Re-running ./bootstrap.sh at any time is safe — installed components are skipped.
+Re-running ./bootstrap.sh at any time is safe — installed components are skipped, and
+the script collection is updated without losing scripts the LLM has authored.
 EOF
 }
 
 # --- Headless flow -------------------------------------------------------------
 
 run_headless() {
-  # Passwordless-sudo toggle up front: you have a terminal now, so if you turn it on,
-  # that single password entry also warms the credential cache for the apt steps below.
+  # Passwordless-sudo toggle up front: you have a terminal now, so enabling it also warms
+  # the credential cache for the apt steps (kit deps, CLI installs) that follow.
   configure_passwordless_sudo
 
-  local want_claude=1 want_codex=1 need_install=0
+  deploy_kit
+  install_swkit_path
+
+  local dir; dir="$(kit_scripts_dir)"
+  local want_claude=1 want_codex=1
   case "$ONLY" in
     claude) want_codex=0 ;;
     codex)  want_claude=0 ;;
   esac
 
-  if [[ $want_claude -eq 1 ]] && ! command -v claude >/dev/null 2>&1; then
-    need_install=1
-  fi
-  if [[ $want_codex -eq 1 ]] && ! command -v codex >/dev/null 2>&1; then
-    need_install=1
-  fi
+  local -a method_args=()
+  [[ "$METHOD" == "npm" ]] && method_args=(--method npm)
 
-  step "Check dependencies"
-  if [[ $need_install -eq 1 ]]; then
-    if [[ "$METHOD" == "npm" ]]; then
-      ensure_npm_deps
-    else
-      ensure_curl_deps
-    fi
-  else
-    info "Requested CLIs are already installed; no dependencies needed."
-  fi
-
-  if [[ $want_claude -eq 1 ]]; then
-    install_claude
-  fi
-  if [[ $want_codex -eq 1 ]]; then
-    install_codex
-  fi
-  if [[ $WITH_NODE -eq 1 ]]; then
-    install_node
-  fi
-
-  ensure_local_bin_on_path
+  step "Install requested CLIs"
+  if [[ $want_claude -eq 1 ]]; then "$dir/claude.sh" install "${method_args[@]}"; fi
+  if [[ $want_codex  -eq 1 ]]; then "$dir/codex.sh"  install "${method_args[@]}"; fi
+  if [[ $WITH_NODE   -eq 1 ]]; then "$dir/node.sh"   install; fi
 
   if [[ $SKIP_SKILLS -eq 1 ]]; then
     info "Skipping skill deployment (--skip-skills)."
@@ -1348,15 +1027,9 @@ run_headless() {
   fi
 
   step "Verify installation"
-  if [[ $want_claude -eq 1 ]]; then
-    verify_cli claude
-  fi
-  if [[ $want_codex -eq 1 ]]; then
-    verify_cli codex
-  fi
-  if [[ $WITH_NODE -eq 1 ]]; then
-    verify_cli node
-  fi
+  [[ $want_claude -eq 1 ]] && verify_cli claude
+  [[ $want_codex  -eq 1 ]] && verify_cli codex
+  [[ $WITH_NODE   -eq 1 ]] && verify_cli node
 
   print_next_steps
 }
@@ -1370,13 +1043,17 @@ main() {
     warn "You ran this script under sudo as a whole. That is not recommended:"
     warn "the CLIs will be installed into root's home, not yours. Prefer running"
     warn "as your normal user — sudo is applied per command only where required."
-    warn "Skills will still be deployed to the real user's home: $(resolve_target_home)"
+    warn "The kit and skills will still be deployed to the real user's home: $(resolve_target_home)"
   fi
 
   load_config
+  KIT_HOME_DIR="$(kit_home)"
 
   # TUI when there is a terminal and either nothing forces headless, or --tui overrides.
   if have_tty && { [[ $HEADLESS -eq 0 ]] || [[ $FORCE_TUI -eq 1 ]]; }; then
+    deploy_kit
+    install_swkit_path
+    deploy_skills
     run_tui
   else
     run_headless
