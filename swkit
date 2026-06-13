@@ -1,0 +1,191 @@
+#!/usr/bin/env bash
+#
+# swkit — front launcher for the ubuntu-setup script collection.
+#
+# This is the human/LLM entry point. It finds the per-software scripts in
+# $KIT_SCRIPTS_DIR and either runs one (`swkit <software> <op> [args...]`) or
+# introspects the collection (`swkit list` / `swkit search <term>`). It is NOT a
+# software script: it does not use kit_dispatch and defines no meta/status/etc.
+#
+#   swkit docker install      # run scripts/docker.sh install
+#   swkit zsh configure ...   # forward extra args straight through
+#   swkit list                # group every script by category, mark [installed]
+#   swkit search nginx        # case-insensitive match over key/name/desc
+#   swkit help                # this help
+
+set -Eeuo pipefail
+
+# Resolve our real location even when invoked through a PATH symlink (deployed as
+# ~/.local/bin/swkit -> $KIT_HOME/swkit), so the library next to us is found.
+_self="$(readlink -f "${BASH_SOURCE[0]}")"
+_kit_here="$(cd "$(dirname "$_self")" && pwd)"
+# shellcheck source=lib/common.sh
+source "$_kit_here/lib/common.sh"
+# KIT_SCRIPTS_DIR is now available from the library.
+
+# Known categories, in display order. Anything a script reports outside this set is
+# grouped under "other".
+_KIT_CATEGORY_ORDER=(essentials common ai runtime)
+
+# Read one field from a script's `meta` output. Usage: meta_field "$meta" key
+# Prints the value of the FIRST matching "key=value" line, or nothing.
+meta_field() {
+  local blob="$1" field="$2" line
+  while IFS= read -r line; do
+    if [[ "$line" == "$field="* ]]; then
+      printf '%s' "${line#*=}"
+      return 0
+    fi
+  done <<<"$blob"
+  return 0
+}
+
+usage() {
+  cat <<EOF
+swkit — run and discover the ubuntu-setup software scripts.
+
+Usage:
+  swkit <software> <operation> [args...]   Run scripts/<software>.sh <operation>
+  swkit list                               List every script, grouped by category
+  swkit search <term>                      Find scripts matching <term>
+  swkit help                               Show this help
+
+Examples:
+  swkit docker install        # install Docker
+  swkit docker status         # is it installed? (exit 0 iff yes)
+  swkit zsh configure --default-shell
+  swkit list
+  swkit search nginx
+
+<software> maps to a script at scripts/<software>.sh inside the kit. Each script
+supports: install, remove, status, meta, help (and sometimes configure).
+Operations and their exit codes pass straight through from the script.
+
+No script for what you need? An LLM (or you) can author one by copying
+scripts/TEMPLATE.sh to scripts/<software>.sh and filling in the four functions.
+EOF
+}
+
+# swkit list — group scripts by category, one aligned line each, [installed] tag.
+cmd_list() {
+  local f blob key name category installed
+  # Collect "category<TAB>key<TAB>name<TAB>installed<TAB>desc" rows; skip bad meta.
+  local -a rows=()
+  shopt -s nullglob
+  for f in "$KIT_SCRIPTS_DIR"/*.sh; do
+    [[ "$(basename "$f")" == "TEMPLATE.sh" ]] && continue
+    [[ -x "$f" ]] || continue
+    if ! blob="$("$f" meta 2>/dev/null)"; then
+      log_warn "Skipping $(basename "$f"): its 'meta' failed."
+      continue
+    fi
+    key="$(meta_field "$blob" key)"
+    name="$(meta_field "$blob" name)"
+    category="$(meta_field "$blob" category)"
+    local desc; desc="$(meta_field "$blob" desc)"
+    if [[ -z "$key" ]]; then
+      log_warn "Skipping $(basename "$f"): meta has no 'key'."
+      continue
+    fi
+    [[ -n "$category" ]] || category="other"
+    if "$f" status >/dev/null 2>&1; then installed="yes"; else installed="no"; fi
+    rows+=("$category"$'\t'"$key"$'\t'"$name"$'\t'"$installed"$'\t'"$desc")
+  done
+  shopt -u nullglob
+
+  if [[ ${#rows[@]} -eq 0 ]]; then
+    log_warn "No scripts found in $KIT_SCRIPTS_DIR."
+    return 0
+  fi
+
+  # Build the full category order: known categories first, then any others seen.
+  local -a cats=("${_KIT_CATEGORY_ORDER[@]}")
+  local row cat seen extra
+  for row in "${rows[@]}"; do
+    cat="${row%%$'\t'*}"
+    seen=""
+    for extra in "${cats[@]}"; do [[ "$extra" == "$cat" ]] && { seen=1; break; }; done
+    [[ -n "$seen" ]] || cats+=("$cat")
+  done
+
+  local printed=""
+  for cat in "${cats[@]}"; do
+    local -a group=()
+    for row in "${rows[@]}"; do
+      [[ "${row%%$'\t'*}" == "$cat" ]] && group+=("$row")
+    done
+    [[ ${#group[@]} -eq 0 ]] && continue
+    [[ -n "$printed" ]] && printf '\n'
+    printed=1
+    printf '%s:\n' "$cat"
+    for row in "${group[@]}"; do
+      IFS=$'\t' read -r _ key name installed desc <<<"$row"
+      local tag=""
+      [[ "$installed" == "yes" ]] && tag=" [installed]"
+      printf '  %-14s %s%s\n' "$key" "$name" "$tag"
+      [[ -n "$desc" ]] && printf '  %-14s   %s\n' "" "$desc"
+    done
+  done
+}
+
+# swkit search <term> — case-insensitive substring match over key/name/desc.
+cmd_search() {
+  local term="${1:-}"
+  if [[ -z "$term" ]]; then
+    log_err "Usage: swkit search <term>"
+    return 2
+  fi
+  local term_lc; term_lc="$(printf '%s' "$term" | tr '[:upper:]' '[:lower:]')"
+  local f blob key name desc hay found=""
+  shopt -s nullglob
+  for f in "$KIT_SCRIPTS_DIR"/*.sh; do
+    [[ "$(basename "$f")" == "TEMPLATE.sh" ]] && continue
+    [[ -x "$f" ]] || continue
+    blob="$("$f" meta 2>/dev/null)" || { log_warn "Skipping $(basename "$f"): its 'meta' failed."; continue; }
+    key="$(meta_field "$blob" key)"
+    name="$(meta_field "$blob" name)"
+    desc="$(meta_field "$blob" desc)"
+    [[ -n "$key" ]] || continue
+    hay="$(printf '%s\n%s\n%s' "$key" "$name" "$desc" | tr '[:upper:]' '[:lower:]')"
+    if [[ "$hay" == *"$term_lc"* ]]; then
+      printf '%s — %s (%s)\n' "$key" "$name" "$desc"
+      found=1
+    fi
+  done
+  shopt -u nullglob
+  if [[ -z "$found" ]]; then
+    printf 'No scripts match %s.\n' "$term"
+  fi
+}
+
+# swkit <software> <op> [args...] — locate and exec the per-software script, passing
+# its exit code straight through.
+cmd_run() {
+  local software="$1"; shift
+  local script="$KIT_SCRIPTS_DIR/${software}.sh"
+  if [[ ! -f "$script" || ! -x "$script" ]]; then
+    log_err "No script for '$software'."
+    log_err "Run 'swkit list' to see what is available."
+    log_err "An LLM can author one by copying scripts/TEMPLATE.sh to scripts/${software}.sh."
+    return 1
+  fi
+  # No op given: run the script with no args so it prints its own usage.
+  if [[ $# -eq 0 ]]; then
+    exec "$script"
+  fi
+  # First remaining arg is the operation; forward any args after it unchanged.
+  local op="$1"; shift
+  exec "$script" "$op" "$@"
+}
+
+main() {
+  local first="${1:-}"
+  case "$first" in
+    ""|help|-h|--help) usage ;;
+    list)   shift; cmd_list ;;
+    search) shift; cmd_search "$@" ;;
+    *)      cmd_run "$@" ;;
+  esac
+}
+
+main "$@"

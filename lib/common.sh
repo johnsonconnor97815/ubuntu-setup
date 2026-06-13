@@ -146,6 +146,29 @@ append_once() {
   printf '%s\n' "$line" >>"$file"
 }
 
+# Ensure ~/.local/bin is on PATH: export it for this process (so a just-installed CLI
+# is found now) and append a guarded line to the user's shell rc for future shells.
+# The official native installers (Claude Code, Codex) drop binaries there. Runs as the
+# user — never edits another user's dotfiles. No-op if the dir is already on PATH or
+# does not exist yet.
+ensure_local_bin_on_path() {
+  local local_bin="$HOME/.local/bin" rc_file line
+  case ":$PATH:" in
+    *":$local_bin:"*) return 0 ;;
+  esac
+  [[ -d "$local_bin" ]] || return 0
+  export PATH="$local_bin:$PATH"
+  case "${SHELL:-/bin/bash}" in
+    */zsh) rc_file="$HOME/.zshrc" ;;
+    *)     rc_file="$HOME/.bashrc" ;;
+  esac
+  # Literal — must expand at shell-startup time, not now.
+  # shellcheck disable=SC2016
+  line='export PATH="$HOME/.local/bin:$PATH"'
+  append_once "$line" "$rc_file"
+  log_warn "Added ~/.local/bin to PATH in $rc_file — open a new shell or run 'source $rc_file'."
+}
+
 # --- Vendor apt channel (channel priority; NEVER apt-key) ----------------------
 # Helpers for scripts that need a current version from a vendor's official apt repo:
 # put the dearmored key in /etc/apt/keyrings and reference it with signed-by= in a
