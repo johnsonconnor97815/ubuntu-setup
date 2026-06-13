@@ -1,171 +1,218 @@
 ---
 name: zsh-setup
-description: Use when the user wants to install, set up, configure, customize, or switch to the Z shell (zsh) on Ubuntu/Debian — including making zsh the default login shell, adding autosuggestions / syntax-highlighting / completions, choosing a prompt (Starship, Powerlevel10k, Pure) or a framework (Oh My Zsh), or writing a ~/.zshrc. Covers headless servers reached over SSH.
+description: Use when the user wants to install, set up, configure, customize, or switch to the Z shell (zsh) on Ubuntu/Debian — including making zsh the default login shell, adding autosuggestions / syntax-highlighting / completions, choosing a prompt (Starship, Powerlevel10k, Pure) or a framework (Oh My Zsh), or writing a ~/.zshrc. Drives scripts/zsh.sh in the ubuntu-setup kit and extends it when a capability is missing. Covers headless servers reached over SSH.
 ---
 
 # Zsh Setup on Ubuntu
 
-You are setting up the Z shell on a real Ubuntu/Debian machine (20.04+), possibly a headless server reached over SSH. There is no rollback for system changes. This skill builds on the **ubuntu-install** skill: every apt/sudo step here follows its rules — check the live system first (idempotency), escalate per command with `sudo`, run apt non-interactively (`DEBIAN_FRONTEND=noninteractive ... -y --no-install-recommends`), present the exact plan before applying, back up any config before editing, and verify against the live system afterward.
+The mechanics of installing and safely configuring zsh now live in a script —
+**`scripts/zsh.sh`** in the ubuntu-setup kit, runnable as `swkit zsh <op>`. That script,
+not this prose, is the single implementation: it sources `lib/common.sh` (per-command
+sudo, idempotency probes, non-interactive apt, back-up-before-edit) so every safety
+non-negotiable is met by construction. The old arrangement, where the same config logic
+was duplicated in `bootstrap.sh`'s bash *and* spelled out here, is gone.
 
-**The one step that can lock the user out is changing the default login shell.** Treat it with the caution that deserves — read §1 before doing anything else.
+So this skill has two jobs the script can't do for itself:
 
-**Boundary with bootstrap's TUI.** `bootstrap.sh` ("Install software → zsh → Configure", `sw_zsh_configure`) does one **minimal, safe** thing only: make zsh the default login shell (via `sudo chsh`, after checking it isn't already). Everything deeper — plugins, prompt, `~/.zshrc`, frameworks — is **this skill's** job. When you also change the login shell, follow the same `chsh` lockout rules (§1, §8); the TUI's minimal subset and this skill's prose describe the same action in two places, so if one changes, check the other (same drift caveat as ubuntu-install §3's sudo rule).
+1. **The taste conversation** — choosing prompt, framework, and what to put in `~/.zshrc`
+   on a machine whose owner you've never met (§2). The script ships one conservative,
+   safe baseline; everything opinionated is a conversation.
+2. **Evolving `scripts/zsh.sh`** — when the user wants something the script doesn't do yet
+   (a Starship prompt option, Oh My Zsh, an extra plugin), you *extend the script* under
+   the **ubuntu-install** authoring contract, rather than improvising raw commands (§4).
 
-## 1. Lockout safety (read this first)
+Everything `zsh.sh` does is subject to **ubuntu-install §3** for sudo. Your shell has no
+terminal to type a password; the lib's `sudo_run` probes with `sudo -n true` and, if a
+password is needed, prints the exact command and returns exit code 97 instead of hanging.
+If that happens, have the user enable passwordless sudo (re-run `./bootstrap.sh`, turn on
+the toggle) or run the printed `sudo` line themselves — never enter, pipe, or store a
+password, never write a NOPASSWD rule.
 
-Changing a user's login shell on a remote machine is the only action here that can make them unable to log in. So:
+**Read §3 (lockout safety) before changing anyone's login shell.** It is the only action
+here that can lock a user out of a remote box.
 
-- **Install and fully configure zsh first; change the login shell last.** Build a working `~/.zshrc`, then prove zsh starts cleanly with `zsh -i -c exit` (exit status 0, no errors, no hang). Only then touch `chsh`.
-- **Never set a login shell you haven't verified starts cleanly** for that exact user.
-- **Keep the current session open.** After changing the shell, have the user open a *fresh* login (new SSH session) and confirm they land in a working zsh *before* closing the session you already have.
-- `chsh` changes the shell for **new** sessions only; your current shell does not change. To try zsh in the current session without logging out, run `exec zsh`.
+## 1. What the script already does — point the user at it
 
-## 2. Install zsh
+Probe first, then run only what's needed (the script is idempotent — re-running is a safe
+no-op, so when in doubt, run it):
 
-Check the live system (do not reinstall if present): `command -v zsh`, `zsh --version`, and `dpkg-query -W -f '${Status}\n' zsh` (installed only if `install ok installed`). If present, report the version and move on.
+- **`swkit zsh status`** — prints `zsh --version`; exit 0 iff zsh is installed. The
+  idempotency probe.
+- **`swkit zsh install`** — installs zsh via apt (skips if already present).
+- **`swkit zsh configure`** — writes a **safe baseline** and stops there. Specifically it:
+  - apt-installs `zsh-autosuggestions` and `zsh-syntax-highlighting`, then resolves each
+    plugin's source path from the **live package layout** (`dpkg -L … | grep '\.zsh$'`),
+    never hardcoded;
+  - writes `~/.zshrc` **as the user** (never via sudo, so it stays user-owned) with
+    sensible history, options, and completion settings, then the two plugin `source`
+    lines — autosuggestions first, **syntax-highlighting sourced last** (upstream requires
+    it be the final plugin). Writing a full file also stops the `zsh-newuser-install`
+    wizard from hanging a non-interactive session;
+  - is guarded by a marker line (`# managed by ubuntu-setup zsh.sh`): if `~/.zshrc`
+    already has it, the script leaves the file untouched; otherwise it backs up any
+    existing `~/.zshrc` first.
+  - It does **not** change the login shell.
+- **`swkit zsh configure --no-plugins`** — same baseline `~/.zshrc` without the two apt
+  plugins or their source lines.
+- **`swkit zsh configure --default-shell`** — the lockout-safe shell switch (still read
+  §3): it verifies an interactive zsh starts cleanly with `zsh -i -c exit` *before* it
+  touches `chsh`, ensures the zsh path is in `/etc/shells`, then `sudo chsh -s` for the
+  real target user (resolved via `SUDO_USER`, never a blind `$HOME`). If `zsh -i -c exit`
+  fails it refuses and tells the user to fix `~/.zshrc` first.
+- **`swkit zsh remove`** — uninstalls zsh via apt, but **refuses if zsh is the user's login
+  shell** (that would break their login); it tells them to `chsh -s /bin/bash` first.
 
-Install from the Ubuntu repository (the default channel — zsh is packaged on every supported release):
+When the user just wants "set up zsh," that's usually `install` → `configure` → (after the
+taste conversation and the lockout check) `configure --default-shell`.
 
-```bash
-sudo apt-get update
-sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends zsh
-```
+## 2. The taste conversation (this skill's real value)
 
-Resolve the binary path with `command -v zsh` (usually `/usr/bin/zsh`) — never hardcode it. Installing the apt package normally registers the path in `/etc/shells` automatically.
+You're on a stranger's machine — **don't impose taste.** Lay out the choices, recommend
+conservative defaults (especially for a headless server), and let the user decide. The
+script's baseline is deliberately minimal; these are the decisions it can't make:
 
-These `sudo` steps (here and in §8) are subject to **ubuntu-install §3**: your shell has no terminal to type a sudo password, so probe with `sudo -n true` first. It usually passes (bootstrap offers a TUI toggle to enable passwordless sudo); if it does not, do not try to enter a password — have the user re-run `./bootstrap.sh` and turn that toggle on, or run the `sudo` lines themselves.
+- **Default shell or not?** Make zsh the login shell now (`configure --default-shell`,
+  read §3), or keep bash and just launch `zsh` on demand?
+- **Prompt:**
+  - **Built-in (safest default, recommended for headless servers):** zsh's own prompt or a
+    small `PROMPT`. Works everywhere, needs no fonts.
+  - **Starship:** cross-shell, single fast Rust binary; not in apt (official installer
+    writes to `/usr/local/bin`; show the URL `https://starship.rs/install.sh`).
+  - **Powerlevel10k / Pure:** `git clone` + source; p10k has an interactive `p10k
+    configure` wizard.
+  - None of these are in `zsh.sh` yet — adding one means **evolving the script** (§4).
+- **Framework:** **framework-free (recommended)** — apt plugins sourced from a plain
+  `~/.zshrc`, fully auditable and apt-upgradable; this is what `zsh.sh configure` already
+  does — versus **Oh My Zsh** (popular, feature-rich, but heavier and installed via a
+  `curl | bash` script). Oh My Zsh is also not in the script (§4).
+- **Nerd Font caveat (critical over SSH):** Powerline/Nerd-Font glyphs used by Starship and
+  Powerlevel10k render as boxes or `?` unless a Nerd Font is installed and selected in the
+  user's **local** terminal emulator (the client side) — never on the server. On a headless
+  box, prefer the built-in prompt or the prompt's ASCII/no-icon mode, or tell the user to
+  install a Nerd Font locally first.
 
-## 3. Decide the shape before editing anything
+Present the exact plan (which `swkit` commands, what `~/.zshrc` will contain, which steps
+need sudo and whether `sudo -n true` currently passes) and wait for confirmation before
+applying — ubuntu-install §5.
 
-This skill runs on machines whose owner you've never met — do not impose taste. Present a short plan and let the user choose, with conservative recommendations:
+## 3. Lockout safety (still critical to understand)
 
-- **Default shell:** make zsh the default login shell now, or keep bash and just launch `zsh` on demand?
-- **Plugins:** `zsh-autosuggestions` + `zsh-syntax-highlighting` (recommended); extra completions (optional).
-- **Prompt:** zsh's built-in prompt (safest, no fonts) / Starship / Powerlevel10k / Pure.
-- **Framework:** **framework-free (recommended)** — apt plugins sourced from a plain `~/.zshrc`, fully auditable and apt-upgradable — versus **Oh My Zsh** (popular and feature-rich, but heavier and installed via a `curl | bash` script).
+Changing a user's login shell on a remote machine is the one action that can make them
+unable to log in. `zsh.sh configure --default-shell` already does the in-script guards
+(verifies `zsh -i -c exit`, ensures `/etc/shells`, resolves the real user), but **the
+operational discipline is still yours**:
 
-Then show the **exact commands** and the **exact `~/.zshrc`** you intend to write, and wait for confirmation (ubuntu-install §5) before applying.
+- **Install and fully configure first; change the login shell last.** Get a working
+  `~/.zshrc` in place (and a clean `zsh -i -c exit`) before running `--default-shell`.
+- **Keep the current session open.** `chsh` only affects *new* logins — your current shell
+  doesn't change. After the switch, have the user open a *fresh* login (new SSH session)
+  and confirm they land in a working zsh **before** closing the session you already have.
+- To try zsh in the current session without logging out: `exec zsh`.
+- Verify the stored value: `getent passwd "$USER" | cut -d: -f7` should print the zsh path.
 
-## 4. Plugins — apt first, git as fallback
+If anything is wrong on the fresh login, the still-open session is the escape hatch:
+`chsh -s /bin/bash` (or `sudo chsh -s /bin/bash "$USER"`) reverts it.
 
-Follow the ubuntu-install channel priority:
+## 4. Evolving `scripts/zsh.sh` (don't run raw commands instead)
 
-1. **apt (preferred):** `zsh-autosuggestions` and `zsh-syntax-highlighting` are in Ubuntu *universe*. Confirm each exists with `apt-cache show <pkg>`, install it non-interactively, then find its **real source path** with `dpkg -L <pkg> | grep '\.zsh$'` — paths differ between releases, so don't assume. (Typical: `/usr/share/zsh-autosuggestions/zsh-autosuggestions.zsh` and `/usr/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh`.)
-2. **git fallback:** apt versions can lag upstream. If the user needs the latest, `git clone` into a user directory (e.g. `~/.zsh/<plugin>`) and source from there — **as the user, never with sudo** — and tell them they now own upgrades (`git pull`).
+Anything the script doesn't do yet — a `--prompt starship` option, an Oh My Zsh install, an
+extra plugin, `zsh-completions`, richer `~/.zshrc` settings — should be added **to the
+script**, not improvised as one-off commands. Functionality stays in the script so every
+entry point (the TUI, `swkit`, you) shares one tested, idempotent, git-tracked
+implementation. Follow the **ubuntu-install** authoring contract:
 
-`zsh-completions` is optional — zsh's built-in completion system already covers most needs. The apt package may be absent on some releases; check first, and if you use it, add its `src` directory to `fpath` **before** `compinit`.
+1. Edit `scripts/zsh.sh` in the kit at `~/.local/share/ubuntu-setup/` (it's a git repo).
+   Keep the structure: it already sources `lib/common.sh` and ends with `kit_dispatch "$@"`.
+   Add new behaviour as a flag in `do_configure`'s option loop (mirroring `--default-shell`
+   / `--no-plugins`), or as a new helper; if you add a brand-new operation, update `meta`'s
+   `ops` to list exactly what's implemented.
+2. **Use lib helpers for all privilege/package/file work** — `apt_install`, `apt_remove`,
+   `add_apt_keyring`/`add_apt_source` for a vendor apt repo, `backup_file`, `append_once`,
+   `sudo_run`. Never write a raw `sudo`, raw `apt-get`, `apt-key`, or `sudo npm`. Unsafe
+   patterns have no helper on purpose.
+3. **Channel priority:** apt → vendor apt repo → snap → official vendor script (show the
+   URL) → manual binary (last resort). E.g. Starship has no apt package, so it's the
+   official-script tier — `do_configure` should print the URL and use `sudo_run` for the
+   `/usr/local/bin` install, never a blind `curl | sudo bash`.
+4. **Idempotent & safe:** gate on `status`/the live system; `backup_file` before editing any
+   config; grep-before-append (`append_once`); never write `~/.zshrc` via sudo. Plan before
+   apply, fail fast, no rollback — re-run is the recovery (hence idempotency).
+5. **Test, then commit:** `bash -n scripts/zsh.sh`, run the script's own `status` and the new
+   path before/after, then run for real. Changes are git-tracked under the kit; commit with
+   a clear message and consider a PR upstream so other machines get the improvement.
 
-**Load order matters:** source `zsh-autosuggestions` before `zsh-syntax-highlighting`, and source **`zsh-syntax-highlighting` last of all** — it wraps line-editor widgets and upstream requires it be the final plugin sourced.
+If the user only wants a one-off experiment they don't want recorded, say so explicitly —
+but the default is: extend the script.
 
-## 5. Write ~/.zshrc idempotently
+## 5. Boundary with bootstrap's TUI
 
-- **Back up first.** If `~/.zshrc` exists, copy it timestamped before any change: `cp ~/.zshrc ~/.zshrc.bak.$(date +%s)`. That backup is the only undo.
-- **Write it as the user, never via sudo** — `~/.zshrc` must stay user-owned. Writing a complete file yourself also stops zsh's first-run `zsh-newuser-install` wizard from firing (it would **hang a non-interactive/SSH session**).
-- **If you only append** (e.g. a single `source` line), `grep -qxF` for the exact line first and append only if absent, so re-runs don't accumulate duplicates.
+`bootstrap.sh`'s TUI ("Install software → zsh → Configure") runs `zsh.sh configure` with
+no extra args — i.e. the **safe baseline only** (plugins + `~/.zshrc`), **no shell change**.
+There is no longer any zsh logic duplicated in the bootstrap bash: the TUI just invokes the
+same script you do. Deep or opinionated configuration — a non-default prompt, a framework,
+the login-shell switch, anything bespoke in `~/.zshrc` — is this skill's job: the taste
+conversation (§2) plus, where the capability is missing, evolving the script (§4).
 
-A sensible framework-free baseline (adjust plugin paths to what `dpkg -L` reported):
+## 6. Reference — understanding behind the script
 
-```zsh
-# ~/.zshrc — managed by the zsh-setup skill. Back up before editing.
+These are the details to *understand* (and to preserve when you evolve the script); most are
+already handled by `zsh.sh`, noted inline.
 
-# ---- History ----
-HISTFILE="$HOME/.zsh_history"
-HISTSIZE=50000
-SAVEHIST=50000
-setopt SHARE_HISTORY        # share history across running sessions
-setopt HIST_IGNORE_DUPS     # drop consecutive duplicate commands
-setopt HIST_IGNORE_SPACE    # don't record commands that start with a space
-setopt HIST_REDUCE_BLANKS
-setopt EXTENDED_HISTORY      # record timestamp + duration
+- **Plugin load order.** Source `zsh-autosuggestions` *before* `zsh-syntax-highlighting`, and
+  source **`zsh-syntax-highlighting` last of all** — it wraps line-editor widgets and
+  upstream requires it be the final plugin. *(`zsh.sh configure` already emits them in this
+  order.)*
+- **Plugin source paths come from `dpkg -L`,** never hardcoded — they differ between Ubuntu
+  releases (typically `/usr/share/zsh-autosuggestions/zsh-autosuggestions.zsh` and
+  `/usr/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh`, but verify). *(`zsh.sh`
+  resolves them at configure time.)*
+- **`compinit` insecure-directories pitfall.** On first run `compinit` may print
+  *"insecure directories, run compaudit … Ignore … [y] or abort [n]?"* — a prompt that
+  **hangs a non-interactive/SSH session**. It means a directory in `fpath` is group/world-
+  writable. **Fix the cause, don't silence it:** `compaudit | xargs chmod g-w` (and `chown`
+  to root/the user where needed), then re-run. Avoid `compinit -i`/`-u`, which only hide the
+  check. If you add `zsh-completions` (or any `fpath` entry), add its dir to `fpath` *before*
+  `compinit`.
+- **Newuser wizard.** Never let `zsh-newuser-install` fire on a headless box — it hangs.
+  Ensuring `~/.zshrc` exists before the first interactive zsh prevents it. *(`zsh.sh` writes
+  a complete `~/.zshrc`, so this is covered.)*
+- **Migration from bash.** zsh does **not** read `~/.bashrc` or `~/.profile`. Copy any PATH
+  additions, aliases, functions, and `export`s the user relies on into `~/.zshrc` (or
+  `~/.zshenv` for environment non-interactive shells also need). `#!/bin/bash` scripts keep
+  running under bash regardless. *(The baseline `zsh.sh` writes does not migrate these — flag
+  it to the user, or evolve the script if they want it automated.)*
+- **Rollback.** There's no automatic rollback. Login shell back to bash: `chsh -s /bin/bash`
+  (or `sudo chsh -s /bin/bash "$USER"`), verify with `getent`. Config: restore the
+  timestamped `~/.zshrc.bak.<…>` that `backup_file` left. Removing zsh: only after the login
+  shell is back to bash for every affected user — `swkit zsh remove` enforces this and uses
+  apt `remove` (not `purge`), so `~/.zshrc` / `~/.zsh_history` survive for the user to decide
+  about.
 
-# ---- Sensible options ----
-setopt AUTO_CD               # type a dir name to cd into it
-setopt AUTO_PUSHD PUSHD_IGNORE_DUPS
-setopt INTERACTIVE_COMMENTS  # allow # comments at the interactive prompt
-setopt NO_BEEP
-bindkey -e                   # emacs key bindings
+## 7. Verify and report
 
-# ---- Completion ----
-autoload -Uz compinit
-compinit                     # if it warns about insecure directories, see §7
-zstyle ':completion:*' menu select
-zstyle ':completion:*' matcher-list 'm:{a-zA-Z}={A-Za-z}'   # case-insensitive
-zstyle ':completion:*' list-colors "${(s.:.)LS_COLORS}"
-bindkey '^[[Z' reverse-menu-complete                        # Shift-Tab cycles back
+After any change, verify against the live system and tell the user:
 
-# ---- History search bound to Up/Down ----
-autoload -Uz up-line-or-beginning-search down-line-or-beginning-search
-zle -N up-line-or-beginning-search
-zle -N down-line-or-beginning-search
-bindkey '^[[A' up-line-or-beginning-search
-bindkey '^[[B' down-line-or-beginning-search
-
-# ---- Plugins (paths from `dpkg -L`; change if installed via git) ----
-source /usr/share/zsh-autosuggestions/zsh-autosuggestions.zsh
-# zsh-syntax-highlighting MUST be sourced last:
-source /usr/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh
-```
-
-**Migration from bash:** zsh does **not** read `~/.bashrc` or `~/.profile`. Copy any PATH additions, aliases, functions, and `export`s the user relies on into `~/.zshrc` (or `~/.zshenv` for environment that non-interactive shells also need). Scripts with a `#!/bin/bash` shebang keep running under bash regardless.
-
-## 6. Prompt (optional) — watch the font on remote/headless boxes
-
-- **Built-in (safest default):** keep zsh's default prompt or set a small `PROMPT`. Works everywhere, needs no fonts — the right choice on a headless server.
-- **Starship:** cross-shell, single fast Rust binary. **Not in apt** — install via the official script (show the URL first: `https://starship.rs/install.sh`; it writes to `/usr/local/bin`, so it needs sudo) or snap if available. Add `eval "$(starship init zsh)"` to `~/.zshrc`; config lives in `~/.config/starship.toml`.
-- **Powerlevel10k / Pure:** `git clone` + source from `~/.zshrc`. Powerlevel10k has an interactive `p10k configure` wizard.
-- **Font caveat (critical over SSH):** Powerline/Nerd-Font glyphs used by Starship and Powerlevel10k render as boxes or `?` unless a Nerd Font is installed **and selected in the user's local terminal emulator (the client side)** — never on the server. On a headless server, prefer the built-in prompt, choose the prompt's ASCII / no-icon mode, or tell the user to install a Nerd Font locally first.
-
-## 7. compinit security & first-run pitfalls
-
-- On first run, `compinit` may print: `zsh compinit: insecure directories, run compaudit for list. Ignore insecure directories and continue [y] or abort compinit [n]?` — this prompt **hangs a non-interactive session**. It means a directory in `fpath` is group/world-writable or not owned by you or root. **Fix the cause, don't silence it:** `compaudit | xargs chmod g-w` (and `chown` to root/the user where needed), then re-run. Avoid `compinit -i` / `-u` — they only hide the check.
-- Never trigger the newuser wizard on a headless box: ensure a `~/.zshrc` exists before the user's first interactive zsh (writing the file in §5 already handles this).
-
-## 8. Make zsh the default shell — only after it's verified
-
-This is the risky step from §1. In order:
-
-1. Confirm zsh starts cleanly: `zsh -i -c exit` returns 0 with no error or hang. If it errors, fix `~/.zshrc` first — **do not change the shell.**
-2. Ensure the path is an allowed login shell (idempotent — grep before append): `grep -qxF "$(command -v zsh)" /etc/shells || command -v zsh | sudo tee -a /etc/shells`. (apt usually added it already.)
-3. Change the shell, preferring the form that won't hang:
-   - `chsh -s "$(command -v zsh)"` — prompts for the **user's** password (PAM); may fail or hang without a TTY.
-   - If it can't prompt or is refused: `sudo chsh -s "$(command -v zsh)" "$USER"` or `sudo usermod -s "$(command -v zsh)" "$USER"` (escalate per command only).
-4. It takes effect on the **next login**, not in the current shell. Verify the stored value immediately: `getent passwd "$USER" | cut -d: -f7` should print the zsh path. Try it now without logging out via `exec zsh`.
-5. **Keep your current session open** until the user confirms a fresh login lands in a working zsh.
-
-## 9. Verify and report
-
-Tell the user:
-
-- zsh version (`zsh --version`), the configured login shell (`getent passwd "$USER" | cut -d: -f7`), and that an interactive zsh starts clean (`zsh -i -c exit`).
-- The channel each piece came from (apt / git / install script) so future upgrades go the same way; for git and script installs, the user upgrades manually.
-- Follow-ups they must do themselves: log out and back in (or open a new SSH session) for the default-shell change to take effect; install a Nerd Font locally if they chose an icon-heavy prompt.
-
-## Rollback
-
-- **Login shell back to bash:** `chsh -s /bin/bash` (or `sudo chsh -s /bin/bash "$USER"`); verify with `getent`.
-- **Config:** restore the timestamped `~/.zshrc.bak.<...>`.
-- **Remove zsh:** only after the login shell is back to bash for **every** affected user (removing zsh while it is someone's login shell breaks their login). Then `sudo apt-get remove zsh` (`purge` also deletes config); mention leftover dotfiles (`~/.zshrc`, `~/.zsh_history`) so the user can decide about them.
-
-## Quick reference
-
-| Task | Command |
-| --- | --- |
-| Is zsh installed? | `command -v zsh && zsh --version` |
-| Install zsh | `sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends zsh` |
-| Find a plugin's source path | `dpkg -L zsh-autosuggestions \| grep '\.zsh$'` |
-| Test config without logging in | `zsh -i -c exit` |
-| Allow zsh as login shell | `grep -qxF "$(command -v zsh)" /etc/shells \|\| command -v zsh \| sudo tee -a /etc/shells` |
-| Set default shell | `chsh -s "$(command -v zsh)"` (fallback: `sudo chsh -s "$(command -v zsh)" "$USER"`) |
-| Check configured login shell | `getent passwd "$USER" \| cut -d: -f7` |
-| Switch current session now | `exec zsh` |
-| Revert to bash | `chsh -s /bin/bash` |
+- `swkit zsh status` (or `zsh --version`), the configured login shell
+  (`getent passwd "$USER" | cut -d: -f7`), and that an interactive zsh starts clean
+  (`zsh -i -c exit`).
+- Which channel each piece came from (apt / git / install script) so future upgrades go the
+  same way — and that you recorded the *how* in `scripts/zsh.sh` if you evolved it.
+- Follow-ups the user must do themselves: log out and back in (or open a new SSH session) for
+  a default-shell change to take effect; install a Nerd Font locally if they chose an
+  icon-heavy prompt.
 
 ## Common mistakes
 
-- **Changing the login shell before zsh is proven to start cleanly** → lockout on a remote box. Always `zsh -i -c exit` first, and keep a session open.
+- **Improvising raw install commands** instead of running or evolving `scripts/zsh.sh` — the
+  whole point of the kit is one tested, idempotent, reviewable implementation.
+- **Changing the login shell before zsh is proven to start cleanly** → lockout on a remote
+  box. `--default-shell` checks `zsh -i -c exit`, but still keep a session open and confirm a
+  fresh login.
 - Hardcoding plugin source paths instead of reading them from `dpkg -L`.
 - Sourcing `zsh-syntax-highlighting` anywhere but **last**.
-- Letting the `zsh-newuser-install` wizard or the `compinit` insecure-directories prompt run on a non-interactive/SSH session → it hangs. Write `~/.zshrc` up front; fix `compaudit` permissions rather than suppressing.
-- Using `sudo` for user-directory git clones or to write `~/.zshrc` → wrong ownership.
-- Expecting `chsh` to change the **current** shell (it only affects new logins; use `exec zsh` to switch now).
-- Choosing a Nerd-Font prompt for a server while the font is missing in the **local** terminal → glyphs show as boxes.
+- Letting the `zsh-newuser-install` wizard or the `compinit` insecure-dirs prompt run on a
+  non-interactive/SSH session → it hangs. Write `~/.zshrc` up front; fix `compaudit`
+  permissions rather than suppressing.
+- Using `sudo` to write `~/.zshrc` or for user-directory git clones → wrong ownership.
+- Expecting `chsh` to change the **current** shell (it only affects new logins; use
+  `exec zsh` to switch now).
