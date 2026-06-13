@@ -106,6 +106,76 @@ do_remove() {
   log_info "Removed the Codex CLI binary. Note: user data/config (e.g. ~/.codex) is left in place."
 }
 
+# --- Interactive manager (bespoke full-screen screen) --------------------------
+# Mirrors scripts/claude.sh's ui(): a status header (name + installed badge + version)
+# over a short action list. Install offers a native/npm method submenu (do_install
+# accepts --method); uninstall asks to confirm; a post-install notify points the user
+# at signing in. 'ui' is an entry mode dispatched by kit_dispatch — never a meta op.
+ui() {
+  if ! ui_supported; then ui_default_menu; return 0; fi
+  ui_begin || { ui_default_menu; return 0; }
+
+  local sel=0
+  while true; do
+    [[ "${_UI_WINCH:-0}" == 1 ]] && { _UI_WINCH=0; ui_size; }
+
+    # ---- live state ----
+    local installed=0 ver=""
+    if status >/dev/null 2>&1; then
+      installed=1
+      ver="$(codex --version 2>/dev/null | awk '{print $NF}')"
+    fi
+
+    # ---- build display rows (parallel arrays: kind / id / label) ----
+    local -a dkind=() dlabel=()
+    if (( ! installed )); then
+      dkind+=(install); dlabel+=("$(ui_badge missing) $(ui_t install) Codex CLI")
+    else
+      dkind+=(remove);  dlabel+=("${UI_ERR}${UI_CROSS}${UI_OFF} $(ui_t remove) Codex CLI")
+    fi
+    local n=${#dkind[@]}
+    (( sel < 0 )) && sel=0; (( sel >= n )) && sel=$(( n - 1 ))
+
+    # ---- render ----
+    printf '\033[2J' >&"$_UI_FD"
+    if (( installed )); then ui_header "Codex CLI" "v$ver ${UI_OK}${UI_CHECK}${UI_OFF}"
+    else ui_header "Codex CLI" "$(ui_t not_installed)"; fi
+    local i row=3
+    for (( i=0; i<n; i++ )); do
+      ui_row "$row" "$i" "$sel" "${dlabel[$i]}"
+      (( row++ ))
+    done
+    ui_footer "↑↓ move   ↵ select   q quit"
+
+    # ---- input ----
+    ui_read_key
+    case "$UI_KEY" in
+      up|k)   (( sel = (sel - 1 + n) % n )) ;;
+      down|j) (( sel = (sel + 1) % n )) ;;
+      enter|right|l|space)
+        case "${dkind[$sel]}" in
+          install)
+            ui_pick "Codex CLI — $(ui_t install)" "Choose an installation method" "" -- \
+              native "native (official installer, no Node)" \
+              npm    "npm (@openai/codex, needs Node >= ${CODEX_NODE_MIN_MAJOR})"
+            if [[ -n "$UI_PICK" ]]; then
+              ui_run "$(ui_t install) Codex CLI ($UI_PICK)" -- "$0" install --method "$UI_PICK"
+              if [[ "${UI_RUN_RC:-1}" == 0 ]] && status >/dev/null 2>&1; then
+                ui_notify "Codex CLI installed" \
+                  "Open a new shell (or 'source ~/.profile'), then run 'codex' to sign in."
+              fi
+            fi ;;
+          remove)
+            ui_confirm "Uninstall the Codex CLI?" n && \
+              ui_run "$(ui_t remove) Codex CLI" -- "$0" remove ;;
+        esac ;;
+      q|esc) break ;;
+    esac
+  done
+  ui_end
+  return 0
+}
+
 usage() {
   cat <<EOF
 Usage: ${0##*/} <command>
@@ -117,6 +187,7 @@ Commands:
              npm: 'npm install -g @openai/codex' (needs Node >= ${CODEX_NODE_MIN_MAJOR}; never sudo).
   remove     Best-effort uninstall (npm package and/or ~/.local/bin/codex; never sudo)
   status     Print 'codex --version'; exit 0 iff installed
+  ui         Open the interactive manager (needs a terminal)
   meta       Print machine-readable metadata (for the TUI / swkit list)
   help       Show this help
 EOF

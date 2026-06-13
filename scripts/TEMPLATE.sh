@@ -70,6 +70,86 @@ do_remove() {
 #   :
 # }
 
+# --- Interactive management screen (the script's own UI) — OPTIONAL ------------
+# `ui` is an ENTRY MODE (like meta/status/help), routed by kit_dispatch — NOT an op:
+# it MUST NOT appear in meta's ops= line, and there is no do_ui. Running `<key>.sh ui`
+# (or `swkit <key> ui`) on a real terminal opens an interactive manager; with no terminal
+# (the LLM's non-interactive shell) kit_dispatch prints how to drive the script by explicit
+# op and exits 0 — so you NEVER lose the programmatic op interface.
+#
+# If you DEFINE NOTHING here, kit_dispatch synthesizes a menu from your meta ops via
+# ui_default_menu (status badge + an Install/Remove/Configure list that shells out per op).
+# That is enough for most scripts — delete the example below and rely on it.
+#
+# DEFINE ui() only to hand-write a richer screen with the lib/ui.sh primitives:
+#   ui_run TITLE -- cmd...     run a state-changing command with VISIBLE output + a log,
+#                              show OK/FAIL, wait for Enter, then re-enter the screen
+#   ui_pick TITLE SUB FT -- id label …   single-select submenu (sets UI_PICK)
+#   ui_confirm "question?"     yes/no (returns 0/1)
+#   ui_input "prompt" [def]    one-line text entry (sets UI_INPUT)
+#   ui_notify TITLE BODY       modal info box (any key)
+#   ui_badge installed|missing|on|off|check|cross   colored status glyph
+#   ui_header/ui_footer/ui_row + ui_read_key (sets UI_KEY: up/down/enter/space/q/esc/…)
+#     for a fully custom screen (write inside it with  >&"$_UI_FD").
+# See scripts/zsh.sh for the flagship bespoke ui(). The commented sketch below is the
+# minimal shape: a live status header over Install/Remove rows. Uncomment + adapt, or delete.
+#
+# ui() {
+#   # Rich full-screen UI not possible (no /dev/tty or a dumb TERM)? Fall back to the
+#   # auto-generated op menu. Returning 0 keeps `ui` a safe no-op entry mode.
+#   if ! ui_supported; then ui_default_menu; return 0; fi
+#   # Enter the alternate screen; if that fails for any reason, degrade to the op menu.
+#   ui_begin || { ui_default_menu; return 0; }
+#
+#   local sel=0
+#   while true; do
+#     # Reload the SIGWINCH flag + terminal size each pass (resize-safe).
+#     [[ "${_UI_WINCH:-0}" == 1 ]] && { _UI_WINCH=0; ui_size; }
+#
+#     # ---- gather LIVE status every pass (read-only until the user acts) ----
+#     local installed=0 ver=""
+#     if status >/dev/null 2>&1; then installed=1; ver="$(status 2>/dev/null)"; fi
+#
+#     # ---- build parallel arrays of selectable rows (id / label) ----
+#     local -a did=() dlabel=()
+#     if (( ! installed )); then
+#       did+=(install); dlabel+=("$(ui_badge missing) $(ui_t install) example")
+#     else
+#       did+=(remove);  dlabel+=("$(ui_badge installed) $(ui_t remove) example")
+#       # If you defined do_configure, offer it too:
+#       # did+=(configure); dlabel+=("$(ui_t configure) example")
+#     fi
+#     local n=${#did[@]}
+#     (( sel < 0 )) && sel=0; (( sel >= n )) && sel=$(( n - 1 ))
+#
+#     # ---- render: accent header + the rows + a keybind footer ----
+#     printf '\033[2J' >&"$_UI_FD"
+#     if (( installed )); then ui_header "example" "$ver $(ui_badge check)"
+#     else ui_header "example" "$(ui_t not_installed)"; fi
+#     local i row=3
+#     for (( i=0; i<n; i++ )); do ui_row "$row" "$i" "$sel" "${dlabel[$i]}"; (( row++ )); done
+#     ui_footer "$(ui_t nav_list)"
+#
+#     # ---- one keypress, then act ----
+#     ui_read_key
+#     case "$UI_KEY" in
+#       up|k)   (( sel = (sel - 1 + n) % n )) ;;
+#       down|j) (( sel = (sel + 1) % n )) ;;
+#       enter|right|l|space)
+#         # EVERY state change shells back out via ui_run so its output is visible + logged;
+#         # the loop then reloads status. Keep it idempotent.
+#         case "${did[$sel]}" in
+#           install)   ui_run "$(ui_t install) example"   -- "$0" install ;;
+#           remove)    ui_confirm "Uninstall example?" n && ui_run "$(ui_t remove) example" -- "$0" remove ;;
+#           configure) ui_run "$(ui_t configure) example" -- "$0" configure ;;
+#         esac ;;
+#       q|esc) break ;;
+#     esac
+#   done
+#   ui_end   # ALWAYS restore the terminal before returning at a normal exit.
+#   return 0
+# }
+
 usage() {
   cat <<EOF
 Usage: ${0##*/} <command>
@@ -78,6 +158,7 @@ Commands:
   install    Install example (idempotent — skips if already present)
   remove     Uninstall example
   status     Print the version if installed; exit code 0 iff installed
+  ui         Open the interactive manager (needs a terminal)
   meta       Print machine-readable metadata (for the TUI / swkit list)
   help       Show this help
 EOF

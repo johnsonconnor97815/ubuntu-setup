@@ -44,6 +44,78 @@ do_remove() {
   apt_remove nodejs npm
 }
 
+# --- Interactive management screen (the script's own UI) -----------------------
+# A small bespoke full-screen panel: a header showing whether Node.js + npm are
+# installed (with versions on the right), and a single action — Install when missing,
+# Uninstall when present (confirmed first). State is read live each pass; the only
+# change shells out via ui_run (so apt/sudo output is visible and logged) and then the
+# screen reloads. Limited terminals fall back to the synthesized op menu. `ui` is an
+# entry mode (kit_dispatch) — never listed in meta ops.
+ui() {
+  if ! ui_supported; then ui_default_menu; return 0; fi
+  ui_begin || { ui_default_menu; return 0; }
+
+  local sel=0
+  while true; do
+    [[ "${_UI_WINCH:-0}" == 1 ]] && { _UI_WINCH=0; ui_size; }
+
+    # ---- live state ----
+    local installed=0 nver="" pver=""
+    if status >/dev/null 2>&1; then
+      installed=1
+      nver="$(node --version 2>/dev/null || true)"
+      pver="$(npm --version 2>/dev/null || true)"
+    fi
+
+    # ---- build display rows (parallel arrays: kind / label) ----
+    local -a dkind=() dlabel=()
+    if (( ! installed )); then
+      dkind+=(install); dlabel+=("$(ui_badge missing) $(ui_t install) Node.js + npm")
+    else
+      dkind+=(status); dlabel+=("$(printf '%-13s %s' 'node' "${UI_INFO}${nver}${UI_OFF}")")
+      dkind+=(status); dlabel+=("$(printf '%-13s %s' 'npm'  "${UI_INFO}${pver}${UI_OFF}")")
+      dkind+=(spacer); dlabel+=("")
+      dkind+=(remove); dlabel+=("${UI_ERR}${UI_CROSS}${UI_OFF} $(ui_t remove) Node.js + npm")
+    fi
+    local n=${#dkind[@]} g
+    (( sel < 0 )) && sel=0; (( sel >= n )) && sel=$(( n - 1 ))
+    case "${dkind[$sel]}" in spacer|status)
+      for (( g=0; g<n; g++ )); do (( sel=(sel+1)%n )); case "${dkind[$sel]}" in spacer|status) ;; *) break ;; esac; done ;;
+    esac
+
+    # ---- render ----
+    printf '\033[2J' >&"$_UI_FD"
+    if (( installed )); then ui_header "Node.js + npm" "$(ui_badge installed) $(ui_t installed)"
+    else ui_header "Node.js + npm" "$(ui_badge missing) $(ui_t not_installed)"; fi
+    local i row=3
+    for (( i=0; i<n; i++ )); do
+      case "${dkind[$i]}" in
+        spacer) : ;;
+        status) ui_move "$row" 2; printf '\033[K%s' "${dlabel[$i]}" >&"$_UI_FD" ;;
+        *)      ui_row "$row" "$i" "$sel" "${dlabel[$i]}" ;;
+      esac
+      (( row++ ))
+    done
+    if (( installed )); then ui_footer "↑↓ move   ↵ uninstall   q quit"
+    else ui_footer "↑↓ move   ↵ install   q quit"; fi
+
+    # ---- input ----
+    ui_read_key
+    case "$UI_KEY" in
+      up|k)   for (( g=0; g<n; g++ )); do (( sel=(sel-1+n)%n )); case "${dkind[$sel]}" in spacer|status) ;; *) break ;; esac; done ;;
+      down|j) for (( g=0; g<n; g++ )); do (( sel=(sel+1)%n ));   case "${dkind[$sel]}" in spacer|status) ;; *) break ;; esac; done ;;
+      enter|right|l|space)
+        case "${dkind[$sel]}" in
+          install) ui_run "$(ui_t install) Node.js + npm" -- "$0" install ;;
+          remove)  ui_confirm "Uninstall Node.js + npm?" n && ui_run "$(ui_t remove) Node.js + npm" -- "$0" remove ;;
+        esac ;;
+      q|esc) break ;;
+    esac
+  done
+  ui_end
+  return 0
+}
+
 usage() {
   cat <<EOF
 Usage: ${0##*/} <command>
@@ -52,6 +124,7 @@ Commands:
   install    Install Node.js + npm via apt (idempotent)
   remove     Uninstall Node.js + npm (apt remove — keeps your config)
   status     Print 'node <ver> / npm <ver>'; exit 0 iff both installed
+  ui         Open the interactive manager (needs a terminal)
   meta       Print machine-readable metadata
   help       Show this help
 EOF
