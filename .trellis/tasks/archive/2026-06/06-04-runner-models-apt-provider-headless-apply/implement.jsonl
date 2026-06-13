@@ -1,9 +1,0 @@
-{"file": ".trellis/spec/index.md", "reason": "7 条不可妥协项总纲——本切片需在代码层面落地 ①脑/脸分离 ②check() 幂等 ③逐命令 sudo ④plan-before-apply+fail-fast ⑤单一 subprocess 边界 ⑥类型分发只在注册表"}
-{"file": ".trellis/spec/core/directory-structure.md", "reason": "包布局(ubuntu_setup/ core/ catalog/ cli/__main__)与脑/手/脸硬边界、依赖单向 cli→tui→core、运行时状态落 XDG——决定每个文件的落点与命名"}
-{"file": ".trellis/spec/core/error-and-logging.md", "reason": "runner.py 唯一 subprocess 边界的精确契约(argv/shell=False/非交互 env/LC_ALL=C/捕获+timeout/特权变体/记 argv)+ errors.py 异常分类 + 审计日志规则"}
-{"file": ".trellis/spec/core/catalog-and-providers.md", "reason": "Provider 协议与 State 枚举、ctx 成员、apt 的 check(dpkg-query ${Status})/install(apt-get -y --no-install-recommends)精确 idiom、声明式 entry 字段、注册表分发"}
-{"file": ".trellis/spec/core/idempotency-and-execution.md", "reason": "planner(本切片仅顺序映射)、executor(check→skip/apply、fail-fast、check_mode 守卫)、manifest JSON 格式(version/desired/history)、exit codes 0-4"}
-{"file": ".trellis/spec/core/privilege-and-safety.md", "reason": "real_user()/real_home()(从 SUDO_USER/passwd,绝不 ~/$HOME)、sudo -v 前置、绝不整体 root、apt 经 runner 特权变体逐命令提权"}
-{"file": ".trellis/spec/catalog/authoring-guidelines.md", "reason": "catalog 字段表与 schema 契约(通用字段 + apt 必填 package),用于写 schema.json 与示例 apt 条目"}
-{"file": ".trellis/spec/guides/idempotency-thinking-guide.md", "reason": "check() 的正确写法与陷阱(区分『未装』与『check 命令出错』、不信状态账本),直接关系 apt.check 与 executor 跳过逻辑"}
-{"file": ".trellis/spec/guides/safety-thinking-guide.md", "reason": "sudo/用户路径/备份等安全思维,约束 privilege 与 runner 特权变体的实现"}

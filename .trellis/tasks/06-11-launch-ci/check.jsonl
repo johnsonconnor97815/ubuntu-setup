@@ -1,3 +1,0 @@
-{"file": ".trellis/tasks/06-11-launch-ci/prd.md", "reason": "复查：AC 逐条——YAML/actionlint、action pin 核实、命令口径一致、五档 matrix、snap LXD 步骤吻合"}
-{"file": ".trellis/spec/core/idempotency-and-execution.md", "reason": "复查：CI 命令与集成档约定一致（gate、不带 mirror 旋钮、artifacts）"}
-{"file": ".trellis/tasks/06-10-verify-infra/research/isolation-tech.md", "reason": "复查：LXD/KVM 用法与调研结论无偏离"}

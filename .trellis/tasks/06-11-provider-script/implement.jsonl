@@ -1,7 +1,0 @@
-{"file": ".trellis/spec/core/catalog-and-providers.md", "reason": "script 类型既有设计（check/install 字段、rustup 示例、无 curl|bash 反模式的边界）、provider 协议与注册表"}
-{"file": ".trellis/spec/catalog/authoring-guidelines.md", "reason": "script 最高风险类型的作者规范：check 禁恒真、人工审核要求、溯源注释"}
-{"file": ".trellis/spec/core/privilege-and-safety.md", "reason": "用户级 vs root 级执行的提权规则：逐命令 sudo、SUDO_USER 路径解析、sudo 下无 ~"}
-{"file": ".trellis/spec/core/idempotency-and-execution.md", "reason": "check 三态、集成档验证协议、事件与 manifest 语义"}
-{"file": ".trellis/spec/core/error-and-logging.md", "reason": "runner 单一边界与命令执行形态（argv/shell 取舍的既有约定）"}
-{"file": ".trellis/tasks/06-10-intersection-research/research/final-list.json", "reason": "14 条 script 的官方命令与文档 URL（rust/uv/bun/deno/pnpm/starship/zoxide/lazygit/ollama/gradle/rclone/jupyterlab/typescript/zed）"}
-{"file": ".trellis/tasks/06-10-catalog-launch-essentials/prd.md", "reason": "追加决策：yarn=corepack script 条目、信官方立场——第 15 条的裁决依据"}

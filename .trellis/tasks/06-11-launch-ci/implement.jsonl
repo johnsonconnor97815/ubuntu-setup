@@ -1,4 +1,0 @@
-{"file": ".trellis/tasks/06-10-verify-infra/research/isolation-tech.md", "reason": "GHA 现状调研：KVM 放开时点、canonical/setup-lxd 路径、各档承载设计——CI 搬运的事实基础"}
-{"file": ".trellis/spec/core/idempotency-and-execution.md", "reason": "集成档运行方式与环境旋钮（INTEGRATION gate、VERIFY_BASE_IMAGE 仅本机、artifacts 约定）——workflow 命令必须与之一致"}
-{"file": ".trellis/spec/core/directory-structure.md", "reason": "测试布局与入口惯例——CI 命令口径（unittest discover、ruff 范围）"}
-{"file": ".trellis/tasks/06-11-provider-snap/prd.md", "reason": "snap LXD 档解锁命令与套件运行方式——CI snap job 的步骤依据"}

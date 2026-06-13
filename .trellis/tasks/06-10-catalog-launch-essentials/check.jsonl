@@ -1,4 +1,0 @@
-{"file": ".trellis/spec/catalog/authoring-guidelines.md", "reason": "复查：每条条目声明式合 schema、script 条目 check 非 true、source 标记与溯源注释齐全、无 curl|bash 反模式"}
-{"file": ".trellis/spec/core/catalog-and-providers.md", "reason": "复查：类型分发只在注册表（⑥）、catalog 是数据（⑦）、repo→package 依赖链方向正确"}
-{"file": ".trellis/spec/core/idempotency-and-execution.md", "reason": "复查：全量条目在干净 24.04 真装通过 check 幂等/install 成功/重跑不重装"}
-{"file": ".trellis/tasks/06-10-catalog-launch-essentials/research/authoritative-sources.md", "reason": "复查：入选清单逐条可溯源、计票符合方案 A、三条兜底规则都执行过"}

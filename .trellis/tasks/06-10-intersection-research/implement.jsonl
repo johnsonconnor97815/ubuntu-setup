@@ -1,3 +1,0 @@
-{"file": ".trellis/tasks/06-10-catalog-launch-essentials/research/authoritative-sources.md", "reason": "方案 A 全部参数、各源 URL/API、采信级别、兜底规则三条、各源局限（依赖效应/同温层/塌陷风险）"}
-{"file": ".trellis/spec/catalog/authoring-guidelines.md", "reason": "定稿清单需要的标注字段依据：source 信任标记、tags、script 约束影响 provider 类型判定"}
-{"file": ".trellis/spec/core/catalog-and-providers.md", "reason": "8 种条目类型定义——逐条判定「所需 provider 类型」的依据；repo 条目独立成条经 depends_on 链接"}

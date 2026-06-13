@@ -1,21 +1,15 @@
-<!-- TRELLIS:START -->
-# Trellis Instructions
+# AGENTS.md
 
-These instructions are for AI assistants working in this project.
+面向在本仓库工作的 AI 助手（Claude Code / Codex / 其他）的简短指引。
 
-This project is managed by Trellis. The working knowledge you need lives under `.trellis/`:
+本仓库只交付两样东西：
 
-- `.trellis/workflow.md` — development phases, when to create tasks, skill routing
-- `.trellis/spec/` — package- and layer-scoped coding guidelines (read before writing code in a given layer)
-- `.trellis/workspace/` — per-developer journals and session traces
-- `.trellis/tasks/` — active and archived tasks (PRDs, research, jsonl context)
+- `bootstrap.sh` —— 唯一入口的 bash 脚本，在全新 Ubuntu 上装好 Claude Code CLI 与 Codex CLI。
+- `skills/ubuntu-install/SKILL.md` —— 部署到用户机器的安装守则（LLM 据此装/卸/升/查软件）。
 
-If a Trellis command is available on your platform (e.g. `/trellis:finish-work`, `/trellis:continue`), prefer it over manual steps. Not every platform exposes every command.
+没有编译工具链，没有 Python 包。
 
-If you're using Codex or another agent-capable tool, additional project-scoped helpers may live in:
-- `.agents/skills/` — reusable Trellis skills
-- `.codex/agents/` — optional custom subagents
+开工前先读 `CLAUDE.md`：项目目标、不可妥协项，以及校验命令——
+`bash -n bootstrap.sh`（语法，必过）、`shellcheck bootstrap.sh`（如已安装）、`./bootstrap.sh --help`（用法）。
 
-Managed by Trellis. Edits outside this block are preserved; edits inside may be overwritten by a future `trellis update`.
-
-<!-- TRELLIS:END -->
+`bootstrap.sh` 用代码强制、`skills/ubuntu-install/SKILL.md` 用散文教给 LLM，两者承载同一套不可妥协项，会各自漂移。改其中任一处，必查另一处是否需要同步。

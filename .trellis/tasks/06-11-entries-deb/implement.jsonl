@@ -1,5 +1,0 @@
-{"file": ".trellis/tasks/06-10-intersection-research/research/final-list.json", "reason": "19 条 deb 的官方步骤事实来源（official_cmd/official_doc_url/requires/gui）；provider_type 对照防与 apt 批次重复"}
-{"file": ".trellis/spec/catalog/authoring-guidelines.md", "reason": "deb 字段表与 repo/包条目写法、多包取舍规则、溯源注释与 source 标记规范"}
-{"file": ".trellis/spec/core/catalog-and-providers.md", "reason": "deb provider 字段契约（repo/direct 双模式、pin、{codename} 占位、lists 探针语义）——条目字段取值依据"}
-{"file": ".trellis/spec/core/idempotency-and-execution.md", "reason": "集成档验证协议、apt cache 守卫语义、check 三态"}
-{"file": ".trellis/tasks/06-11-provider-deb/prd.md", "reason": "试点惯例与 steam i386/obsidian 版本号两个特例的既定结论"}

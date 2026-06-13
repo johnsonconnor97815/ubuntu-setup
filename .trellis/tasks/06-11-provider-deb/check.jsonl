@@ -1,3 +1,0 @@
-{"file": ".trellis/tasks/06-11-provider-deb/prd.md", "reason": "复查：AC 逐条——幂等三态、freshness 守卫单测、两条试点真跑绿、依赖链顺序、schema 同步"}
-{"file": ".trellis/spec/core/catalog-and-providers.md", "reason": "复查：字段契约回写与实现一致、类型分发仍只在注册表、21 条表达力核对"}
-{"file": ".trellis/spec/core/privilege-and-safety.md", "reason": "复查：所有写系统路径与 update 均逐命令 sudo、无整体提权、sudo 下无 ~ 展开"}

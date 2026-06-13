@@ -1,5 +1,0 @@
-{"file": ".trellis/tasks/06-10-verify-infra/research/isolation-tech.md", "reason": "选型矩阵与推荐方案：Docker 95 条档 / LXD 15 条档、GuestDriver 抽象、wheel 注入、GHA 现状、本机实测（docker 在、incus 未装）"}
-{"file": ".trellis/tasks/06-10-intersection-research/research/conclusion.md", "reason": "95/15 分流依据与 VM 原因分布（systemd 8 / snap 6 / flatpak 1）——档位设计的事实来源"}
-{"file": ".trellis/spec/core/idempotency-and-execution.md", "reason": "验证协议要断言的语义：check 幂等、plan/apply、退出码表、manifest 记账、重跑不重装"}
-{"file": ".trellis/spec/core/directory-structure.md", "reason": "测试布局惯例与模块边界；集成测试层的落位"}
-{"file": ".trellis/spec/core/error-and-logging.md", "reason": "退出码与日志约定——失败诊断收集要对齐"}

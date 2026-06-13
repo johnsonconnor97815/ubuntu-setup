@@ -1,5 +1,0 @@
-{"file": ".trellis/spec/tui/ui-guidelines.md", "reason": "TUI 全部硬规则：脑脸边界、worker/message/reactive 模式、ApplyHandle 取消契约示例、Pilot 测试、反模式清单"}
-{"file": ".trellis/spec/core/directory-structure.md", "reason": "脑/手/脸边界与依赖方向（cli→tui→core 单向）、tui/ 规划布局、入口与打包规则"}
-{"file": ".trellis/spec/core/idempotency-and-execution.md", "reason": "plan 渲染语义（would change vs cannot fully simulate）、exit code 表、manifest 记账语义——confirm/progress 屏的渲染依据"}
-{"file": ".trellis/spec/core/privilege-and-safety.md", "reason": "sudo 硬规则：密码提示绝不突袭 TUI、探测/keep-alive 真实 API——suspend 提示时机的依据"}
-{"file": ".trellis/tasks/06-10-tui-three-screen-loop/research/textual-verification.md", "reason": "实测结论：批量 drain 强制（25× 差距）、suspend 从 worker 的用法约束、Log/max_lines 选型、push_screen_wait 仅 worker 可调"}

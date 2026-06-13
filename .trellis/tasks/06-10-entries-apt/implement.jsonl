@@ -1,5 +1,0 @@
-{"file": ".trellis/tasks/06-10-intersection-research/research/final-list.json", "reason": "63 条 apt 条目的事实来源：ubuntu_apt_package（已核实包名）、official_doc_url、requires、testability、category、votes"}
-{"file": ".trellis/spec/catalog/authoring-guidelines.md", "reason": "条目写法硬规范：字段表（含新 requires）、tags 约定、source 信任标记取值、溯源注释惯例"}
-{"file": ".trellis/spec/core/catalog-and-providers.md", "reason": "apt 条目 fields 能力（单包/多包、version/hold）、loader 校验关卡——python3-venv+pip 形态判定依据"}
-{"file": ".trellis/spec/core/idempotency-and-execution.md", "reason": "验证协议语义与集成档约定（gate、基镜像旋钮、verify_entry 三步）"}
-{"file": ".trellis/tasks/06-10-catalog-launch-essentials/prd.md", "reason": "追加决策一节：bedrock 5 条批准、gcc+make 合并、依赖引证 4 条——本批条目集合的裁决依据"}

@@ -1,6 +1,0 @@
-{"file": ".trellis/spec/core/catalog-and-providers.md", "reason": "schema 字段全集与校验关卡、depends_on 设计（repo 条目经 depends_on 链接 package 条目）、PreconditionError 与静态过滤的边界"}
-{"file": ".trellis/spec/core/idempotency-and-execution.md", "reason": "plan/apply 语义、skip 与 fail-fast 的事件契约——requires 跳过与依赖链跳过必须吻合既有事件模型"}
-{"file": ".trellis/spec/core/directory-structure.md", "reason": "脑/手/脸边界：environment 探测放 core、TUI 只消费过滤结果；新模块落位"}
-{"file": ".trellis/spec/tui/ui-guidelines.md", "reason": "browse 数据流与 worker/message 模式——确认 TUI 侧无需新逻辑、只接 service 过滤结果"}
-{"file": ".trellis/spec/catalog/authoring-guidelines.md", "reason": "条目作者视角的 requires 字段文档将回写于此；现有字段写法惯例"}
-{"file": ".trellis/tasks/06-10-intersection-research/research/conclusion.md", "reason": "requires 的真实用例规模（GUI 30+ 条）、deb21/ppa4 依赖链需求——验收场景来源"}
