@@ -227,13 +227,19 @@ npm_global_writable() {
 emit_meta_line() { printf '%s=%s\n' "$1" "$2"; }
 
 # Route a script's subcommand to its convention functions. A script defines
-#   meta status do_install do_remove [do_configure] usage
+#   meta status do_install do_remove [do_configure] [ui] usage
 # and ends with `kit_dispatch "$@"`. configure is offered only if do_configure exists.
 #
 # Custom actions: any other subcommand <op> routes to the function do_<op> if the script
 # defines it (hyphens in <op> map to underscores, so `default-shell` -> do_default_shell).
 # This lets a script advertise extra actions in its `meta` ops= line and have the bootstrap
 # TUI / swkit drive them, without changing this library per script.
+#
+# `ui` is an ENTRY MODE (like meta/status/help), NOT an op — it never appears in meta ops=.
+# It opens the script's interactive management screen: the script's own ui() when defined,
+# else a menu synthesized from meta ops (ui_default_menu). With no terminal (the LLM's
+# non-interactive shell) it prints how to drive the script by explicit op instead, and
+# exits 0 — the programmatic op interface is unchanged and always available.
 kit_dispatch() {
   local cmd="${1:-help}"
   [[ $# -gt 0 ]] && shift
@@ -250,6 +256,18 @@ kit_dispatch() {
         return 2
       fi
       ;;
+    ui)
+      if kit_have_tty; then
+        if declare -F ui >/dev/null 2>&1; then ui "$@"; else ui_default_menu; fi
+      else
+        local _uikey
+        _uikey="$(meta 2>/dev/null | awk -F= '$1=="key"{sub(/^[^=]*=/,"");print;exit}')"
+        [[ -n "$_uikey" ]] || _uikey="${0##*/}"; _uikey="${_uikey%.sh}"
+        log_info "$(ui_t no_tty)"
+        log_info "$(ui_t use_swkit)"
+        log_info "    swkit ${_uikey} install   ·   swkit ${_uikey} status   ·   swkit ${_uikey} help"
+      fi
+      ;;
     help|-h|--help) usage ;;
     *)
       local fn="do_${cmd//-/_}"
@@ -263,3 +281,10 @@ kit_dispatch() {
       ;;
   esac
 }
+
+# --- UI primitives -------------------------------------------------------------
+# The modern-TUI rendering library, sourced LAST so its kit_have_tty fallback is skipped
+# (ours is already defined) and log_*/probes exist for it. bootstrap, swkit and every
+# script get one consistent renderer, exactly as they share the safety helpers above.
+# shellcheck source=ui.sh
+source "$KIT_LIB_DIR/ui.sh"
