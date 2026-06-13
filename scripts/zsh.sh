@@ -42,7 +42,11 @@ do_remove() {
   local user shell zsh_path
   user="${SUDO_USER:-$(id -un)}"
   zsh_path="$(command -v zsh)"
-  shell="$(getent passwd "$user" | cut -d: -f7)"
+  shell="$(getent passwd "$user" | cut -d: -f7 || true)"
+  if [[ -z "$shell" ]]; then
+    log_err "Could not resolve the login shell for '$user' (not in passwd?) — refusing to remove zsh to be safe."
+    return 1
+  fi
   if [[ "$shell" == "$zsh_path" ]]; then
     log_err "zsh is the login shell for '$user'; removing it would break their login."
     log_err "Switch back to bash first:  chsh -s /bin/bash"
@@ -74,7 +78,11 @@ do_configure() {
   # Resolve the real target user/home — never trust $HOME under sudo.
   local user home zshrc
   user="${SUDO_USER:-$(id -un)}"
-  home="$(getent passwd "$user" | cut -d: -f6)"
+  home="$(getent passwd "$user" | cut -d: -f6 || true)"
+  if [[ -z "$home" ]]; then
+    log_err "Could not resolve the home directory for '$user' (not in passwd?)."
+    return 1
+  fi
   zshrc="$home/.zshrc"
 
   # Plugin source paths, resolved from the live package layout (never hardcoded).
@@ -149,7 +157,7 @@ do_configure() {
     fi
     # Already the login shell? Then nothing to change.
     local current
-    current="$(getent passwd "$user" | cut -d: -f7)"
+    current="$(getent passwd "$user" | cut -d: -f7 || true)"
     if [[ "$current" == "$zsh_path" ]]; then
       log_info "zsh is already the login shell for '$user'."
     else

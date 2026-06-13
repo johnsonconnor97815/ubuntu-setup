@@ -606,9 +606,12 @@ kit_scripts_dir() {
   fi
 }
 
-# Read one "key=value" field from a script's `meta` output (first match).
+# Read one "key=value" field from a script's `meta` output (first match). Tolerant: a
+# script whose `meta` exits non-zero (a broken/stale one — expected, since the LLM
+# authors/evolves scripts) yields an empty field instead of aborting the caller under
+# `set -e`/pipefail. kit_each_script additionally skips such scripts entirely.
 kit_meta_field() {
-  "$1" meta 2>/dev/null | awk -F= -v k="$2" '$1==k{sub(/^[^=]*=/,"");print;exit}'
+  "$1" meta 2>/dev/null | awk -F= -v k="$2" '$1==k{sub(/^[^=]*=/,"");print;exit}' || true
 }
 
 # git wrapper for the kit repo, with a fixed identity (so commits never need user config).
@@ -655,7 +658,16 @@ deploy_kit_git() {
     return 0
   fi
 
-  kit_git checkout -q main 2>/dev/null || true
+  # Recover from an interrupted prior run that left the repo on the vendor branch: force
+  # back to main, discarding any stray vendor-side working-tree changes. vendor is
+  # pristine (only bootstrap writes it), so nothing of the user's/LLM's lives there to
+  # lose — whereas carrying that stray state onto main could poison the scripts that run.
+  local cur
+  cur="$(kit_git rev-parse --abbrev-ref HEAD 2>/dev/null || echo '')"
+  if [[ "$cur" != "main" ]]; then
+    warn "Kit repo was left on '${cur:-?}' (interrupted update?) — restoring main."
+    kit_git checkout -q -f main || return 1
+  fi
   if ! kit_git diff --quiet || ! kit_git diff --cached --quiet; then
     info "Local changes in $KIT_HOME_DIR — committing a snapshot before updating."
     kit_git add -A || return 1
@@ -832,15 +844,22 @@ cat_label() {
   esac
 }
 
-# Print "<category>\t<path>" for each runnable software script (skips TEMPLATE.sh).
+# Print "<category>\t<path>" for each runnable software script (skips TEMPLATE.sh). A
+# script whose `meta` fails is skipped with a warning (mirroring swkit) rather than
+# truncating the whole list — one broken/stale script must never hide the working ones.
 kit_each_script() {
-  local dir f cat
+  local dir f blob cat
   dir="$(kit_scripts_dir)"
   shopt -s nullglob
   for f in "$dir"/*.sh; do
     [[ -x "$f" ]] || continue
     [[ "$(basename "$f")" == "TEMPLATE.sh" ]] && continue
-    cat="$(kit_meta_field "$f" category)"; [[ -n "$cat" ]] || cat="other"
+    if ! blob="$("$f" meta 2>/dev/null)"; then
+      warn "Skipping $(basename "$f"): its 'meta' failed."
+      continue
+    fi
+    cat="$(printf '%s\n' "$blob" | awk -F= '$1=="category"{sub(/^[^=]*=/,"");print;exit}')"
+    [[ -n "$cat" ]] || cat="other"
     printf '%s\t%s\n' "$cat" "$f"
   done
   shopt -u nullglob
