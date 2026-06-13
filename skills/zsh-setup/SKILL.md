@@ -6,10 +6,11 @@ description: Use when the user wants to install, set up, configure, customize, o
 # Zsh Setup on Ubuntu
 
 The mechanics of installing and configuring zsh live in a script — **`scripts/zsh.sh`** in
-the ubuntu-setup kit, a **component manager** runnable as `swkit zsh <action>`. That script,
-not this prose, is the single implementation: it sources `lib/common.sh` (per-command sudo,
-idempotency probes, non-interactive apt, back-up-before-edit) so the safety non-negotiables
-are met by construction.
+the ubuntu-setup kit, a **component manager** runnable as `swkit zsh <action>` (or, for a human at a
+terminal, an interactive full-screen screen via `swkit zsh` / the bootstrap catalog — see §5). That
+script, not this prose, is the single implementation: it sources `lib/common.sh` (per-command sudo,
+idempotency probes, non-interactive apt, back-up-before-edit) so the safety non-negotiables are met
+by construction.
 
 **It manages zsh's components independently and statefully.** The framework (Oh My Zsh), the
 prompt, and each plugin can be **installed / uninstalled / added / removed** on their own. The
@@ -118,7 +119,8 @@ new framework), extend the script under the **ubuntu-install** authoring contrac
    `_zsh_plugin_purge`, an emit case in `_zsh_emit_plugin`, and a slot in `_zsh_plugins_in_slot`
    (fpath / normal / eval / syntax / post-syntax — get the load order right). For a new prompt: a
    `--prompt` value, an installer, an `_zsh_apply` case, and an emit case. New top-level action:
-   add it to `meta` `ops=` and define `do_<action>` (hyphens map to underscores).
+   add it to `meta` `ops=` and define `do_<action>` (hyphens map to underscores); to surface it on
+   the interactive screen, also add a row + a key/Enter handler in `ui()` (it shells out via `ui_run`).
 2. **Use lib helpers** — `apt_install`, `add_apt_keyring`/`add_apt_source`, `backup_file`,
    `append_once`, `sudo_run`. Never raw `sudo`, `apt-get`, `apt-key`, `sudo npm`. Resolve apt plugin
    paths by the **main** entry file (`/<name>.zsh$`), not the first `*.zsh`.
@@ -128,15 +130,24 @@ new framework), extend the script under the **ubuntu-install** authoring contrac
    edits); keep syntax-highlighting last and history-substring-search after it. Test (`bash -n`, then
    `timeout … zsh -i -c 'exit 0'`), commit, consider a PR upstream.
 
-## 5. Boundary with bootstrap's TUI
+## 5. The interactive screen, and the boundary with bootstrap
 
-The TUI lists zsh's `meta` `ops`: **install / configure / install-omz / uninstall-omz /
-default-shell / remove** (the no-argument actions). The TUI's plain **Configure** = the baseline.
-The **argument-taking** actions — `add-plugin <…>`, `remove-plugin <…>`, `prompt <…>` — are not in
-the TUI menu (it can't pass arguments); run them via `swkit zsh …` or have the LLM do it. They are
-still real, dispatchable actions. There is no zsh logic duplicated in the bootstrap bash — every
-entry point invokes this one script. Truly bespoke configuration is the taste conversation (§2) plus,
-where a capability is missing, evolving the script (§4).
+`scripts/zsh.sh` defines its **own full-screen `ui()`** (the flagship example for the kit). A human
+opens it with **`swkit zsh`** (no action) or by drilling into zsh from the bootstrap catalog
+(`./bootstrap.sh` → Install software → zsh). It is a live **component manager**: toggle the framework
+(Oh My Zsh on/off), pick the prompt from a submenu, **check plugins on/off with Space**, add an
+arbitrary git plugin with the **`a`** key, set the default login shell, install/remove zsh — every
+change shells out via `ui_run` (visible output + log) and the screen reloads. So the argument-taking
+actions are fully reachable interactively now; there is **no** "the TUI can't pass arguments"
+limitation anymore.
+
+`ui` is an **entry mode**, not a `meta` op — it is never in `ops=`, and on a no-TTY shell
+`scripts/zsh.sh ui` just prints how to drive it by explicit op and exits 0. **You (the LLM)** still
+drive zsh by explicit action — `swkit zsh add-plugin <…>`, `swkit zsh prompt <…>`, etc. — exactly as
+in §1; the `ui` screen is for the human at a terminal. There is no zsh logic duplicated in the
+bootstrap bash: every entry point (the `ui` screen, `swkit`, you) invokes this one script. Truly
+bespoke configuration is the taste conversation (§2) plus, where a capability is missing, evolving
+the script (§4).
 
 ## 6. Reference — understanding behind the script
 

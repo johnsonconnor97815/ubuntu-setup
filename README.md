@@ -2,8 +2,8 @@
 
 把一台**全新安装的 Ubuntu**(含 Server / SSH / 无桌面)变成由 LLM 驱动的软件管理机器。每个软件的**安装 / 卸载 / 配置逻辑都是一个 bash 脚本**(`scripts/<软件>.sh`,统一接口),背后由共享库 `lib/common.sh` 把项目的安全契约**写成可复用的代码**。你有三种方式驱动这些脚本:
 
-- **TUI**——`./bootstrap.sh` 进入的菜单,按类别浏览脚本、装/卸/配;
-- **`swkit` 命令**——`swkit docker install` 这样直接跑;
+- **TUI**——`./bootstrap.sh` 进入的现代全屏菜单,按类别浏览脚本,**钻进每个软件自己的管理界面**(装/卸/配,zsh 还能勾插件、选提示符);
+- **`swkit` 命令**——`swkit docker install` 直接跑,`swkit zsh` 开 zsh 的界面,`swkit ui` 开总目录;
 - **LLM**(Claude Code / Codex)——你说"装个 docker",它在 skill 守则下调用脚本。
 
 LLM 在三个入口里独特:它不只**调用**脚本,还能**组织、推荐、并演进**脚本——为还没覆盖的软件**写一个新脚本**(借鉴官方文档与开源做法),并在某软件打包方式 / URL / 步骤变更导致脚本过时时**把它修好**。"脚本提供稳定确定可测的执行,LLM 让脚本保持最新"——所以覆盖范围会随使用增长。仓库交付的是**一套种子脚本 + 这套机制**,不是一个预先穷举的大库。
@@ -18,9 +18,9 @@ cd ubuntu-setup
 ./bootstrap.sh
 ```
 
-有终端时,`./bootstrap.sh` 默认进入 **TUI**(whiptail,缺失则回退纯文本菜单):
+有终端时,`./bootstrap.sh` 默认进入一个**现代全屏 TUI**(纯 bash + ANSI 自绘:accent 标题栏、圆角盒线、`●/○` 状态徽标、方向键导航、底部 keybind 栏;**无 whiptail 依赖**,非富终端回退纯文本编号菜单):
 
-- **安装软件**(动态浏览脚本集合,三级):**类别**(essentials / common / ai / runtime,其余归 other)→ **软件** → **操作**。进入某软件后只列它真正实现的操作——一般是**安装 / 卸载**,zsh、docker 另有**配置**;`meta` 没声明的操作不会出现。已装的软件在列表里标注 `[installed]`(实时调脚本的 `status` 判断),操作幂等(重复安全)。每个操作在**进度条**后台进行,完整日志写到 `~/.cache/ubuntu-setup/`,完成弹出结果并回到操作菜单——单个操作失败也只记下日志、不带崩整个会话。
+- **安装软件**:目录浏览器按**类别**(essentials / common / ai / runtime,其余归 other)列出脚本、实时标 `●`(已装)/`○`(未装),`→` / 回车**钻进该软件自己的管理界面**——每个脚本拥有自己手写的界面:装 / 卸 / 配,docker 显示 docker 组与服务状态,git 能设 user.name/email,**zsh 是一个组件管理器**(框架开关、提示符选择器、插件复选清单、默认 shell,见下)。操作幂等(重复安全);执行某操作时 UI **退出全屏**、直接展示真实输出(apt/sudo 密码提示正常工作)并 `tee` 到 `~/.cache/ubuntu-setup/` 的日志,完成后 `✓/✗` + 回车返回——单个操作失败只记日志、不崩会话。
 - **设置**:切换界面**语言**(中文 / English / 日本語,记到 `~/.config/ubuntu-setup/config`);**开/关 LLM 免密 sudo**(见文末)。
 
 脚本幂等,可随时安全重跑:已装好的组件会在**真实系统**上被检测并跳过;失败后修因重跑即可续装。全程不需要整体 root——只有确需 root 的单条命令(apt、docker 加组、zsh `chsh`)会**逐命令** `sudo`;CLI 的官方安装器与 `npm install -g` 一律以当前用户身份跑。
@@ -31,6 +31,8 @@ cd ubuntu-setup
 
 ```bash
 swkit list                          # 按类别列出所有脚本,已装的标 [installed]
+swkit ui                            # 打开全屏目录(同 bootstrap 的「安装软件」)
+swkit zsh                           # 打开 zsh 的组件管理器界面(无操作 = 进 UI)
 swkit search nginx                  # 在 key / 名称 / 描述里大小写不敏感地搜
 swkit docker install                # 跑 scripts/docker.sh install
 swkit docker status                 # 是否已装?退出码 0 表示是
@@ -38,13 +40,13 @@ swkit zsh configure --default-shell # 多余参数原样透传给脚本
 swkit help
 ```
 
-`swkit <软件> <操作> [args...]` 映射到 `scripts/<软件>.sh <操作>`,退出码原样透传。每个脚本都支持 `install`、`remove`、`status`、`meta`、`help`(部分还有 `configure`)。没有对应脚本时,`swkit` 会提示你(或 LLM)从 `scripts/TEMPLATE.sh` 复制一个出来。
+`swkit <软件> <操作> [args...]` 映射到 `scripts/<软件>.sh <操作>`,退出码原样透传。每个脚本都支持 `install`、`remove`、`status`、`meta`、`help`、`ui`(部分还有 `configure`)。`swkit <软件>` 不带操作时,有终端则打开它的 `ui` 界面、无终端则打印用法。没有对应脚本时,`swkit` 会提示你(或 LLM)从 `scripts/TEMPLATE.sh` 复制一个出来。
 
 ## 脚本集合
 
 - **部署位置**:`~/.local/share/ubuntu-setup/`(即 `$KIT_HOME`),收纳 `lib/`、`scripts/`、`swkit`,且**本身是一个 git 仓**。
-- **种子脚本**:`git`、`curl`、`zsh`、`docker`、`node`、`claude`、`codex`。`docker` 支持 `configure`;**`zsh` 是一个组件管理器**——框架(Oh My Zsh)、提示符、各插件都能**独立装/卸/增/删**,状态记在 `~/.config/zsh/ubuntu-setup.conf`,每次改动重生成受管 drop-in `~/.config/zsh/ubuntu-setup.zsh` 并在 `~/.zshrc` 加一行 source(**重跑收敛、不覆盖你自己的 `~/.zshrc`**)。动作:`install-omz` / `uninstall-omz`;`add-plugin <名|git-url>` / `remove-plugin <名>`(已知名:autosuggestions / syntax-highlighting / completions / history-substring-search / fzf / zoxide,其余按 git URL 克隆);`prompt git|plain|starship|powerlevel10k|pure`;`default-shell`(锁定安全);`configure [--framework|--prompt|--plugins|--no-plugins|--no-aliases|--default-shell]` 一次性全量指定;无参 = 保守 headless 基线。TUI 列无参动作(install / configure / install-omz / uninstall-omz / default-shell);带参的 `add-plugin`/`remove-plugin`/`prompt` 用 `swkit zsh ...` 或 LLM。(Starship/Powerlevel10k 图标需本地终端装 Nerd Font;headless 建议 git/plain/Pure。)
-- **统一接口**:每个 `scripts/<软件>.sh` 都支持 `meta` / `status` / `install` / `remove` / `configure`(可选) / `help`;`status` 退出码 0 当且仅当已装/已生效(这就是幂等探针),`install`/`remove` 先查 `status` 再决定动作。
+- **种子脚本**:`git`、`curl`、`zsh`、`docker`、`node`、`claude`、`codex`。`docker` 的 `configure` 加 docker 组 + 起服务,`git` 的 `configure` 设全局 user.name/email(写 `~/.gitconfig`,绝不 sudo);**`zsh` 是一个组件管理器**——框架(Oh My Zsh)、提示符、各插件都能**独立装/卸/增/删**,状态记在 `~/.config/zsh/ubuntu-setup.conf`,每次改动重生成受管 drop-in `~/.config/zsh/ubuntu-setup.zsh` 并在 `~/.zshrc` 加一行 source(**重跑收敛、不覆盖你自己的 `~/.zshrc`**)。动作:`install-omz` / `uninstall-omz`;`add-plugin <名|git-url>` / `remove-plugin <名>`(已知名:autosuggestions / syntax-highlighting / completions / history-substring-search / fzf / zoxide,其余按 git URL 克隆);`prompt git|plain|starship|powerlevel10k|pure`;`default-shell`(锁定安全);`configure [--framework|--prompt|--plugins|--no-plugins|--no-aliases|--default-shell]` 一次性全量指定;无参 = 保守 headless 基线。**`swkit zsh`(或 TUI 钻进 zsh)打开全屏组件管理器**:可交互开关框架、选提示符、空格勾选插件、`a` 键加任意 git 插件、设默认 shell——带参动作也可用 `swkit zsh add-plugin <名|url>` / `prompt <名>` 或 LLM。(Starship/Powerlevel10k 图标需本地终端装 Nerd Font;headless 建议 git/plain/Pure。)
+- **统一接口**:每个 `scripts/<软件>.sh` 都支持 `meta` / `status` / `install` / `remove` / `configure`(可选) / `help`,以及 `ui`(交互界面,入口模式,**不在 `meta` 的 `ops` 里**);`status` 退出码 0 当且仅当已装/已生效(这就是幂等探针),`install`/`remove` 先查 `status` 再决定动作。
 - **更新不丢改动**:重跑 `./bootstrap.sh` 时,出厂脚本被刷进一条 `vendor` 分支再 `git merge` 进工作树(`main`),**绝不盲目覆盖**——LLM 新写的脚本原样保留,只有"出厂版与本地都改了同一文件"才作为合并冲突显式留给你处理。每一次改动都被 git 跟踪(可回滚、可 PR 回上游)。
 
 ## 参数(headless)
@@ -85,13 +87,13 @@ skill 部署位置:`~/.claude/skills/<name>/`(Claude Code 用户级 skill)与 `~
 ### 校验脚本
 
 ```bash
-bash -n bootstrap.sh                          # 语法检查(对每个 scripts/*.sh、lib/common.sh、swkit 同样跑)
-shellcheck bootstrap.sh                        # 如已安装 shellcheck
-# 脚本与 swkit 会 source lib/common.sh:带 -x 跟随,用 SCRIPTDIR 让 source 路径相对每个文件解析
-shellcheck -x --source-path=SCRIPTDIR swkit scripts/*.sh
+# 语法检查(bootstrap、两个 lib、swkit、每个脚本)
+for f in bootstrap.sh lib/common.sh lib/ui.sh swkit scripts/*.sh; do bash -n "$f"; done
+# 全部 source lib,统一带 -x 跟随、用 SCRIPTDIR 让 source 路径相对每个文件解析,保持零告警
+shellcheck -x --source-path=SCRIPTDIR swkit scripts/*.sh lib/common.sh lib/ui.sh bootstrap.sh
 ./bootstrap.sh --help
 ```
 
 ### 新增一个软件
 
-复制 `scripts/TEMPLATE.sh` 到 `scripts/<key>.sh`,保留其结构(`set -Eeuo pipefail`、`source lib/common.sh`、末尾 `kit_dispatch "$@"`),填好 `meta` / `status` / `do_install` / `do_remove`(以及可选的 `do_configure`)。所有提权 / 装包 / 改文件都走 `lib/common.sh` 的原语(`sudo_run`、`apt_install`、`backup_file` 等),不写裸 `sudo` / `apt-get` / `apt-key` / `sudo npm`。`meta` 的 `ops` 必须与实际实现的操作一致,`category` ∈ `essentials | common | ai | runtime`。写完 TUI 与 `swkit list` 会自动收录。
+复制 `scripts/TEMPLATE.sh` 到 `scripts/<key>.sh`,保留其结构(`set -Eeuo pipefail`、`source lib/common.sh`、末尾 `kit_dispatch "$@"`),填好 `meta` / `status` / `do_install` / `do_remove`(以及可选的 `do_configure`)。所有提权 / 装包 / 改文件都走 `lib/common.sh` 的原语(`sudo_run`、`apt_install`、`backup_file` 等),不写裸 `sudo` / `apt-get` / `apt-key` / `sudo npm`。`meta` 的 `ops` 必须与实际实现的操作一致,`category` ∈ `essentials | common | ai | runtime`。**交互界面**:省略 `ui()` 即可白嫖一个由 `meta` 的 `ops` 合成的菜单(`ui_default_menu`);要更丰富就用 `lib/ui.sh` 的原语(`ui_run` / `ui_pick` / `ui_confirm` / `ui_input` / `ui_badge` / `ui_header`/`ui_footer`/`ui_row`/`ui_read_key`)手写 `ui()`——`ui` 是入口模式,**不要写进 `ops`**(`scripts/TEMPLATE.sh` 有完整注释样例,`scripts/zsh.sh` 是旗舰范例)。写完 TUI 与 `swkit list` 会自动收录。
