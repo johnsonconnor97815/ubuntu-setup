@@ -4,10 +4,11 @@
 #
 # Beyond installing tmux, this script manages tmux's ecosystem as discrete, independently
 # toggle-able components — the Tmux Plugin Manager (TPM), a curated set of popular plugins,
-# a theme, and a handful of sensible options — tracking the enabled set in a small KEY=VALUE
-# state file (~/.config/ubuntu-setup/tmux.conf). Every change regenerates a single MANAGED
-# BLOCK inside the user's ~/.tmux.conf (delimited by markers, rewritten wholesale, convergent)
-# while preserving everything the user wrote OUTSIDE the markers.
+# a theme, and a broad set of best-practice OPTIONS (mouse, clipboard, vi copy mode, scrollback,
+# escape-time, status bar, ergonomic keybindings, …) — tracking everything in a small
+# KEY=VALUE state file (~/.config/ubuntu-setup/tmux.conf). Every change regenerates a single
+# MANAGED BLOCK inside the user's ~/.tmux.conf (delimited by markers, rewritten wholesale,
+# convergent) while preserving everything the user wrote OUTSIDE the markers.
 #
 # Why a managed block (not a separate sourced drop-in, unlike zsh.sh/ghostty.sh): TPM
 # discovers plugins by reading the `set -g @plugin '...'` lines in the MAIN tmux config file
@@ -15,8 +16,11 @@
 # included file. So the @plugin declarations and the final `run '.../tpm'` line must live in
 # ~/.tmux.conf itself; the marker block is how we own a region there without clobbering the
 # rest. Plugin install/update/clean is driven non-interactively via TPM's bin/ scripts
-# (install_plugins / update_plugins / clean_plugins), which work without a running tmux server
-# (so the LLM's no-TTY shell can drive them) — no need for the interactive `prefix + I`.
+# (install_plugins / update_plugins / clean_plugins), which work without a running tmux server.
+#
+# The settings are grounded in widely-recommended tmux best practices (escape-time for
+# vim/neovim, 1-based indexing, true-color, OSC52 clipboard, vi copy bindings, split/nav
+# keybindings, …) and are all exposed as quick toggles/pickers/inputs in the ui().
 #
 # Actions (kit_dispatch routes <op> -> do_<op>, hyphens -> underscores):
 #   install / remove / status            tmux itself (apt)
@@ -29,8 +33,7 @@
 #
 # Files are written AS THE USER, never via sudo (~/.tmux.conf, ~/.tmux/plugins, the state
 # file). Only `apt install/remove tmux` escalates, per command, via the lib's sudo_run.
-# tmux is a terminal multiplexer (not a GUI app): it works perfectly headless / over SSH, so
-# there is no "desktop only" caveat — this is exactly the kind of tool you want on a server.
+# tmux is a terminal multiplexer (not a GUI app): it works perfectly headless / over SSH.
 #
 # Run it as:  tmux.sh install|remove|configure|status|meta|ui|help   (or via `swkit`).
 
@@ -61,7 +64,7 @@ key=tmux
 name=tmux
 category=common
 ops=install,remove,configure,install-tpm,uninstall-tpm,update-plugins
-desc=Terminal multiplexer — component manager: TPM, curated plugins, themes, sensible config
+desc=Terminal multiplexer — component manager: TPM, curated plugins, themes, best-practice settings
 META
 }
 
@@ -106,16 +109,27 @@ _tmux_resolve_paths() {
   mkdir -p "$_TPREF_DIR" "$_TPLUGDIR"
 }
 
+# --- Validation ----------------------------------------------------------------
+_tmux_valid_onoff()      { case "$1" in on|off) return 0 ;; *) return 1 ;; esac; }
+_tmux_valid_keymode()    { case "$1" in vi|emacs) return 0 ;; *) return 1 ;; esac; }
+_tmux_valid_theme()      { case "$1" in none|catppuccin|dracula|themepack) return 0 ;; *) return 1 ;; esac; }
+_tmux_valid_status_pos() { case "$1" in top|bottom) return 0 ;; *) return 1 ;; esac; }
+_tmux_valid_int()        { case "$1" in ''|*[!0-9]*) return 1 ;; *) return 0 ;; esac; }
+
 # --- Preference store ----------------------------------------------------------
-# Conservative defaults: sensible options on, but NO plugins / NO theme / NO TPM (a bare
-# `configure` is a safe headless baseline). The popular set is one `--recommended` away.
+# Conservative defaults: a tasteful best-practice baseline (mouse, vi mode, true-color, big
+# scrollback, low escape-time, 1-based indexing) but NO plugins / NO theme / NO ergonomic
+# keybinding remaps / NO TPM (a bare `configure` is a safe headless baseline that does not
+# touch the network or rebind keys). The popular bundle is one `--recommended` away.
 _tmux_defaults() {
   PLUGINS=""
-  THEME="none"
-  THEME_FLAVOR="mocha"
-  MOUSE="on"
-  KEYMODE="vi"
-  PREFIX="default"
+  THEME="none"; THEME_FLAVOR="mocha"
+  MOUSE="on"; KEYMODE="vi"; PREFIX="default"
+  HISTORY="50000"; ESCAPE_TIME="10"
+  BASE_INDEX="on"; RENUMBER="on"; FOCUS_EVENTS="on"
+  AGGRESSIVE_RESIZE="off"; CLIPBOARD="on"
+  STATUS_POSITION="bottom"; STATUS_INTERVAL="5"
+  MONITOR_ACTIVITY="off"; SET_TITLES="off"; KEYBINDINGS="off"
 }
 
 _tmux_load_state() {
@@ -124,12 +138,24 @@ _tmux_load_state() {
   local k v
   while IFS='=' read -r k v; do
     case "$k" in
-      PLUGINS)      PLUGINS="$v" ;;
-      THEME)        THEME="$v" ;;
-      THEME_FLAVOR) THEME_FLAVOR="$v" ;;
-      MOUSE)        MOUSE="$v" ;;
-      KEYMODE)      KEYMODE="$v" ;;
-      PREFIX)       PREFIX="$v" ;;
+      PLUGINS)           PLUGINS="$v" ;;
+      THEME)             THEME="$v" ;;
+      THEME_FLAVOR)      THEME_FLAVOR="$v" ;;
+      MOUSE)             _tmux_valid_onoff "$v" && MOUSE="$v" ;;
+      KEYMODE)           _tmux_valid_keymode "$v" && KEYMODE="$v" ;;
+      PREFIX)            PREFIX="$v" ;;
+      HISTORY)           _tmux_valid_int "$v" && HISTORY="$v" ;;
+      ESCAPE_TIME)       _tmux_valid_int "$v" && ESCAPE_TIME="$v" ;;
+      BASE_INDEX)        _tmux_valid_onoff "$v" && BASE_INDEX="$v" ;;
+      RENUMBER)          _tmux_valid_onoff "$v" && RENUMBER="$v" ;;
+      FOCUS_EVENTS)      _tmux_valid_onoff "$v" && FOCUS_EVENTS="$v" ;;
+      AGGRESSIVE_RESIZE) _tmux_valid_onoff "$v" && AGGRESSIVE_RESIZE="$v" ;;
+      CLIPBOARD)         _tmux_valid_onoff "$v" && CLIPBOARD="$v" ;;
+      STATUS_POSITION)   _tmux_valid_status_pos "$v" && STATUS_POSITION="$v" ;;
+      STATUS_INTERVAL)   _tmux_valid_int "$v" && STATUS_INTERVAL="$v" ;;
+      MONITOR_ACTIVITY)  _tmux_valid_onoff "$v" && MONITOR_ACTIVITY="$v" ;;
+      SET_TITLES)        _tmux_valid_onoff "$v" && SET_TITLES="$v" ;;
+      KEYBINDINGS)       _tmux_valid_onoff "$v" && KEYBINDINGS="$v" ;;
     esac
   done <"$_TPREF"
 }
@@ -138,12 +164,24 @@ _tmux_save_state() {
   mkdir -p "$_TPREF_DIR"
   {
     printf '# ubuntu-setup tmux.sh state — managed by swkit tmux actions; do not hand-edit.\n'
-    printf 'PLUGINS=%s\n'      "$PLUGINS"
-    printf 'THEME=%s\n'        "$THEME"
-    printf 'THEME_FLAVOR=%s\n' "$THEME_FLAVOR"
-    printf 'MOUSE=%s\n'        "$MOUSE"
-    printf 'KEYMODE=%s\n'      "$KEYMODE"
-    printf 'PREFIX=%s\n'       "$PREFIX"
+    printf 'PLUGINS=%s\n'           "$PLUGINS"
+    printf 'THEME=%s\n'             "$THEME"
+    printf 'THEME_FLAVOR=%s\n'      "$THEME_FLAVOR"
+    printf 'MOUSE=%s\n'             "$MOUSE"
+    printf 'KEYMODE=%s\n'           "$KEYMODE"
+    printf 'PREFIX=%s\n'            "$PREFIX"
+    printf 'HISTORY=%s\n'           "$HISTORY"
+    printf 'ESCAPE_TIME=%s\n'       "$ESCAPE_TIME"
+    printf 'BASE_INDEX=%s\n'        "$BASE_INDEX"
+    printf 'RENUMBER=%s\n'          "$RENUMBER"
+    printf 'FOCUS_EVENTS=%s\n'      "$FOCUS_EVENTS"
+    printf 'AGGRESSIVE_RESIZE=%s\n' "$AGGRESSIVE_RESIZE"
+    printf 'CLIPBOARD=%s\n'         "$CLIPBOARD"
+    printf 'STATUS_POSITION=%s\n'   "$STATUS_POSITION"
+    printf 'STATUS_INTERVAL=%s\n'   "$STATUS_INTERVAL"
+    printf 'MONITOR_ACTIVITY=%s\n'  "$MONITOR_ACTIVITY"
+    printf 'SET_TITLES=%s\n'        "$SET_TITLES"
+    printf 'KEYBINDINGS=%s\n'       "$KEYBINDINGS"
   } >"$_TPREF"
 }
 
@@ -215,11 +253,6 @@ _tmux_theme_spec() {
   esac
 }
 
-# --- Validation ----------------------------------------------------------------
-_tmux_valid_mouse()   { case "$1" in on|off) return 0 ;; *) return 1 ;; esac; }
-_tmux_valid_keymode() { case "$1" in vi|emacs) return 0 ;; *) return 1 ;; esac; }
-_tmux_valid_theme()   { case "$1" in none|catppuccin|dracula|themepack) return 0 ;; *) return 1 ;; esac; }
-
 # --- TPM (Tmux Plugin Manager) -------------------------------------------------
 _tmux_tpm_installed() { [[ -f "${_TPM_DIR:-/nonexistent}/tpm" ]]; }
 
@@ -259,28 +292,66 @@ _tmux_emit_block() {
 # always preserved. Manage options/plugins/theme with:  swkit tmux   (or: swkit tmux <action>)
 TMUXHEAD
 
-  printf '\n# ---- General options ----\n'
-  printf 'set -g mouse %s\n'        "$MOUSE"
-  printf 'setw -g mode-keys %s\n'   "$KEYMODE"
-  cat <<'TMUXOPTS'
-set -g history-limit 50000
-set -g base-index 1
-setw -g pane-base-index 1
-set -g renumber-windows on
-set -g escape-time 10
-set -g focus-events on
-set -g display-time 1500
-set -g set-clipboard on
+  printf '\n# ---- General ----\n'
+  printf 'set -g mouse %s\n'           "$MOUSE"
+  printf 'setw -g mode-keys %s\n'      "$KEYMODE"
+  printf 'set -g history-limit %s\n'   "$HISTORY"
+  printf 'set -sg escape-time %s\n'    "$ESCAPE_TIME"
+  printf 'set -g set-clipboard %s\n'   "$CLIPBOARD"
+  [[ "$BASE_INDEX" == on ]]        && printf 'set -g base-index 1\nsetw -g pane-base-index 1\n'
+  [[ "$RENUMBER" == on ]]          && printf 'set -g renumber-windows on\n'
+  [[ "$FOCUS_EVENTS" == on ]]      && printf 'set -g focus-events on\n'
+  [[ "$AGGRESSIVE_RESIZE" == on ]] && printf 'setw -g aggressive-resize on\n'
+  [[ "$MONITOR_ACTIVITY" == on ]]  && printf 'setw -g monitor-activity on\nset -g visual-activity off\n'
+  [[ "$SET_TITLES" == on ]]        && printf 'set -g set-titles on\nset -g set-titles-string "#S  #I:#W"\n'
+
+  cat <<'TMUXSTATIC'
+
+# ---- Colors / true color ----
 set -g default-terminal "tmux-256color"
-set -ag terminal-overrides ",xterm-256color:RGB,*256col*:RGB,alacritty:RGB"
+set -ag terminal-overrides ",xterm-256color:RGB,*256col*:RGB,alacritty:RGB,xterm-ghostty:RGB"
+set -g display-time 2000
+set -g display-panes-time 2000
+
+# ---- Reload (prefix r) ----
 bind r source-file ~/.tmux.conf \; display-message "tmux.conf reloaded"
-TMUXOPTS
+TMUXSTATIC
+
+  printf '\n# ---- Status bar ----\n'
+  printf 'set -g status-position %s\n' "$STATUS_POSITION"
+  printf 'set -g status-interval %s\n' "$STATUS_INTERVAL"
 
   if [[ -n "$PREFIX" && "$PREFIX" != "default" && "$PREFIX" != "C-b" ]]; then
     printf '\n# ---- Prefix ----\n'
     printf 'set -g prefix %s\n' "$PREFIX"
     printf 'unbind C-b\n'
     printf 'bind %s send-prefix\n' "$PREFIX"
+  fi
+
+  if [[ "$KEYBINDINGS" == on ]]; then
+    cat <<'TMUXKEYS'
+
+# ---- Ergonomic keybindings ----
+# Split keeping the current path: | vertical, - horizontal; new window keeps the path too.
+bind | split-window -h -c "#{pane_current_path}"
+bind - split-window -v -c "#{pane_current_path}"
+bind c new-window -c "#{pane_current_path}"
+# vim-style pane navigation (note: rebinds prefix-l away from last-window)
+bind h select-pane -L
+bind j select-pane -D
+bind k select-pane -U
+bind l select-pane -R
+# vim-style pane resize (repeatable)
+bind -r H resize-pane -L 5
+bind -r J resize-pane -D 5
+bind -r K resize-pane -U 5
+bind -r L resize-pane -R 5
+# vi copy-mode: v begin, C-v rectangle, y copy (system clipboard via set-clipboard/OSC52)
+bind -T copy-mode-vi v send -X begin-selection
+bind -T copy-mode-vi C-v send -X rectangle-toggle
+bind -T copy-mode-vi y send -X copy-selection-and-cancel
+bind -T copy-mode-vi MouseDragEnd1Pane send -X copy-selection-and-cancel
+TMUXKEYS
   fi
 
   if _tmux_tpm_installed; then
@@ -357,11 +428,14 @@ _tmux_apply() {
   _tmux_write_block || return 1
   _tmux_save_state
   if _tmux_tpm_installed && _tmux_want_plugins; then _tmux_run_install_plugins; fi
-  log_info "Applied tmux config — theme=$THEME, mouse=$MOUSE, plugins=[${PLUGINS:-none}]."
+  log_info "Applied tmux config — theme=$THEME, mouse=$MOUSE, keys=$KEYMODE, plugins=[${PLUGINS:-none}]."
   log_info "Reload a running tmux with:  tmux source-file ~/.tmux.conf   (or just start a new tmux)."
 }
 
-# --- Actions -------------------------------------------------------------------
+# --- configure -----------------------------------------------------------------
+# Validate-and-assign helpers for the on/off and integer flags (nameref into the state var).
+_tmux_set_onoff() { local v="$1"; local -n _r="$2"; _tmux_valid_onoff "$v" || { log_err "$3 needs on|off."; return 2; }; _r="$v"; }
+_tmux_set_int()   { local v="$1"; local -n _r="$2"; _tmux_valid_int "$v"   || { log_err "$3 needs a non-negative integer."; return 2; }; _r="$v"; }
 
 do_configure() {
   if ! status >/dev/null 2>&1; then log_info "Install tmux first (swkit tmux install)."; return 0; fi
@@ -372,20 +446,49 @@ do_configure() {
   while [[ $# -gt 0 ]]; do
     case "$1" in
       --recommended) recommended=1; shift ;;
-      --mouse)        _tmux_valid_mouse "${2:-}"   || { log_err "--mouse needs on|off."; return 2; };   MOUSE="$2"; shift 2 ;;
-      --mouse=*)      MOUSE="${1#--mouse=}";        _tmux_valid_mouse "$MOUSE"   || { log_err "--mouse needs on|off."; return 2; }; shift ;;
-      --keymode)      _tmux_valid_keymode "${2:-}" || { log_err "--keymode needs vi|emacs."; return 2; }; KEYMODE="$2"; shift 2 ;;
-      --keymode=*)    KEYMODE="${1#--keymode=}";    _tmux_valid_keymode "$KEYMODE" || { log_err "--keymode needs vi|emacs."; return 2; }; shift ;;
-      --prefix)       PREFIX="${2:-}"; [[ -n "$PREFIX" ]] || { log_err "--prefix needs a key (e.g. C-a) or 'default'."; return 2; }; shift 2 ;;
-      --prefix=*)     PREFIX="${1#--prefix=}"; [[ -n "$PREFIX" ]] || { log_err "--prefix needs a key or 'default'."; return 2; }; shift ;;
-      --theme)        _tmux_valid_theme "${2:-}"   || { log_err "--theme: none|catppuccin|dracula|themepack."; return 2; }; THEME="$2"; shift 2 ;;
-      --theme=*)      THEME="${1#--theme=}";        _tmux_valid_theme "$THEME"   || { log_err "--theme: none|catppuccin|dracula|themepack."; return 2; }; shift ;;
-      --theme-flavor)   THEME_FLAVOR="${2:-}"; shift 2 || { log_err "--theme-flavor needs a value."; return 2; } ;;
-      --theme-flavor=*) THEME_FLAVOR="${1#--theme-flavor=}"; shift ;;
-      --plugins)      plugins_set="${2:-}"; shift 2 || { log_err "--plugins needs a value."; return 2; } ;;
-      --plugins=*)    plugins_set="${1#--plugins=}"; shift ;;
-      --no-plugins)   want_plugins=0; shift ;;
-      -h|--help)      usage; return 0 ;;
+      # appearance
+      --theme)            _tmux_valid_theme "${2:-}" || { log_err "--theme: none|catppuccin|dracula|themepack."; return 2; }; THEME="$2"; shift 2 ;;
+      --theme=*)          THEME="${1#*=}"; _tmux_valid_theme "$THEME" || { log_err "--theme: none|catppuccin|dracula|themepack."; return 2; }; shift ;;
+      --theme-flavor)     THEME_FLAVOR="${2:-}"; shift 2 || { log_err "--theme-flavor needs a value."; return 2; } ;;
+      --theme-flavor=*)   THEME_FLAVOR="${1#*=}"; shift ;;
+      --status-position)   _tmux_valid_status_pos "${2:-}" || { log_err "--status-position: top|bottom."; return 2; }; STATUS_POSITION="$2"; shift 2 ;;
+      --status-position=*) STATUS_POSITION="${1#*=}"; _tmux_valid_status_pos "$STATUS_POSITION" || { log_err "--status-position: top|bottom."; return 2; }; shift ;;
+      --status-interval)   _tmux_set_int "${2:-}" STATUS_INTERVAL --status-interval || return 2; shift 2 ;;
+      --status-interval=*) _tmux_set_int "${1#*=}" STATUS_INTERVAL --status-interval || return 2; shift ;;
+      # behavior toggles
+      --mouse)             _tmux_set_onoff "${2:-}" MOUSE --mouse || return 2; shift 2 ;;
+      --mouse=*)           _tmux_set_onoff "${1#*=}" MOUSE --mouse || return 2; shift ;;
+      --clipboard)         _tmux_set_onoff "${2:-}" CLIPBOARD --clipboard || return 2; shift 2 ;;
+      --clipboard=*)       _tmux_set_onoff "${1#*=}" CLIPBOARD --clipboard || return 2; shift ;;
+      --focus-events)      _tmux_set_onoff "${2:-}" FOCUS_EVENTS --focus-events || return 2; shift 2 ;;
+      --focus-events=*)    _tmux_set_onoff "${1#*=}" FOCUS_EVENTS --focus-events || return 2; shift ;;
+      --aggressive-resize)   _tmux_set_onoff "${2:-}" AGGRESSIVE_RESIZE --aggressive-resize || return 2; shift 2 ;;
+      --aggressive-resize=*) _tmux_set_onoff "${1#*=}" AGGRESSIVE_RESIZE --aggressive-resize || return 2; shift ;;
+      --renumber)          _tmux_set_onoff "${2:-}" RENUMBER --renumber || return 2; shift 2 ;;
+      --renumber=*)        _tmux_set_onoff "${1#*=}" RENUMBER --renumber || return 2; shift ;;
+      --base-index)        _tmux_set_onoff "${2:-}" BASE_INDEX --base-index || return 2; shift 2 ;;
+      --base-index=*)      _tmux_set_onoff "${1#*=}" BASE_INDEX --base-index || return 2; shift ;;
+      --monitor-activity)   _tmux_set_onoff "${2:-}" MONITOR_ACTIVITY --monitor-activity || return 2; shift 2 ;;
+      --monitor-activity=*) _tmux_set_onoff "${1#*=}" MONITOR_ACTIVITY --monitor-activity || return 2; shift ;;
+      --set-titles)        _tmux_set_onoff "${2:-}" SET_TITLES --set-titles || return 2; shift 2 ;;
+      --set-titles=*)      _tmux_set_onoff "${1#*=}" SET_TITLES --set-titles || return 2; shift ;;
+      # keys
+      --keymode)           _tmux_valid_keymode "${2:-}" || { log_err "--keymode: vi|emacs."; return 2; }; KEYMODE="$2"; shift 2 ;;
+      --keymode=*)         KEYMODE="${1#*=}"; _tmux_valid_keymode "$KEYMODE" || { log_err "--keymode: vi|emacs."; return 2; }; shift ;;
+      --prefix)            PREFIX="${2:-}"; [[ -n "$PREFIX" ]] || { log_err "--prefix needs a key (e.g. C-a) or 'default'."; return 2; }; shift 2 ;;
+      --prefix=*)          PREFIX="${1#*=}"; [[ -n "$PREFIX" ]] || { log_err "--prefix needs a key or 'default'."; return 2; }; shift ;;
+      --keybindings)       _tmux_set_onoff "${2:-}" KEYBINDINGS --keybindings || return 2; shift 2 ;;
+      --keybindings=*)     _tmux_set_onoff "${1#*=}" KEYBINDINGS --keybindings || return 2; shift ;;
+      # history
+      --history)           _tmux_set_int "${2:-}" HISTORY --history || return 2; shift 2 ;;
+      --history=*)         _tmux_set_int "${1#*=}" HISTORY --history || return 2; shift ;;
+      --escape-time)       _tmux_set_int "${2:-}" ESCAPE_TIME --escape-time || return 2; shift 2 ;;
+      --escape-time=*)     _tmux_set_int "${1#*=}" ESCAPE_TIME --escape-time || return 2; shift ;;
+      # plugins
+      --plugins)           plugins_set="${2:-}"; shift 2 || { log_err "--plugins needs a value."; return 2; } ;;
+      --plugins=*)         plugins_set="${1#*=}"; shift ;;
+      --no-plugins)        want_plugins=0; shift ;;
+      -h|--help)           usage; return 0 ;;
       *) log_err "Unknown configure option: $1"; usage; return 2 ;;
     esac
   done
@@ -393,6 +496,7 @@ do_configure() {
   if (( recommended )); then
     PLUGINS="$TMUX_RECOMMENDED_PLUGINS"
     [[ "$THEME" == "none" ]] && THEME="catppuccin"
+    KEYBINDINGS="on"
   fi
   if (( ! want_plugins )); then
     PLUGINS=""
@@ -406,6 +510,8 @@ do_configure() {
 
   _tmux_apply
 }
+
+# --- TPM + plugin + theme actions ----------------------------------------------
 
 do_install_tpm() {
   if ! status >/dev/null 2>&1; then log_info "Install tmux first (swkit tmux install)."; return 0; fi
@@ -500,25 +606,49 @@ do_theme() {
   _tmux_apply
 }
 
-# --- UI label helpers ----------------------------------------------------------
+# --- UI helpers ----------------------------------------------------------------
 _tmux_flip_onoff() { case "$1" in on) printf 'off' ;; *) printf 'on' ;; esac; }
+
+# A toggle-row label: name + colored ●/○ + on/off.
 _tmux_onoff_label() {
   local name="$1" val="$2"
-  if [[ "$val" == "on" ]]; then printf '%-15s %s %son%s'  "$name" "$(ui_badge on)"  "$UI_OK"    "$UI_OFF"
-  else                          printf '%-15s %s %soff%s' "$name" "$(ui_badge off)" "$UI_MUTED" "$UI_OFF"; fi
+  if [[ "$val" == "on" ]]; then printf '%-18s %s %son%s'  "$name" "$(ui_badge on)"  "$UI_OK"    "$UI_OFF"
+  else                          printf '%-18s %s %soff%s' "$name" "$(ui_badge off)" "$UI_MUTED" "$UI_OFF"; fi
+}
+
+# A picker/input-row label: name + accented current value + arrow.
+_tmux_value_label() {
+  printf '%-18s %s%s%s  %s' "$1" "$UI_INFO" "$2" "$UI_OFF" "$UI_ARROW"
+}
+
+# Current value of a toggle setting, keyed by its configure flag name (used by the UI handler).
+_tmux_setting_val() {
+  case "$1" in
+    mouse)             printf '%s' "$MOUSE" ;;
+    clipboard)         printf '%s' "$CLIPBOARD" ;;
+    focus-events)      printf '%s' "$FOCUS_EVENTS" ;;
+    aggressive-resize) printf '%s' "$AGGRESSIVE_RESIZE" ;;
+    renumber)          printf '%s' "$RENUMBER" ;;
+    base-index)        printf '%s' "$BASE_INDEX" ;;
+    monitor-activity)  printf '%s' "$MONITOR_ACTIVITY" ;;
+    set-titles)        printf '%s' "$SET_TITLES" ;;
+    keybindings)       printf '%s' "$KEYBINDINGS" ;;
+  esac
 }
 
 # --- Interactive management screen (the script's own UI) -----------------------
-# A bespoke full-screen component manager: toggle TPM, pick a theme, flip options, check
-# plugins on/off (curated + arbitrary git via `a`), apply/update, install/remove tmux. State
-# is read live each pass; every change shells out via ui_run (so apt/git/TPM output is visible
-# and logged) and the screen reloads. Limited terminals fall back to the synthesized op menu.
-# `ui` is an entry mode (kit_dispatch) — never listed in meta ops.
+# A bespoke full-screen component manager with a scrolling viewport (many settings): toggle
+# TPM, pick a theme/status position/key mode, flip behavior toggles, set scrollback/escape-
+# time/prefix/status-interval, enable ergonomic keybindings, check plugins on/off (curated +
+# arbitrary git via `a`), apply/update, install/remove tmux. State is read live each pass;
+# every change shells out via ui_run (so apt/git/TPM output is visible and logged) and the
+# screen reloads. Limited terminals fall back to the synthesized op menu. `ui` is an entry
+# mode (kit_dispatch) — never listed in meta ops.
 ui() {
   if ! ui_supported; then ui_default_menu; return 0; fi
   ui_begin || { ui_default_menu; return 0; }
 
-  local sel=0 g
+  local sel=0 top=0 g
   while true; do
     [[ "${_UI_WINCH:-0}" == 1 ]] && { _UI_WINCH=0; ui_size; }
 
@@ -535,17 +665,46 @@ ui() {
     if (( ! installed )); then
       dkind+=(install); did+=(install); dlabel+=("$(ui_badge missing) $(ui_t install) tmux — terminal multiplexer")
     else
-      dkind+=(note); did+=(""); dlabel+=("Options/plugins live in a managed block in ~/.tmux.conf; your own config is preserved.")
+      dkind+=(note); did+=(""); dlabel+=("Settings write a managed block in ~/.tmux.conf; your own config is preserved.")
       dkind+=(spacer); did+=(""); dlabel+=("")
+      dkind+=(header); did+=(""); dlabel+=("Plugin manager")
       local tpm_badge
       if (( tpm )); then tpm_badge="${UI_OK}[on]${UI_OFF}"; else tpm_badge="${UI_MUTED}[off]${UI_OFF}"; fi
-      dkind+=(tpm);     did+=(tpm);     dlabel+=("$(printf '%-15s %s' 'Plugin manager' "TPM  $tpm_badge")")
-      dkind+=(theme);   did+=(theme);   dlabel+=("$(printf '%-15s %s%s%s  %s' 'Theme' "$UI_INFO" "$THEME" "$UI_OFF" "$UI_ARROW")")
-      dkind+=(mouse);   did+=(mouse);   dlabel+=("$(_tmux_onoff_label 'Mouse' "$MOUSE")")
-      dkind+=(keymode); did+=(keymode); dlabel+=("$(printf '%-15s %s%s%s  %s' 'Key mode' "$UI_INFO" "$KEYMODE" "$UI_OFF" "$UI_ARROW")")
-      dkind+=(prefix);  did+=(prefix);  dlabel+=("$(printf '%-15s %s%s%s  %s' 'Prefix' "$UI_INFO" "$PREFIX" "$UI_OFF" "$UI_ARROW")")
+      dkind+=(tpm); did+=(tpm); dlabel+=("$(printf '%-18s %s' 'TPM' "$tpm_badge")")
+
       dkind+=(spacer); did+=(""); dlabel+=("")
-      dkind+=(recommended); did+=(recommended); dlabel+=("$(ui_badge check) Apply recommended setup (TPM + popular plugins + theme)")
+      dkind+=(header); did+=(""); dlabel+=("Appearance")
+      dkind+=(theme);   did+=(theme);   dlabel+=("$(_tmux_value_label 'Theme' "$THEME")")
+      dkind+=(statuspos); did+=(statuspos); dlabel+=("$(_tmux_value_label 'Status bar' "$STATUS_POSITION")")
+      dkind+=(statusint); did+=(statusint); dlabel+=("$(_tmux_value_label 'Status refresh' "${STATUS_INTERVAL}s")")
+
+      dkind+=(spacer); did+=(""); dlabel+=("")
+      dkind+=(header); did+=(""); dlabel+=("Behavior")
+      local fl
+      for fl in mouse clipboard focus-events aggressive-resize renumber base-index monitor-activity set-titles; do
+        local nm
+        case "$fl" in
+          mouse) nm="Mouse" ;; clipboard) nm="System clipboard" ;; focus-events) nm="Focus events" ;;
+          aggressive-resize) nm="Aggressive resize" ;; renumber) nm="Renumber windows" ;;
+          base-index) nm="1-based index" ;; monitor-activity) nm="Monitor activity" ;; set-titles) nm="Set window title" ;;
+        esac
+        dkind+=(toggle); did+=("$fl"); dlabel+=("$(_tmux_onoff_label "$nm" "$(_tmux_setting_val "$fl")")")
+      done
+
+      dkind+=(spacer); did+=(""); dlabel+=("")
+      dkind+=(header); did+=(""); dlabel+=("Keys")
+      dkind+=(keymode); did+=(keymode); dlabel+=("$(_tmux_value_label 'Copy mode' "$KEYMODE")")
+      dkind+=(prefix);  did+=(prefix);  dlabel+=("$(_tmux_value_label 'Prefix key' "$PREFIX")")
+      dkind+=(toggle);  did+=(keybindings); dlabel+=("$(_tmux_onoff_label 'Ergonomic keys' "$KEYBINDINGS")")
+
+      dkind+=(spacer); did+=(""); dlabel+=("")
+      dkind+=(header); did+=(""); dlabel+=("History")
+      dkind+=(history); did+=(history); dlabel+=("$(_tmux_value_label 'Scrollback lines' "$HISTORY")")
+      dkind+=(escape);  did+=(escape);  dlabel+=("$(_tmux_value_label 'Escape time' "${ESCAPE_TIME}ms")")
+
+      dkind+=(spacer); did+=(""); dlabel+=("")
+      dkind+=(recommended); did+=(recommended); dlabel+=("$(ui_badge check) Apply recommended setup (TPM + popular plugins + theme + ergonomic keys)")
+
       dkind+=(spacer); did+=(""); dlabel+=("")
       dkind+=(header); did+=(""); dlabel+=("Plugins")
       local p on
@@ -560,24 +719,32 @@ ui() {
         dkind+=(plugin); did+=("$p"); dlabel+=("  ${UI_OK}${UI_CHK_ON}${UI_OFF} $p ${UI_MUTED}(custom)${UI_OFF}")
       done
       dkind+=(plugin_add); did+=(plugin_add); dlabel+=("  ${UI_ACCENT}+${UI_OFF} add plugin (owner/repo or git URL)…")
+
       dkind+=(spacer); did+=(""); dlabel+=("")
       dkind+=(apply); did+=(apply); dlabel+=("$(ui_badge check) Apply config now")
       if (( tpm )); then dkind+=(update); did+=(update); dlabel+=("$(ui_badge check) Update plugins"); fi
       dkind+=(spacer); did+=(""); dlabel+=("")
       dkind+=(remove); did+=(remove); dlabel+=("${UI_ERR}${UI_CROSS}${UI_OFF} $(ui_t remove) tmux")
     fi
+
+    # ---- clamp selection, skip non-selectable rows, compute viewport ----
     local n=${#dkind[@]}
     (( sel < 0 )) && sel=0; (( sel >= n )) && sel=$(( n - 1 ))
     case "${dkind[$sel]}" in note|spacer|header)
       for (( g=0; g<n; g++ )); do sel=$(( (sel+1)%n )); case "${dkind[$sel]}" in note|spacer|header) ;; *) break ;; esac; done ;;
     esac
+    local listrow=3 avail=$(( UI_ROWS - 3 - 1 ))
+    (( avail < 1 )) && avail=1
+    (( sel < top )) && top=$sel
+    (( sel >= top + avail )) && top=$(( sel - avail + 1 ))
+    (( top < 0 )) && top=0
 
-    # ---- render ----
+    # ---- render (viewport rows top..top+avail) ----
     printf '\033[2J' >&"$_UI_FD"
     if (( installed )); then ui_header "tmux · component manager" "v$ver ${UI_OK}${UI_CHECK}${UI_OFF}"
     else ui_header "tmux · component manager" "$(ui_t not_installed)"; fi
-    local i row=3
-    for (( i=0; i<n; i++ )); do
+    local i row=$listrow
+    for (( i=top; i<n && i<top+avail; i++ )); do
       case "${dkind[$i]}" in
         spacer) : ;;
         header) ui_move "$row" 2; printf '\033[K%s%s%s' "$UI_ACCENT$UI_BOLD" "${dlabel[$i]}" "$UI_OFF" >&"$_UI_FD" ;;
@@ -586,7 +753,10 @@ ui() {
       esac
       (( row++ ))
     done
-    if (( installed )); then ui_footer "↑↓ move   ↵/space toggle·edit   a add-plugin   esc/q close"
+    local more=""
+    (( top > 0 )) && more="↑ "
+    (( top + avail < n )) && more="${more}↓ "
+    if (( installed )); then ui_footer "${more}↑↓ move   ↵/space toggle·edit   a add-plugin   esc/q close"
     else ui_footer "↑↓ move   ↵/space install   esc/q close"; fi
 
     # ---- input ----
@@ -620,14 +790,32 @@ ui() {
                 ui_run "theme $UI_PICK · tmux" -- "$0" theme "$UI_PICK"
               fi
             fi ;;
-          mouse)   ui_run "mouse $(_tmux_flip_onoff "$MOUSE") · tmux" -- "$0" configure --mouse "$(_tmux_flip_onoff "$MOUSE")" ;;
+          statuspos)
+            ui_pick "tmux — status bar position" "current: $STATUS_POSITION" "" -- top "top" bottom "bottom"
+            [[ -n "$UI_PICK" ]] && ui_run "status-position $UI_PICK · tmux" -- "$0" configure --status-position "$UI_PICK" ;;
+          statusint)
+            if ui_input "status bar refresh (seconds)" "$STATUS_INTERVAL"; then
+              [[ -n "$UI_INPUT" ]] && ui_run "status-interval · tmux" -- "$0" configure --status-interval "$UI_INPUT"
+            fi ;;
           keymode)
-            ui_pick "tmux — key mode" "current: $KEYMODE" "" -- vi "vi" emacs "emacs"
+            ui_pick "tmux — copy mode keys" "current: $KEYMODE" "" -- vi "vi" emacs "emacs"
             [[ -n "$UI_PICK" ]] && ui_run "keymode $UI_PICK · tmux" -- "$0" configure --keymode "$UI_PICK" ;;
           prefix)
             if ui_input "prefix key (e.g. C-a; 'default' = C-b)" "$PREFIX"; then
               [[ -n "$UI_INPUT" ]] && ui_run "prefix $UI_INPUT · tmux" -- "$0" configure --prefix "$UI_INPUT"
             fi ;;
+          history)
+            if ui_input "scrollback lines" "$HISTORY"; then
+              [[ -n "$UI_INPUT" ]] && ui_run "history-limit · tmux" -- "$0" configure --history "$UI_INPUT"
+            fi ;;
+          escape)
+            if ui_input "escape-time ms (10 is good for vim/neovim)" "$ESCAPE_TIME"; then
+              [[ -n "$UI_INPUT" ]] && ui_run "escape-time · tmux" -- "$0" configure --escape-time "$UI_INPUT"
+            fi ;;
+          toggle)
+            local tf="${did[$sel]}" cur
+            cur="$(_tmux_setting_val "$tf")"
+            ui_run "$tf $(_tmux_flip_onoff "$cur") · tmux" -- "$0" configure "--$tf" "$(_tmux_flip_onoff "$cur")" ;;
           recommended) ui_run "recommended setup · tmux" -- "$0" configure --recommended ;;
           plugin)
             local pn="${did[$sel]}"
@@ -659,16 +847,32 @@ bin/ scripts. Re-running converges; safe to run twice.
   install            Install tmux via apt
   remove             Uninstall tmux (apt remove — keeps ~/.tmux.conf, plugins and TPM)
   configure [opts]   Re-spec options/plugins/theme. Options:
-                       --recommended            TPM + popular plugins ($TMUX_RECOMMENDED_PLUGINS) + Catppuccin
-                       --mouse on|off           (default: on)
-                       --keymode vi|emacs       (default: vi)
-                       --prefix <key>|default   remap the prefix (e.g. C-a); default = C-b
+                       --recommended            TPM + popular plugins + Catppuccin + ergonomic keys
+                     Appearance:
                        --theme none|catppuccin|dracula|themepack   (default: none)
-                       --theme-flavor <flavor>  Catppuccin: mocha|macchiato|frappe|latte;
-                                                themepack: e.g. powerline/default/cyan
-                       --plugins "a b c"        set enabled (curated) plugins; known names:
-                                                $TMUX_KNOWN_PLUGINS
-                       --no-plugins             disable all kit plugins
+                       --theme-flavor <flavor>  Catppuccin: mocha|macchiato|frappe|latte
+                       --status-position top|bottom                (default: bottom)
+                       --status-interval <seconds>                 (default: 5)
+                     Behavior (on|off):
+                       --mouse              mouse support            (default: on)
+                       --clipboard          set-clipboard / OSC52    (default: on)
+                       --focus-events       focus events for vim     (default: on)
+                       --aggressive-resize  resize to smallest client viewing the window (default: off)
+                       --renumber           renumber windows on close (default: on)
+                       --base-index         windows/panes start at 1  (default: on)
+                       --monitor-activity   highlight active windows  (default: off)
+                       --set-titles         set the terminal title    (default: off)
+                     Keys:
+                       --keymode vi|emacs   copy-mode keys           (default: vi)
+                       --prefix <key>|default   remap prefix (e.g. C-a); default = C-b
+                       --keybindings on|off ergonomic splits/nav/copy bindings (default: off)
+                     History:
+                       --history <lines>    scrollback buffer        (default: 50000)
+                       --escape-time <ms>   key wait after Esc       (default: 10)
+                     Plugins:
+                       --plugins "a b c"    set enabled (curated) plugins; known names:
+                                            $TMUX_KNOWN_PLUGINS
+                       --no-plugins         disable all kit plugins
   install-tpm        Install the Tmux Plugin Manager (~/.tmux/plugins/tpm)
   uninstall-tpm      Remove TPM (keeps plugin clones + your plugin selection in state)
   update-plugins     Update all installed plugins (TPM)
@@ -684,11 +888,12 @@ bin/ scripts. Re-running converges; safe to run twice.
   meta               Print machine-readable metadata (for the TUI / swkit list)
   help               Show this help
 
-A bare 'configure' writes a conservative, headless-safe baseline (sensible options, mouse on,
-vi copy mode, NO plugins/theme). Opt into the popular setup with 'configure --recommended' (or
-the UI's "Apply recommended setup"). Plugins load on the next tmux start, or immediately after
-'tmux source-file ~/.tmux.conf' inside a running tmux. tmux runs headless / over SSH — these
-settings apply right here on the server.
+A bare 'configure' writes a tasteful best-practice baseline (mouse on, vi copy mode, true
+color, 50k scrollback, 10ms escape-time, 1-based indexing) but NO plugins/theme and NO key
+remaps — safe and headless. Opt into the popular bundle with 'configure --recommended' (or
+the UI's "Apply recommended setup"). The interactive manager ('swkit tmux') exposes every
+setting as a quick toggle/picker/input. Plugins load on the next tmux start, or immediately
+after 'tmux source-file ~/.tmux.conf'. tmux runs headless / over SSH — settings apply here.
 EOF
 }
 
