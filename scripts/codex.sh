@@ -145,14 +145,14 @@ ui() {
       ui_row "$row" "$i" "$sel" "${dlabel[$i]}"
       (( row++ ))
     done
-    ui_footer "↑↓ move   ↵ select   q quit"
+    ui_footer "↑↓ move   ↵/space select   esc/q close"
 
     # ---- input ----
     ui_read_key
     case "$UI_KEY" in
-      up|k)   (( sel = (sel - 1 + n) % n )) ;;
-      down|j) (( sel = (sel + 1) % n )) ;;
-      enter|right|l|space)
+      up|k)   sel=$(( (sel - 1 + n) % n )) ;;
+      down|j) sel=$(( (sel + 1) % n )) ;;
+      enter|space)
         case "${dkind[$sel]}" in
           install)
             ui_pick "Codex CLI — $(ui_t install)" "Choose an installation method" "" -- \
@@ -169,7 +169,7 @@ ui() {
             ui_confirm "Uninstall the Codex CLI?" n && \
               ui_run "$(ui_t remove) Codex CLI" -- "$0" remove ;;
         esac ;;
-      q|esc) break ;;
+      q|Q|esc|backspace) break ;;
     esac
   done
   ui_end

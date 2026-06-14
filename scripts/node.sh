@@ -80,7 +80,7 @@ ui() {
     local n=${#dkind[@]} g
     (( sel < 0 )) && sel=0; (( sel >= n )) && sel=$(( n - 1 ))
     case "${dkind[$sel]}" in spacer|status)
-      for (( g=0; g<n; g++ )); do (( sel=(sel+1)%n )); case "${dkind[$sel]}" in spacer|status) ;; *) break ;; esac; done ;;
+      for (( g=0; g<n; g++ )); do sel=$(( (sel+1)%n )); case "${dkind[$sel]}" in spacer|status) ;; *) break ;; esac; done ;;
     esac
 
     # ---- render ----
@@ -96,20 +96,20 @@ ui() {
       esac
       (( row++ ))
     done
-    if (( installed )); then ui_footer "↑↓ move   ↵ uninstall   q quit"
-    else ui_footer "↑↓ move   ↵ install   q quit"; fi
+    if (( installed )); then ui_footer "↑↓ move   ↵/space uninstall   esc/q close"
+    else ui_footer "↑↓ move   ↵/space install   esc/q close"; fi
 
     # ---- input ----
     ui_read_key
     case "$UI_KEY" in
-      up|k)   for (( g=0; g<n; g++ )); do (( sel=(sel-1+n)%n )); case "${dkind[$sel]}" in spacer|status) ;; *) break ;; esac; done ;;
-      down|j) for (( g=0; g<n; g++ )); do (( sel=(sel+1)%n ));   case "${dkind[$sel]}" in spacer|status) ;; *) break ;; esac; done ;;
-      enter|right|l|space)
+      up|k)   for (( g=0; g<n; g++ )); do sel=$(( (sel-1+n)%n )); case "${dkind[$sel]}" in spacer|status) ;; *) break ;; esac; done ;;
+      down|j) for (( g=0; g<n; g++ )); do sel=$(( (sel+1)%n ));   case "${dkind[$sel]}" in spacer|status) ;; *) break ;; esac; done ;;
+      enter|space)
         case "${dkind[$sel]}" in
           install) ui_run "$(ui_t install) Node.js + npm" -- "$0" install ;;
           remove)  ui_confirm "Uninstall Node.js + npm?" n && ui_run "$(ui_t remove) Node.js + npm" -- "$0" remove ;;
         esac ;;
-      q|esc) break ;;
+      q|Q|esc|backspace) break ;;
     esac
   done
   ui_end

@@ -116,7 +116,7 @@ ui() {
     local n=${#dkind[@]}
     (( sel < 0 )) && sel=0; (( sel >= n )) && sel=$(( n - 1 ))
     case "${dkind[$sel]}" in spacer|header|info)
-      for (( g=0; g<n; g++ )); do (( sel=(sel+1)%n )); case "${dkind[$sel]}" in spacer|header|info) ;; *) break ;; esac; done ;;
+      for (( g=0; g<n; g++ )); do sel=$(( (sel+1)%n )); case "${dkind[$sel]}" in spacer|header|info) ;; *) break ;; esac; done ;;
     esac
 
     # ---- render ----
@@ -133,21 +133,21 @@ ui() {
       esac
       (( row++ ))
     done
-    ui_footer "↑↓ move   ↵ select   q quit"
+    ui_footer "↑↓ move   ↵/space select   esc/q close"
 
     # ---- input ----
     ui_read_key
     case "$UI_KEY" in
-      up|k)   for (( g=0; g<n; g++ )); do (( sel=(sel-1+n)%n )); case "${dkind[$sel]}" in spacer|header|info) ;; *) break ;; esac; done ;;
-      down|j) for (( g=0; g<n; g++ )); do (( sel=(sel+1)%n ));   case "${dkind[$sel]}" in spacer|header|info) ;; *) break ;; esac; done ;;
-      enter|right|l|space)
+      up|k)   for (( g=0; g<n; g++ )); do sel=$(( (sel-1+n)%n )); case "${dkind[$sel]}" in spacer|header|info) ;; *) break ;; esac; done ;;
+      down|j) for (( g=0; g<n; g++ )); do sel=$(( (sel+1)%n ));   case "${dkind[$sel]}" in spacer|header|info) ;; *) break ;; esac; done ;;
+      enter|space)
         case "${dkind[$sel]}" in
           install)   ui_run "$(ui_t install) Docker" -- "$0" install ;;
           configure) ui_run "configure · docker" -- "$0" configure ;;
           remove)    ui_confirm "Uninstall Docker? (apt remove docker.io — keeps your data)" n \
                        && ui_run "$(ui_t remove) Docker" -- "$0" remove ;;
         esac ;;
-      q|esc) break ;;
+      q|Q|esc|backspace) break ;;
     esac
   done
   ui_end

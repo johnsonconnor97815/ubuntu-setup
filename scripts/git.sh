@@ -123,7 +123,7 @@ ui() {
     local n=${#dkind[@]}
     (( sel < 0 )) && sel=0; (( sel >= n )) && sel=$(( n - 1 ))
     case "${dkind[$sel]}" in spacer|header|status)
-      for (( g=0; g<n; g++ )); do (( sel=(sel+1)%n )); case "${dkind[$sel]}" in spacer|header|status) ;; *) break ;; esac; done ;;
+      for (( g=0; g<n; g++ )); do sel=$(( (sel+1)%n )); case "${dkind[$sel]}" in spacer|header|status) ;; *) break ;; esac; done ;;
     esac
 
     # ---- render ----
@@ -140,14 +140,14 @@ ui() {
       esac
       (( row++ ))
     done
-    ui_footer "↑↓ move   ↵ select   q quit"
+    ui_footer "↑↓ move   ↵/space select   esc/q close"
 
     # ---- input ----
     ui_read_key
     case "$UI_KEY" in
-      up|k)   for (( g=0; g<n; g++ )); do (( sel=(sel-1+n)%n )); case "${dkind[$sel]}" in spacer|header|status) ;; *) break ;; esac; done ;;
-      down|j) for (( g=0; g<n; g++ )); do (( sel=(sel+1)%n ));   case "${dkind[$sel]}" in spacer|header|status) ;; *) break ;; esac; done ;;
-      enter|right|l|space)
+      up|k)   for (( g=0; g<n; g++ )); do sel=$(( (sel-1+n)%n )); case "${dkind[$sel]}" in spacer|header|status) ;; *) break ;; esac; done ;;
+      down|j) for (( g=0; g<n; g++ )); do sel=$(( (sel+1)%n ));   case "${dkind[$sel]}" in spacer|header|status) ;; *) break ;; esac; done ;;
+      enter|space)
         case "${dkind[$sel]}" in
           install) ui_run "$(ui_t install) git" -- "$0" install ;;
           remove)  ui_confirm "Uninstall git? (apt remove — your config is kept)" n && ui_run "$(ui_t remove) git" -- "$0" remove ;;
@@ -162,7 +162,7 @@ ui() {
               ui_run "configure · git" -- "$0" configure "${cargs[@]}"
             fi ;;
         esac ;;
-      q|esc) break ;;
+      q|Q|esc|backspace) break ;;
     esac
   done
   ui_end

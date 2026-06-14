@@ -40,6 +40,13 @@ readonly ZSH_OLD_MARKER="# managed by ubuntu-setup zsh.sh"
 # cloned under ~/.config/zsh/plugins/<name>.
 readonly ZSH_KNOWN_PLUGINS="autosuggestions syntax-highlighting completions history-substring-search fzf zoxide"
 
+# OMZ-native bundled plugins, enabled via Oh My Zsh's plugins=(...) array (a separate axis
+# from the kit's own plugins above). Curated to ones that ship with OMZ and are broadly
+# useful on dev/server boxes. DELIBERATELY EXCLUDES zsh-autosuggestions / zsh-syntax-
+# highlighting: the kit installs and sources those itself (after oh-my-zsh.sh, highlighting
+# last), so listing them here too would double-load them.
+readonly ZSH_OMZ_KNOWN_PLUGINS="git sudo extract colored-man-pages command-not-found docker docker-compose kubectl z"
+
 meta() {
   cat <<'META'
 key=zsh
@@ -101,17 +108,32 @@ _zsh_resolve_paths() {
   mkdir -p "$_ZHOME/.config/zsh" "$_ZHOME/.cache/zsh" "$_ZPLUGDIR"
 }
 
-# Load state into FRAMEWORK / PROMPT / PLUGINS / ALIASES (with defaults).
+# Load state into FRAMEWORK / PROMPT / PLUGINS / ALIASES + the OMZ_* knobs (with defaults).
+# OMZ defaults are conservative, performance/non-interactive-safe best practices (each is
+# individually overridable via `omz-setting` / configure --omz-*): updates disabled (the kit
+# manages OMZ via git; an auto-update prompt would block a non-interactive shell), magic
+# functions off (faster paste), untracked-files-dirty off (faster git status in big repos),
+# correction off (intrusive), waiting dots on, ISO history stamps.
 _zsh_load_state() {
   FRAMEWORK="none"; PROMPT="git"; PLUGINS="autosuggestions syntax-highlighting"; ALIASES="1"
+  OMZ_PLUGINS="git"
+  OMZ_UPDATE="disabled"; OMZ_MAGIC="0"; OMZ_UNTRACKED_DIRTY="0"
+  OMZ_CORRECTION="0"; OMZ_WAIT_DOTS="1"; OMZ_HIST_STAMPS="yyyy-mm-dd"
   [[ -f "$_ZCONF" ]] || return 0
   local k v
   while IFS='=' read -r k v; do
     case "$k" in
-      FRAMEWORK) FRAMEWORK="$v" ;;
-      PROMPT)    PROMPT="$v" ;;
-      PLUGINS)   PLUGINS="$v" ;;
-      ALIASES)   ALIASES="$v" ;;
+      FRAMEWORK)           FRAMEWORK="$v" ;;
+      PROMPT)              PROMPT="$v" ;;
+      PLUGINS)             PLUGINS="$v" ;;
+      ALIASES)             ALIASES="$v" ;;
+      OMZ_PLUGINS)         OMZ_PLUGINS="$v" ;;
+      OMZ_UPDATE)          OMZ_UPDATE="$v" ;;
+      OMZ_MAGIC)           OMZ_MAGIC="$v" ;;
+      OMZ_UNTRACKED_DIRTY) OMZ_UNTRACKED_DIRTY="$v" ;;
+      OMZ_CORRECTION)      OMZ_CORRECTION="$v" ;;
+      OMZ_WAIT_DOTS)       OMZ_WAIT_DOTS="$v" ;;
+      OMZ_HIST_STAMPS)     OMZ_HIST_STAMPS="$v" ;;
     esac
   done <"$_ZCONF"
 }
@@ -119,10 +141,17 @@ _zsh_load_state() {
 _zsh_save_state() {
   {
     printf '# ubuntu-setup zsh.sh state — managed by swkit zsh actions; do not hand-edit.\n'
-    printf 'FRAMEWORK=%s\n' "$FRAMEWORK"
-    printf 'PROMPT=%s\n'    "$PROMPT"
-    printf 'PLUGINS=%s\n'   "$PLUGINS"
-    printf 'ALIASES=%s\n'   "$ALIASES"
+    printf 'FRAMEWORK=%s\n'           "$FRAMEWORK"
+    printf 'PROMPT=%s\n'              "$PROMPT"
+    printf 'PLUGINS=%s\n'             "$PLUGINS"
+    printf 'ALIASES=%s\n'             "$ALIASES"
+    printf 'OMZ_PLUGINS=%s\n'         "$OMZ_PLUGINS"
+    printf 'OMZ_UPDATE=%s\n'          "$OMZ_UPDATE"
+    printf 'OMZ_MAGIC=%s\n'           "$OMZ_MAGIC"
+    printf 'OMZ_UNTRACKED_DIRTY=%s\n' "$OMZ_UNTRACKED_DIRTY"
+    printf 'OMZ_CORRECTION=%s\n'      "$OMZ_CORRECTION"
+    printf 'OMZ_WAIT_DOTS=%s\n'       "$OMZ_WAIT_DOTS"
+    printf 'OMZ_HIST_STAMPS=%s\n'     "$OMZ_HIST_STAMPS"
   } >"$_ZCONF"
 }
 
@@ -165,6 +194,26 @@ _zsh_ensure_zoxide() {
     return 1
   fi
   ensure_local_bin_on_path
+}
+
+# Ensure the recommended Nerd Font (MesloLGS NF) is installed, by delegating to the kit's
+# dedicated fonts.sh — so Starship / Powerlevel10k glyphs render on a LOCAL display. Font
+# logic lives in ONE place (fonts.sh), not duplicated here. Best-effort: a failure (e.g. no
+# sudo for fontconfig) only warns; the zsh config still applies. Over SSH the font that
+# matters is on the CLIENT terminal — fonts.sh prints that guidance.
+_zsh_ensure_nerd_font() {
+  local fonts="$KIT_SCRIPTS_DIR/fonts.sh"
+  if [[ -x "$fonts" ]]; then
+    if "$fonts" status >/dev/null 2>&1; then
+      log_info "Recommended Nerd Font (MesloLGS NF) already installed."
+    else
+      log_info "Installing the recommended Nerd Font (MesloLGS NF) via fonts.sh…"
+      "$fonts" install meslolgs || log_warn "Could not install the Nerd Font automatically — run 'swkit fonts install' yourself."
+    fi
+  else
+    log_warn "fonts.sh not found; install a Nerd Font with 'swkit fonts install' for $PROMPT glyphs."
+  fi
+  log_warn "Nerd Font glyphs render in your LOCAL terminal — over SSH, also install/select MesloLGS NF on your client."
 }
 
 # git clone <repo> into <dir> if absent (run as the user). $3 = friendly name.
@@ -309,8 +358,18 @@ ZRC
 export ZSH="$HOME/.oh-my-zsh"
 ZRC
     printf 'ZSH_THEME="%s"\n' "$omz_theme"
+    # Update behavior — the kit manages OMZ via git; the default 'disabled' keeps a
+    # non-interactive shell from ever blocking on an auto-update prompt. Change with
+    # `swkit zsh omz-setting update auto|reminder|disabled`.
+    printf "zstyle ':omz:update' mode %s\n" "${OMZ_UPDATE:-disabled}"
+    # Behavior / performance toggles (change with `swkit zsh omz-setting <key> <v>`).
+    [[ "${OMZ_MAGIC:-0}" == "0" ]]           && printf 'DISABLE_MAGIC_FUNCTIONS="true"\n'
+    [[ "${OMZ_UNTRACKED_DIRTY:-0}" == "0" ]] && printf 'DISABLE_UNTRACKED_FILES_DIRTY="true"\n'
+    [[ "${OMZ_WAIT_DOTS:-1}" == "1" ]]       && printf 'COMPLETION_WAITING_DOTS="true"\n'
+    [[ "${OMZ_CORRECTION:-0}" == "1" ]]      && printf 'ENABLE_CORRECTION="true"\n'
+    case "${OMZ_HIST_STAMPS:-yyyy-mm-dd}" in none|"") ;; *) printf 'HIST_STAMPS="%s"\n' "$OMZ_HIST_STAMPS" ;; esac
+    printf 'plugins=(%s)\n' "${OMZ_PLUGINS:-git}"
     cat <<'ZRC'
-plugins=(git)
 source "$ZSH/oh-my-zsh.sh"
 ZRC
   else
@@ -439,10 +498,9 @@ _zsh_apply() {
   # Ensure every enabled component is actually installed (idempotent; only if missing).
   [[ "$FRAMEWORK" == "oh-my-zsh" ]] && { _zsh_ensure_omz || return 1; }
   case "$PROMPT" in
-    starship)      _zsh_ensure_starship || return 1;
-                   log_warn "Starship uses Nerd Font glyphs — install a Nerd Font in your LOCAL terminal." ;;
+    starship)      _zsh_ensure_starship || return 1; _zsh_ensure_nerd_font ;;
     powerlevel10k) _zsh_git_clone "$P10K_REPO" "$_ZPLUGDIR/powerlevel10k" "Powerlevel10k" || return 1;
-                   log_warn "Powerlevel10k uses Nerd Font glyphs — install one in your LOCAL terminal.";
+                   _zsh_ensure_nerd_font;
                    log_info "Run 'p10k configure' yourself to customize it (interactive; not run here)." ;;
     pure)          _zsh_git_clone "$PURE_REPO" "$_ZPLUGDIR/pure" "Pure prompt" || return 1 ;;
   esac
@@ -473,7 +531,7 @@ do_configure() {
   _zsh_resolve_paths || return 1
   _zsh_load_state
 
-  local default_shell=0 want_plugins=1 plugins_set=""
+  local default_shell=0 want_plugins=1 plugins_set="" omz_plugins_set=""
   while [[ $# -gt 0 ]]; do
     case "$1" in
       --framework)   FRAMEWORK="${2:-}"; shift 2 || { log_err "--framework needs a value."; return 2; } ;;
@@ -485,11 +543,31 @@ do_configure() {
       --no-plugins)  want_plugins=0; shift ;;
       --no-aliases)  ALIASES=0; shift ;;
       --default-shell) default_shell=1; shift ;;
+      --omz-plugins)   omz_plugins_set="${2:-}"; shift 2 || { log_err "--omz-plugins needs a value."; return 2; } ;;
+      --omz-plugins=*) omz_plugins_set="${1#--omz-plugins=}"; shift ;;
+      --omz-update)    OMZ_UPDATE="${2:-}"; shift 2 || { log_err "--omz-update needs a value."; return 2; } ;;
+      --omz-update=*)  OMZ_UPDATE="${1#--omz-update=}"; shift ;;
+      --omz-magic)     _zsh_bool "${2:-}" OMZ_MAGIC || return 2; shift 2 ;;
+      --omz-magic=*)   _zsh_bool "${1#--omz-magic=}" OMZ_MAGIC || return 2; shift ;;
+      --omz-untracked-dirty)   _zsh_bool "${2:-}" OMZ_UNTRACKED_DIRTY || return 2; shift 2 ;;
+      --omz-untracked-dirty=*) _zsh_bool "${1#--omz-untracked-dirty=}" OMZ_UNTRACKED_DIRTY || return 2; shift ;;
+      --omz-correction)   _zsh_bool "${2:-}" OMZ_CORRECTION || return 2; shift 2 ;;
+      --omz-correction=*) _zsh_bool "${1#--omz-correction=}" OMZ_CORRECTION || return 2; shift ;;
+      --omz-wait-dots)    _zsh_bool "${2:-}" OMZ_WAIT_DOTS || return 2; shift 2 ;;
+      --omz-wait-dots=*)  _zsh_bool "${1#--omz-wait-dots=}" OMZ_WAIT_DOTS || return 2; shift ;;
+      --omz-hist-stamps)   OMZ_HIST_STAMPS="${2:-}"; shift 2 || { log_err "--omz-hist-stamps needs a value."; return 2; } ;;
+      --omz-hist-stamps=*) OMZ_HIST_STAMPS="${1#--omz-hist-stamps=}"; shift ;;
       *) log_err "Unknown configure option: $1"; return 2 ;;
     esac
   done
   case "$FRAMEWORK" in none|oh-my-zsh) ;; *) log_err "Unknown --framework '$FRAMEWORK' (none|oh-my-zsh)."; return 2 ;; esac
   case "$PROMPT" in git|plain|starship|powerlevel10k|pure) ;; *) log_err "Unknown --prompt '$PROMPT'."; return 2 ;; esac
+  case "$OMZ_UPDATE" in disabled|auto|reminder) ;; *) log_err "--omz-update: disabled|auto|reminder."; return 2 ;; esac
+  case "$OMZ_HIST_STAMPS" in yyyy-mm-dd|mm/dd/yyyy|dd.mm.yyyy|none) ;; *) log_err "--omz-hist-stamps: yyyy-mm-dd|mm/dd/yyyy|dd.mm.yyyy|none."; return 2 ;; esac
+  if [[ -n "$omz_plugins_set" ]]; then
+    local _omzp; _omzp="$(_zsh_omz_plugins_validate "$omz_plugins_set")" || return 2
+    OMZ_PLUGINS="$_omzp"
+  fi
 
   # Plugin set: --no-plugins clears; --plugins replaces (comma/space separated, known keys);
   # otherwise keep the current set (default on a fresh machine = autosuggestions+syntax).
@@ -582,6 +660,112 @@ do_remove_plugin() {
   _zsh_apply
 }
 
+# --- Oh My Zsh native plugins (the plugins=(...) array) -------------------------
+# A separate axis from the kit's own plugins: these ship with OMZ and are enabled by name.
+# Probe the live OMZ install (idempotency contract) to know what's a real plugin.
+
+_zsh_omz_plugin_available() {
+  local name="$1"
+  [[ -d "$_ZHOME/.oh-my-zsh/plugins/$name" || -d "$_ZHOME/.oh-my-zsh/custom/plugins/$name" ]]
+}
+
+do_add_omz_plugin() {
+  if ! status >/dev/null 2>&1; then log_info "Install zsh first."; return 0; fi
+  local name="${1:-}"
+  if [[ -z "$name" ]]; then
+    log_err "Usage: zsh add-omz-plugin <name>"
+    log_err "Curated OMZ plugins: $ZSH_OMZ_KNOWN_PLUGINS"
+    return 2
+  fi
+  _zsh_resolve_paths || return 1
+  _zsh_load_state
+  if [[ "$FRAMEWORK" != "oh-my-zsh" ]]; then
+    log_err "Oh My Zsh is not enabled — run 'swkit zsh install-omz' first (OMZ plugins need the framework)."
+    return 2
+  fi
+  if ! _zsh_omz_plugin_available "$name"; then
+    log_err "'$name' is not an Oh My Zsh plugin (not in ~/.oh-my-zsh/plugins or custom/plugins)."
+    log_err "Curated OMZ plugins: $ZSH_OMZ_KNOWN_PLUGINS"
+    return 2
+  fi
+  if _zsh_plugin_in "$name" "$OMZ_PLUGINS"; then
+    log_info "OMZ plugin '$name' already enabled — refreshing config."
+  else
+    OMZ_PLUGINS="${OMZ_PLUGINS:+$OMZ_PLUGINS }$name"
+  fi
+  _zsh_apply
+}
+
+do_remove_omz_plugin() {
+  if ! status >/dev/null 2>&1; then log_info "Install zsh first."; return 0; fi
+  local name="${1:-}"
+  if [[ -z "$name" ]]; then log_err "Usage: zsh remove-omz-plugin <name>"; return 2; fi
+  _zsh_resolve_paths || return 1
+  _zsh_load_state
+  if ! _zsh_plugin_in "$name" "$OMZ_PLUGINS"; then
+    log_info "OMZ plugin '$name' is not enabled — nothing to remove."
+    return 0
+  fi
+  local p new=""
+  for p in $OMZ_PLUGINS; do [[ "$p" == "$name" ]] || new="${new:+$new }$p"; done
+  OMZ_PLUGINS="$new"
+  _zsh_apply
+}
+
+# Validate/normalize a space/comma OMZ plugin list: each must be curated or live in the OMZ
+# install. Echoes the normalized space list; non-zero (with guidance) on an unknown name.
+_zsh_omz_plugins_validate() {
+  local raw="${1//,/ }" p out=""
+  for p in $raw; do
+    if _zsh_plugin_in "$p" "$ZSH_OMZ_KNOWN_PLUGINS" || _zsh_omz_plugin_available "$p"; then
+      out="${out:+$out }$p"
+    else
+      log_err "Unknown OMZ plugin '$p' (not curated and not in ~/.oh-my-zsh/plugins)."
+      log_err "Curated: $ZSH_OMZ_KNOWN_PLUGINS"
+      return 2
+    fi
+  done
+  printf '%s' "$out"
+}
+
+# Parse on/off/1/0/true/false/yes/no into 1/0 via nameref OUTVAR.
+_zsh_bool() {
+  local v="$1"; local -n _out="$2"
+  case "$v" in
+    on|1|true|yes|y|Y)  _out=1 ;;
+    off|0|false|no|n|N) _out=0 ;;
+    *) log_err "Expected on|off, got '$v'."; return 1 ;;
+  esac
+}
+
+# Granular OMZ setting control: omz-setting <key> <value>.
+do_omz_setting() {
+  if ! status >/dev/null 2>&1; then log_info "Install zsh first."; return 0; fi
+  local key="${1:-}" val="${2:-}"
+  if [[ -z "$key" || -z "$val" ]]; then
+    log_err "Usage: zsh omz-setting <key> <value>"
+    log_err "  update          disabled|auto|reminder   (OMZ auto-update mode)"
+    log_err "  magic           on|off                   (magic paste functions; off = faster)"
+    log_err "  untracked-dirty on|off                   (VCS dirty on untracked files; off = faster)"
+    log_err "  correction      on|off                   (command auto-correction)"
+    log_err "  wait-dots       on|off                   (dots while completing)"
+    log_err "  hist-stamps     yyyy-mm-dd|mm/dd/yyyy|dd.mm.yyyy|none"
+    return 2
+  fi
+  _zsh_resolve_paths || return 1
+  _zsh_load_state
+  case "$key" in
+    update)          case "$val" in disabled|auto|reminder) OMZ_UPDATE="$val" ;; *) log_err "update: disabled|auto|reminder"; return 2 ;; esac ;;
+    magic)           _zsh_bool "$val" OMZ_MAGIC || return 2 ;;
+    untracked-dirty) _zsh_bool "$val" OMZ_UNTRACKED_DIRTY || return 2 ;;
+    correction)      _zsh_bool "$val" OMZ_CORRECTION || return 2 ;;
+    wait-dots)       _zsh_bool "$val" OMZ_WAIT_DOTS || return 2 ;;
+    hist-stamps)     case "$val" in yyyy-mm-dd|mm/dd/yyyy|dd.mm.yyyy|none) OMZ_HIST_STAMPS="$val" ;; *) log_err "hist-stamps: yyyy-mm-dd|mm/dd/yyyy|dd.mm.yyyy|none"; return 2 ;; esac ;;
+    *) log_err "Unknown omz-setting key '$key' (update|magic|untracked-dirty|correction|wait-dots|hist-stamps)."; return 2 ;;
+  esac
+  _zsh_apply
+}
+
 do_prompt() {
   if ! status >/dev/null 2>&1; then log_info "Install zsh first."; return 0; fi
   local p="${1:-}"
@@ -619,12 +803,18 @@ do_default_shell() {
   fi
 }
 
+# --- UI label helpers (OMZ settings rows) --------------------------------------
+_zsh_onoff()        { [[ "$1" == "1" ]] && printf 'on' || printf 'off'; }
+_zsh_toggle_onoff() { [[ "$1" == "1" ]] && printf 'off' || printf 'on'; }
+_zsh_omz_setting_row() { printf '  %-16s %s%s%s' "$1" "$UI_INFO" "$2" "$UI_OFF"; }
+
 # --- Interactive management screen (the script's own UI) -----------------------
 # A bespoke full-screen component manager: toggle the framework, pick a prompt, check
-# plugins on/off, set the default shell, install/remove zsh. State is read live from
-# ubuntu-setup.conf each pass; every change shells out via ui_run (so apt/git/sudo output
-# is visible and logged) and then the screen reloads. Limited terminals fall back to the
-# synthesized op menu. `ui` is an entry mode (kit_dispatch) — never listed in meta ops.
+# plugins on/off, manage Oh My Zsh's native plugins + settings (when OMZ is on), set the
+# default shell, install/remove zsh. State is read live from ubuntu-setup.conf each pass;
+# every change shells out via ui_run (so apt/git/sudo output is visible and logged) and then
+# the screen reloads. Limited terminals fall back to the synthesized op menu. `ui` is an
+# entry mode (kit_dispatch) — never listed in meta ops.
 ui() {
   if ! ui_supported; then ui_default_menu; return 0; fi
   ui_begin || { ui_default_menu; return 0; }
@@ -667,6 +857,32 @@ ui() {
         _zsh_plugin_in "$p" "${known[*]}" && continue
         dkind+=(plugin); did+=("$p"); dlabel+=("  ${UI_OK}${UI_CHK_ON}${UI_OFF} $p ${UI_MUTED}(git)${UI_OFF}")
       done
+
+      # ---- Oh My Zsh native plugins + settings (only when the framework is on) ----
+      if [[ "${FRAMEWORK:-none}" == "oh-my-zsh" ]]; then
+        local op oon
+        dkind+=(spacer); did+=(""); dlabel+=("")
+        dkind+=(header); did+=(""); dlabel+=("Oh My Zsh plugins")
+        for op in $ZSH_OMZ_KNOWN_PLUGINS; do
+          oon=0; _zsh_plugin_in "$op" "$OMZ_PLUGINS" && oon=1
+          dkind+=(omzplugin); did+=("$op")
+          if (( oon )); then dlabel+=("  ${UI_OK}${UI_CHK_ON}${UI_OFF} $op"); else dlabel+=("  ${UI_MUTED}${UI_CHK_OFF}${UI_OFF} $op"); fi
+        done
+        for op in $OMZ_PLUGINS; do
+          _zsh_plugin_in "$op" "$ZSH_OMZ_KNOWN_PLUGINS" && continue
+          dkind+=(omzplugin); did+=("$op"); dlabel+=("  ${UI_OK}${UI_CHK_ON}${UI_OFF} $op ${UI_MUTED}(custom)${UI_OFF}")
+        done
+        dkind+=(omzplugin_add); did+=(omzplugin_add); dlabel+=("  ${UI_ACCENT}+${UI_OFF} add Oh My Zsh plugin…")
+        dkind+=(spacer); did+=(""); dlabel+=("")
+        dkind+=(header); did+=(""); dlabel+=("Oh My Zsh settings")
+        dkind+=(omzsetting); did+=(update);          dlabel+=("$(_zsh_omz_setting_row 'Auto-update'     "$OMZ_UPDATE")")
+        dkind+=(omzsetting); did+=(magic);           dlabel+=("$(_zsh_omz_setting_row 'Magic paste'     "$(_zsh_onoff "$OMZ_MAGIC")")")
+        dkind+=(omzsetting); did+=(untracked-dirty); dlabel+=("$(_zsh_omz_setting_row 'Untracked dirty' "$(_zsh_onoff "$OMZ_UNTRACKED_DIRTY")")")
+        dkind+=(omzsetting); did+=(correction);      dlabel+=("$(_zsh_omz_setting_row 'Correction'      "$(_zsh_onoff "$OMZ_CORRECTION")")")
+        dkind+=(omzsetting); did+=(wait-dots);       dlabel+=("$(_zsh_omz_setting_row 'Waiting dots'    "$(_zsh_onoff "$OMZ_WAIT_DOTS")")")
+        dkind+=(omzsetting); did+=(hist-stamps);     dlabel+=("$(_zsh_omz_setting_row 'History stamps'  "$OMZ_HIST_STAMPS")")
+      fi
+
       dkind+=(spacer);   did+=("");        dlabel+=("")
       dkind+=(defshell); did+=(defshell)
       if (( is_default )); then dlabel+=("$(printf '%-13s %s' 'Login shell' "zsh ${UI_OK}${UI_CHECK}${UI_OFF}")")
@@ -677,7 +893,7 @@ ui() {
     local n=${#dkind[@]}
     (( sel < 0 )) && sel=0; (( sel >= n )) && sel=$(( n - 1 ))
     case "${dkind[$sel]}" in spacer|header)
-      for (( g=0; g<n; g++ )); do (( sel=(sel+1)%n )); case "${dkind[$sel]}" in spacer|header) ;; *) break ;; esac; done ;;
+      for (( g=0; g<n; g++ )); do sel=$(( (sel+1)%n )); case "${dkind[$sel]}" in spacer|header) ;; *) break ;; esac; done ;;
     esac
 
     # ---- render ----
@@ -693,19 +909,19 @@ ui() {
       esac
       (( row++ ))
     done
-    if (( installed )); then ui_footer "↑↓ move   ↵/space toggle   a add-plugin   q quit"
-    else ui_footer "↑↓ move   ↵ install   q quit"; fi
+    if (( installed )); then ui_footer "↑↓ move   ↵/space toggle   a add-plugin   esc/q close"
+    else ui_footer "↑↓ move   ↵/space install   esc/q close"; fi
 
     # ---- input ----
     ui_read_key
     case "$UI_KEY" in
-      up|k)   for (( g=0; g<n; g++ )); do (( sel=(sel-1+n)%n )); case "${dkind[$sel]}" in spacer|header) ;; *) break ;; esac; done ;;
-      down|j) for (( g=0; g<n; g++ )); do (( sel=(sel+1)%n ));   case "${dkind[$sel]}" in spacer|header) ;; *) break ;; esac; done ;;
+      up|k)   for (( g=0; g<n; g++ )); do sel=$(( (sel-1+n)%n )); case "${dkind[$sel]}" in spacer|header) ;; *) break ;; esac; done ;;
+      down|j) for (( g=0; g<n; g++ )); do sel=$(( (sel+1)%n ));   case "${dkind[$sel]}" in spacer|header) ;; *) break ;; esac; done ;;
       a|A)
         if (( installed )) && ui_input "git URL or plugin name" ""; then
           ui_run "add-plugin · zsh" -- "$0" add-plugin "$UI_INPUT"
         fi ;;
-      enter|right|l|space)
+      enter|space)
         case "${dkind[$sel]}" in
           install) ui_run "$(ui_t install) zsh" -- "$0" install ;;
           remove)  ui_confirm "Uninstall zsh? (refused if it is your login shell)" n && ui_run "$(ui_t remove) zsh" -- "$0" remove ;;
@@ -721,9 +937,33 @@ ui() {
             local pn="${did[$sel]}"
             if _zsh_plugin_in "$pn" "$PLUGINS"; then ui_run "remove-plugin $pn · zsh" -- "$0" remove-plugin "$pn"
             else ui_run "add-plugin $pn · zsh" -- "$0" add-plugin "$pn"; fi ;;
+          omzplugin)
+            local opn="${did[$sel]}"
+            if _zsh_plugin_in "$opn" "$OMZ_PLUGINS"; then ui_run "remove-omz-plugin $opn · zsh" -- "$0" remove-omz-plugin "$opn"
+            else ui_run "add-omz-plugin $opn · zsh" -- "$0" add-omz-plugin "$opn"; fi ;;
+          omzplugin_add)
+            if ui_input "Oh My Zsh plugin name" ""; then
+              ui_run "add-omz-plugin · zsh" -- "$0" add-omz-plugin "$UI_INPUT"
+            fi ;;
+          omzsetting)
+            local sk="${did[$sel]}"
+            case "$sk" in
+              update)
+                ui_pick "OMZ auto-update" "current: $OMZ_UPDATE" "" -- \
+                  disabled "disabled (kit manages updates via git)" auto "auto" reminder "reminder"
+                [[ -n "$UI_PICK" ]] && ui_run "omz-setting update $UI_PICK · zsh" -- "$0" omz-setting update "$UI_PICK" ;;
+              hist-stamps)
+                ui_pick "OMZ history stamps" "current: $OMZ_HIST_STAMPS" "" -- \
+                  yyyy-mm-dd "yyyy-mm-dd" mm/dd/yyyy "mm/dd/yyyy" dd.mm.yyyy "dd.mm.yyyy" none "none (off)"
+                [[ -n "$UI_PICK" ]] && ui_run "omz-setting hist-stamps $UI_PICK · zsh" -- "$0" omz-setting hist-stamps "$UI_PICK" ;;
+              magic)           ui_run "omz-setting magic · zsh"           -- "$0" omz-setting magic           "$(_zsh_toggle_onoff "$OMZ_MAGIC")" ;;
+              untracked-dirty) ui_run "omz-setting untracked-dirty · zsh" -- "$0" omz-setting untracked-dirty "$(_zsh_toggle_onoff "$OMZ_UNTRACKED_DIRTY")" ;;
+              correction)      ui_run "omz-setting correction · zsh"      -- "$0" omz-setting correction      "$(_zsh_toggle_onoff "$OMZ_CORRECTION")" ;;
+              wait-dots)       ui_run "omz-setting wait-dots · zsh"       -- "$0" omz-setting wait-dots       "$(_zsh_toggle_onoff "$OMZ_WAIT_DOTS")" ;;
+            esac ;;
           defshell) ui_run "default-shell · zsh" -- "$0" default-shell ;;
         esac ;;
-      q|esc) break ;;
+      q|Q|esc|backspace) break ;;
     esac
   done
   ui_end
@@ -743,23 +983,38 @@ line). Re-running converges; your own ~/.zshrc is never clobbered.
   configure [opts]   Full re-spec of the whole config. Options:
                        --framework none|oh-my-zsh                 (default: none)
                        --prompt git|plain|starship|powerlevel10k|pure   (default: git)
-                       --plugins "a b c"   set the enabled plugins (known names below)
+                       --plugins "a b c"   set the enabled (kit) plugins (known names below)
                        --no-plugins · --no-aliases · --default-shell
+                       --omz-plugins "git sudo …"   set OMZ-native plugins (curated below)
+                       --omz-update disabled|auto|reminder        (default: disabled)
+                       --omz-magic on|off · --omz-untracked-dirty on|off
+                       --omz-correction on|off · --omz-wait-dots on|off
+                       --omz-hist-stamps yyyy-mm-dd|mm/dd/yyyy|dd.mm.yyyy|none
   install-omz        Install the Oh My Zsh framework
   uninstall-omz      Remove Oh My Zsh (deletes ~/.oh-my-zsh)
-  add-plugin <name|git-url>   Enable a plugin (installs it). Known names:
+  add-plugin <name|git-url>   Enable a (kit) plugin (installs it). Known names:
                        $ZSH_KNOWN_PLUGINS
                      Any other value is treated as a git repo URL and cloned.
-  remove-plugin <name>        Disable a plugin (removes git clones; keeps apt packages)
+  remove-plugin <name>        Disable a (kit) plugin (removes git clones; keeps apt packages)
+  add-omz-plugin <name>       Enable an Oh My Zsh-native plugin (needs OMZ). Curated:
+                       $ZSH_OMZ_KNOWN_PLUGINS
+                     Any plugin present in ~/.oh-my-zsh/plugins is also accepted.
+  remove-omz-plugin <name>    Disable an Oh My Zsh-native plugin
+  omz-setting <key> <value>   Tune one OMZ setting:
+                       update disabled|auto|reminder · magic on|off
+                       untracked-dirty on|off · correction on|off · wait-dots on|off
+                       hist-stamps yyyy-mm-dd|mm/dd/yyyy|dd.mm.yyyy|none
   prompt <name>      Set the prompt (git|plain|starship|powerlevel10k|pure)
   default-shell      Make zsh the default login shell (lockout-safe)
   ui                 Open the interactive component manager (needs a terminal)
   status / meta / help
 
 Default config is a conservative, headless-safe baseline (framework-free, git-branch ASCII
-prompt, autosuggestions + syntax-highlighting, color aliases). Starship/Powerlevel10k need a
-Nerd Font in your LOCAL terminal. The TUI lists the no-argument actions; the argument-taking
-ones (add-plugin/remove-plugin/prompt) are run via 'swkit zsh ...' or the LLM.
+prompt, autosuggestions + syntax-highlighting, color aliases). Choosing Starship/Powerlevel10k
+installs the recommended Nerd Font (MesloLGS NF) on this box via fonts.sh — but glyphs render
+in your LOCAL terminal, so over SSH also install/select that font on your client (run
+'swkit fonts install' / 'swkit fonts ui' to manage fonts). With Oh My Zsh on, manage its
+native plugins and settings via the TUI, 'swkit zsh add-omz-plugin/omz-setting', or the LLM.
 EOF
 }
 

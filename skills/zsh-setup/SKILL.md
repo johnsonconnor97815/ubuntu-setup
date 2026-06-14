@@ -45,8 +45,26 @@ regenerates the drop-in and converges.
   the login shell).
 - **`install-omz`** / **`uninstall-omz`** — install the Oh My Zsh framework (official installer,
   unattended, `--keep-zshrc`, clones `~/.oh-my-zsh`) / uninstall it (deletes `~/.oh-my-zsh`). Sets
-  `FRAMEWORK` and regenerates. With Oh My Zsh active, the drop-in sources `oh-my-zsh.sh` (which
-  runs its own compinit), then still sources the named plugins after it (syntax-highlighting last).
+  `FRAMEWORK` and regenerates. With Oh My Zsh active, the drop-in emits OMZ's `ZSH_THEME`, the
+  **OMZ settings** (see `omz-setting` below), and **`plugins=($OMZ_PLUGINS)`** (OMZ-native plugins),
+  then sources `oh-my-zsh.sh` (which runs its own compinit), then **still** sources the kit's own
+  named plugins after it (syntax-highlighting last). The two plugin axes are distinct: the kit's
+  `add-plugin` set (apt/git, sourced by the kit) vs OMZ's `add-omz-plugin` set (bundled with OMZ,
+  enabled by name in the array).
+- **`add-omz-plugin <name>`** / **`remove-omz-plugin <name>`** — enable/disable an **Oh My Zsh-native**
+  plugin in `OMZ_PLUGINS` (needs OMZ; `add` validates the name exists in `~/.oh-my-zsh/plugins` or
+  `custom/plugins`, the live-system idempotency probe). Curated set: `git sudo extract
+  colored-man-pages command-not-found docker docker-compose kubectl z` (any plugin present in the OMZ
+  install is also accepted). Deliberately **excludes** `zsh-autosuggestions`/`zsh-syntax-highlighting`
+  — those are the kit's own `add-plugin` plugins (sourced after `oh-my-zsh.sh`); listing them as OMZ
+  plugins too would double-load them.
+- **`omz-setting <key> <value>`** — tune one OMZ setting (state in `ubuntu-setup.conf`, regenerated):
+  `update disabled|auto|reminder` (default **disabled** — the kit manages OMZ via git, and an
+  auto-update prompt would block a non-interactive shell), `magic on|off` (magic paste; default off =
+  faster), `untracked-dirty on|off` (VCS dirty on untracked files; default off = faster `git status`),
+  `correction on|off` (default off), `wait-dots on|off` (default on), `hist-stamps
+  yyyy-mm-dd|mm/dd/yyyy|dd.mm.yyyy|none` (default ISO). Each is individually overridable; defaults are
+  conservative, performance/non-interactive-safe best practices.
 - **`add-plugin <name|git-url>`** — enable a plugin: install it, add to `PLUGINS`, regenerate.
   **Known names** (installed the right way, placed in the right load slot):
   - `autosuggestions` — apt `zsh-autosuggestions`
@@ -67,17 +85,26 @@ regenerates the drop-in and converges.
   everything at once rather than incrementally):
   - `--framework none|oh-my-zsh` (default `none`)
   - `--prompt git|plain|starship|powerlevel10k|pure` (default `git`)
-  - `--plugins "a b c"` set the enabled plugins to exactly this (known names); `--no-plugins` clears
+  - `--plugins "a b c"` set the enabled (kit) plugins to exactly this (known names); `--no-plugins` clears
+  - `--omz-plugins "git sudo …"` set the OMZ-native plugins (curated names or any present in the OMZ install)
+  - `--omz-update disabled|auto|reminder` · `--omz-magic on|off` · `--omz-untracked-dirty on|off`
+    · `--omz-correction on|off` · `--omz-wait-dots on|off` · `--omz-hist-stamps yyyy-mm-dd|…|none`
   - `--no-aliases` · `--default-shell`
   No-arg `configure` = the conservative baseline (framework-free, git-branch ASCII prompt,
   autosuggestions + syntax-highlighting, color aliases).
 
 **Channels (all idempotent, run as the user; install only if missing):** Oh My Zsh & Starship via
 their official `curl | sh` (Starship into `~/.local/bin`, no sudo); Powerlevel10k / Pure /
-completions / history-substring-search via `git clone`; the apt ones via `apt_install`. **Font
-caveat (over SSH):** Starship and Powerlevel10k use Nerd-Font glyphs that show as boxes unless a
-Nerd Font is installed in the user's **local** terminal — prefer git/plain/Pure on headless boxes;
-Powerlevel10k's `p10k configure` wizard is interactive, so tell the user to run it themselves.
+completions / history-substring-search via `git clone`; the apt ones via `apt_install`. **Fonts
+(over SSH):** choosing Starship or Powerlevel10k now **installs the recommended Nerd Font (MesloLGS
+NF) on this box** by delegating to the kit's `fonts.sh` (`~/.local/share/fonts` + `fc-cache`, no
+sudo) — but glyphs are rendered by the user's **local** terminal, so over SSH the box-side install
+only helps a local display; tell the user to **also install/select that font in their client
+terminal** (`fonts.sh` prints the download URLs and the family name). Manage fonts directly with
+`swkit fonts install [name]` / `swkit fonts apply [name] [size] [target]` /
+`swkit fonts configure --font <name> --size <pt> --target <target>` / `swkit fonts ui` (curated:
+`meslolgs`, `jetbrains-mono`, `firacode`, `hack`; targets: `auto`, `ptyxis`, `gnome-terminal`,
+`gnome-desktop`, `instructions`). Powerlevel10k's `p10k configure` wizard is interactive, so tell the user to run it themselves.
 
 ## 2. Helping the user choose
 
@@ -87,9 +114,17 @@ defaults (especially headless), then run the matching action.
 - **Framework:** framework-free (default) vs Oh My Zsh → `swkit zsh install-omz` / `uninstall-omz`.
 - **Prompt:** git (default) / plain (ASCII, safe) · Pure (fancy, no fonts) · Starship / Powerlevel10k
   (Nerd Font) → `swkit zsh prompt <name>`.
-- **Plugins:** suggest `autosuggestions` + `syntax-highlighting` (the default pair), optionally
+- **Plugins (kit):** suggest `autosuggestions` + `syntax-highlighting` (the default pair), optionally
   `completions`, `history-substring-search`, `fzf`, `zoxide` → `swkit zsh add-plugin <name>` /
   `remove-plugin <name>`; any other plugin by git URL.
+- **Oh My Zsh plugins** (only with OMZ on): offer the OMZ-native ones for the user's workflow —
+  `sudo`, `extract`, `colored-man-pages`, `command-not-found`, `docker`, `kubectl`, `z`, … →
+  `swkit zsh add-omz-plugin <name>` / `remove-omz-plugin <name>`. Tune OMZ behavior with
+  `swkit zsh omz-setting <key> <value>` (defaults are already sane; only change on request).
+- **Fonts:** `swkit fonts install [meslolgs|jetbrains-mono|firacode|hack]` /
+  `swkit fonts apply [name] [size] [auto|ptyxis|gnome-terminal|gnome-desktop|instructions]` /
+  `swkit fonts ui` — needed for Starship/Powerlevel10k glyphs (and selected automatically when you
+  pick those prompts); over SSH, applying means instructing the client terminal, not changing it remotely.
 - **Default shell:** `swkit zsh default-shell` (read §3).
 
 Present the exact plan (which `swkit zsh …`, what it installs/writes, which steps need sudo and

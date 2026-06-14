@@ -32,7 +32,7 @@ supersedes_partially:
 - **Unicode 圆角盒线** `╭╮╰╯─│`(ASCII 方框是老套之源);选中行用左缘 `▸` + accent 高亮。
 - **语义配色**:ok 绿 / warn 黄 / err 红 / info 青 / accent;状态用图标 `●`(已装)`○`(未装)
   `◐`(进行中)`✓`/`✗`;原则"16 色能用,truecolor 更美",且尊重 `$NO_COLOR`。
-- **方向键 + vim 导航**、`/` 搜索、`?` 帮助、`q` 退出、`Esc` 取消、`Enter`/`→` 进入。
+- **常规列表语义**:`↑/↓`(兼容 `k/j`)只移动,`Enter`/`Space` 激活,`Esc`/`Backspace` 返回/取消,`q` 关闭/退出;目录层级可额外用 `→` 进入。
 - **终端安全(不可妥协)**:备用屏幕缓冲(alt-screen)、`stty -g` 存档 + `trap … EXIT INT TERM` 还原、
   `SIGWINCH` 重绘。这恰好契合本项目"fail-safe / 改前可还原"的底线。
 
@@ -71,7 +71,7 @@ supersedes_partially:
 积木:
 - `ui_size`(设 `UI_ROWS/UI_COLS`)、`ui_move ROW COL`、`ui_clear`。
 - `ui_header TITLE [RIGHT]`(第 1 行 accent 标题栏,右侧可放状态)。
-- `ui_footer "↑↓ 移动  ↵ 选择  q 退出"`(末行 keybind 栏)。
+- `ui_footer "↑↓ 移动  ↵/space 选择  esc/q 返回"`(末行 keybind 栏;顶层可改成 `esc/q 退出`)。
 - `ui_box ROW COL W H [TITLE]`(圆角盒)。
 - `ui_text ROW COL "str"`(按宽截断打印)。
 - `ui_badge installed|missing|on|off|active|...` → 上色字形(`●○◐✓✗`)。
@@ -121,8 +121,8 @@ i18n:
 - **移除**:`has_whiptail`/`ui_menu`/`ui_yesno`/`ui_msgbox`/`tui_catalog`/`tui_category`/`tui_software`/
   `run_op`/`op_label`/`preauth_for_op`/`cat_label`/`kit_each_script`(目录遍历移入 `ui_catalog`)→ 去 `lib/ui.sh`。
 - **丢弃 whiptail 依赖**:回退路径改为 `lib/ui.sh` 自有的纯文本编号菜单。
-- 交互入口 `run_tui` → `ui_main`(`lib/ui.sh` 提供:顶层菜单"安装软件/设置/退出";"安装软件"=`ui_catalog`;
-  "设置"=语言 + 免密 sudo 开关 callback 仍由 bootstrap 提供)。设置页的 sudo 开关与语言切换仍是 bootstrap 的
+- 交互入口 `run_tui` → 顶层菜单只列"安装软件/设置",退出走 `esc/q`;"安装软件"=`ui_catalog`;
+  "设置"=语言 + 免密 sudo 开关 callback 仍由 bootstrap 提供,返回走 `esc/q`。设置页的 sudo 开关与语言切换仍是 bootstrap 的
   职责(涉及 sudoers/config 持久化),`ui_main` 通过回调/或 bootstrap 自绘设置子屏调用它们。
   实现取舍:`ui_main` 接受少量"设置项"回调,保持 bootstrap 拥有特权操作,`lib/ui.sh` 只负责渲染。
 - 免密 sudo 的对话框从 `ui_yesno`/`ui_msgbox` 改用 `ui_confirm`/`ui_notify`。

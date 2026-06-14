@@ -89,7 +89,7 @@ do_remove() {
 #   ui_input "prompt" [def]    one-line text entry (sets UI_INPUT)
 #   ui_notify TITLE BODY       modal info box (any key)
 #   ui_badge installed|missing|on|off|check|cross   colored status glyph
-#   ui_header/ui_footer/ui_row + ui_read_key (sets UI_KEY: up/down/enter/space/q/esc/…)
+#   ui_header/ui_footer/ui_row + ui_read_key (sets UI_KEY: up/down/enter/space/q/esc/backspace/…)
 #     for a fully custom screen (write inside it with  >&"$_UI_FD").
 # See scripts/zsh.sh for the flagship bespoke ui(). The commented sketch below is the
 # minimal shape: a live status header over Install/Remove rows. Uncomment + adapt, or delete.
@@ -133,9 +133,13 @@ do_remove() {
 #     # ---- one keypress, then act ----
 #     ui_read_key
 #     case "$UI_KEY" in
-#       up|k)   (( sel = (sel - 1 + n) % n )) ;;
-#       down|j) (( sel = (sel + 1) % n )) ;;
-#       enter|right|l|space)
+#       # Move with sel=$(( ... )); NEVER a bare `(( sel = ... ))`. A standalone (( )) command
+#       # returns exit status 1 when its result is 0 (wrap-around to the first row, single-item
+#       # lists), and under `set -Eeuo pipefail` that aborts the whole UI on a mere keypress.
+#       # The $(( )) assignment form always returns 0, so navigation never trips errexit.
+#       up|k)   sel=$(( (sel - 1 + n) % n )) ;;
+#       down|j) sel=$(( (sel + 1) % n )) ;;
+#       enter|space)
 #         # EVERY state change shells back out via ui_run so its output is visible + logged;
 #         # the loop then reloads status. Keep it idempotent.
 #         case "${did[$sel]}" in
@@ -143,7 +147,7 @@ do_remove() {
 #           remove)    ui_confirm "Uninstall example?" n && ui_run "$(ui_t remove) example" -- "$0" remove ;;
 #           configure) ui_run "$(ui_t configure) example" -- "$0" configure ;;
 #         esac ;;
-#       q|esc) break ;;
+#       q|Q|esc|backspace) break ;;
 #     esac
 #   done
 #   ui_end   # ALWAYS restore the terminal before returning at a normal exit.

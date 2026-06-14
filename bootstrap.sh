@@ -103,9 +103,13 @@ MSG[en:m_settings]="Settings"
 MSG[zh:m_settings]="设置"
 MSG[ja:m_settings]="設定"
 
-MSG[en:m_quit]="Quit"
-MSG[zh:m_quit]="退出"
-MSG[ja:m_quit]="終了"
+MSG[en:nav_main]="↑↓ move   ↵/space select   esc/q quit"
+MSG[zh:nav_main]="↑↓ 移动   ↵/space 选择   esc/q 退出"
+MSG[ja:nav_main]="↑↓ 移動   ↵/space 選択   esc/q 終了"
+
+MSG[en:nav_settings]="↑↓ move   ↵/space select   esc/q back"
+MSG[zh:nav_settings]="↑↓ 移动   ↵/space 选择   esc/q 返回"
+MSG[ja:nav_settings]="↑↓ 移動   ↵/space 選択   esc/q 戻る"
 
 # Catalog / per-software / operation chrome now lives in lib/ui.sh's ui_t table (the
 # scripts render their own UIs), so bootstrap keeps only its own top-menu/settings strings.
@@ -121,10 +125,6 @@ MSG[ja:s_language]="言語 / Language"
 MSG[en:s_sudo]="Passwordless sudo for the LLM"
 MSG[zh:s_sudo]="LLM 免密 sudo"
 MSG[ja:s_sudo]="LLM 用パスワードなし sudo"
-
-MSG[en:s_back]="Back"
-MSG[zh:s_back]="返回"
-MSG[ja:s_back]="戻る"
 
 MSG[en:lang_prompt]="Choose the interface language:"
 MSG[zh:lang_prompt]="选择界面语言:"
@@ -610,14 +610,13 @@ tui_language() {
 
 tui_settings() {
   while true; do
-    ui_pick "$(t m_settings)" "$(t set_prompt)" "" -- \
+    ui_pick "$(t m_settings)" "$(t set_prompt)" "$(t nav_settings)" -- \
       language "$(t s_language)" \
-      sudo     "$(t s_sudo)" \
-      back     "$(t s_back)" || return 0
+      sudo     "$(t s_sudo)" || return 0
     case "$UI_PICK" in
       language) tui_language ;;
       sudo)     configure_passwordless_sudo ;;
-      back|"")  return 0 ;;
+      "")       return 0 ;;
     esac
   done
 }
@@ -625,14 +624,13 @@ tui_settings() {
 run_tui() {
   ui_begin || { warn "Could not open the interactive UI (no usable terminal)."; return 0; }
   while true; do
-    ui_pick "$(t app_title)" "$(t main_prompt)" "" -- \
+    ui_pick "$(t app_title)" "$(t main_prompt)" "$(t nav_main)" -- \
       install  "$(t m_install)" \
-      settings "$(t m_settings)" \
-      quit     "$(t m_quit)" || break
+      settings "$(t m_settings)" || break
     case "$UI_PICK" in
-      install)  ui_catalog "$(kit_scripts_dir)" ;;
-      settings) tui_settings ;;
-      quit|"")  break ;;
+      install)  ui_catalog "$(kit_scripts_dir)"; [[ "${UI_KEY:-}" == q || "${UI_KEY:-}" == Q ]] && break ;;
+      settings) tui_settings; [[ "${UI_KEY:-}" == q || "${UI_KEY:-}" == Q ]] && break ;;
+      "")       break ;;
     esac
   done
   ui_end

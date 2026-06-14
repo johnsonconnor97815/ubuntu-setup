@@ -85,19 +85,19 @@ ui() {
       ui_row "$row" "$i" "$sel" "${dlabel[$i]}"
       (( row++ ))
     done
-    ui_footer "↑↓ move   ↵ select   q quit"
+    ui_footer "↑↓ move   ↵/space select   esc/q close"
 
     # ---- input ----
     ui_read_key
     case "$UI_KEY" in
-      up|k)   for (( g=0; g<n; g++ )); do (( sel=(sel-1+n)%n )); done ;;
-      down|j) for (( g=0; g<n; g++ )); do (( sel=(sel+1)%n ));   done ;;
-      enter|right|l|space)
+      up|k)   for (( g=0; g<n; g++ )); do sel=$(( (sel-1+n)%n )); done ;;
+      down|j) for (( g=0; g<n; g++ )); do sel=$(( (sel+1)%n ));   done ;;
+      enter|space)
         case "${did[$sel]}" in
           install) ui_run "$(ui_t install) curl" -- "$0" install ;;
           remove)  ui_confirm "Uninstall curl? (ca-certificates is kept)" n && ui_run "$(ui_t remove) curl" -- "$0" remove ;;
         esac ;;
-      q|esc) break ;;
+      q|Q|esc|backspace) break ;;
     esac
   done
   ui_end

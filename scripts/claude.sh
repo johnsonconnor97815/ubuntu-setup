@@ -152,15 +152,15 @@ ui() {
       ui_row "$row" "$i" "$sel" "${dlabel[$i]}"
       (( row++ ))
     done
-    if (( installed )); then ui_footer "↑↓ move   ↵ uninstall   q quit"
-    else ui_footer "↑↓ move   ↵ install   q quit"; fi
+    if (( installed )); then ui_footer "↑↓ move   ↵/space uninstall   esc/q close"
+    else ui_footer "↑↓ move   ↵/space install   esc/q close"; fi
 
     # ---- input ----
     ui_read_key
     case "$UI_KEY" in
-      up|k)   for (( g=0; g<n; g++ )); do (( sel=(sel-1+n)%n )); done ;;
-      down|j) for (( g=0; g<n; g++ )); do (( sel=(sel+1)%n )); done ;;
-      enter|right|l|space)
+      up|k)   for (( g=0; g<n; g++ )); do sel=$(( (sel-1+n)%n )); done ;;
+      down|j) for (( g=0; g<n; g++ )); do sel=$(( (sel+1)%n )); done ;;
+      enter|space)
         case "${dkind[$sel]}" in
           install)
             if ui_pick "Claude Code CLI — install method" "" "" -- \
@@ -176,7 +176,7 @@ ui() {
             ui_confirm "Uninstall the Claude Code CLI?" n \
               && ui_run "$(ui_t remove) Claude Code" -- "$0" remove ;;
         esac ;;
-      q|esc) break ;;
+      q|Q|esc|backspace) break ;;
     esac
   done
   ui_end

@@ -126,10 +126,10 @@ UI_MSG[en:cat_common]="COMMON"           UI_MSG[zh:cat_common]="常用软件"   
 UI_MSG[en:cat_ai]="AI CODING CLIS"       UI_MSG[zh:cat_ai]="AI 编码 CLI"        UI_MSG[ja:cat_ai]="AI コーディング CLI"
 UI_MSG[en:cat_runtime]="RUNTIME"         UI_MSG[zh:cat_runtime]="运行时"        UI_MSG[ja:cat_runtime]="ランタイム"
 UI_MSG[en:cat_other]="OTHER"             UI_MSG[zh:cat_other]="其他"            UI_MSG[ja:cat_other]="その他"
-UI_MSG[en:nav_list]="↑↓ move   ↵ select   q back" \
-UI_MSG[zh:nav_list]="↑↓ 移动   ↵ 选择   q 返回" UI_MSG[ja:nav_list]="↑↓ 移動   ↵ 選択   q 戻る"
-UI_MSG[en:nav_catalog]="↑↓ move   → manage   q quit" \
-UI_MSG[zh:nav_catalog]="↑↓ 移动   → 管理   q 退出" UI_MSG[ja:nav_catalog]="↑↓ 移動   → 管理   q 終了"
+UI_MSG[en:nav_list]="↑↓ move   ↵/space select   esc/q back" \
+UI_MSG[zh:nav_list]="↑↓ 移动   ↵/space 选择   esc/q 返回" UI_MSG[ja:nav_list]="↑↓ 移動   ↵/space 選択   esc/q 戻る"
+UI_MSG[en:nav_catalog]="↑↓ move   ↵/→ manage   esc back   q quit" \
+UI_MSG[zh:nav_catalog]="↑↓ 移动   ↵/→ 管理   esc 返回   q 退出" UI_MSG[ja:nav_catalog]="↑↓ 移動   ↵/→ 管理   esc 戻る   q 終了"
 UI_MSG[en:yn_hint]="←→/y/n choose   ↵ confirm   esc cancel" \
 UI_MSG[zh:yn_hint]="←→/y/n 选择   ↵ 确认   esc 取消" UI_MSG[ja:yn_hint]="←→/y/n 選択   ↵ 確定   esc 取消"
 
@@ -291,16 +291,16 @@ ui_read_key() {
         UI_KEY="esc"; return 0
       fi
       case "$seq" in
-        '[A'|'OA') UI_KEY="up" ;;
-        '[B'|'OB') UI_KEY="down" ;;
-        '[C'|'OC') UI_KEY="right" ;;
-        '[D'|'OD') UI_KEY="left" ;;
-        '[H'|'OH'|'[1~'|'[7~') UI_KEY="home" ;;
-        '[F'|'OF'|'[4~'|'[8~') UI_KEY="end" ;;
+        '['*A|'O'*A) UI_KEY="up" ;;
+        '['*B|'O'*B) UI_KEY="down" ;;
+        '['*C|'O'*C) UI_KEY="right" ;;
+        '['*D|'O'*D) UI_KEY="left" ;;
+        '['*H|'O'*H|'[1~'|'[7~') UI_KEY="home" ;;
+        '['*F|'O'*F|'[4~'|'[8~') UI_KEY="end" ;;
         '[5~') UI_KEY="pgup" ;;
         '[6~') UI_KEY="pgdn" ;;
         '[3~') UI_KEY="delete" ;;
-        *)     UI_KEY="esc" ;;
+        *)     UI_KEY="" ;;
       esac
       ;;
     $'\n'|$'\r'|'') UI_KEY="enter" ;;
@@ -358,14 +358,14 @@ ui_pick() {
     ui_footer "$footer"
     ui_read_key
     case "$UI_KEY" in
-      up|k)    (( sel = (sel - 1 + n) % n )) ;;
-      down|j)  (( sel = (sel + 1) % n )) ;;
-      pgup)    (( sel -= avail )); (( sel < 0 )) && sel=0 ;;
-      pgdn)    (( sel += avail )); (( sel >= n )) && sel=$(( n - 1 )) ;;
+      up|k)    sel=$(( (sel - 1 + n) % n )) ;;
+      down|j)  sel=$(( (sel + 1) % n )) ;;
+      pgup)    sel=$(( sel - avail )); (( sel < 0 )) && sel=0 ;;
+      pgdn)    sel=$(( sel + avail )); (( sel >= n )) && sel=$(( n - 1 )) ;;
       home)    sel=0 ;;
       end)     sel=$(( n - 1 )) ;;
-      enter|right|l) UI_PICK="${ids[$sel]}"; rc=0; break ;;
-      q|esc|left|h)  UI_PICK=""; rc=1; break ;;
+      enter|space) UI_PICK="${ids[$sel]}"; rc=0; break ;;
+      q|Q|esc|backspace) UI_PICK=""; rc=1; break ;;
     esac
   done
   [[ $own == 1 ]] && ui_end
@@ -420,7 +420,7 @@ ui_confirm() {
     ui_footer "$(ui_t yn_hint)"
     ui_read_key
     case "$UI_KEY" in
-      left|right|h|l|tab) (( choice = 1 - choice )) ;;
+      left|right|h|l|tab) choice=$(( 1 - choice )) ;;
       y|Y) choice=0; rc=0; break ;;
       n|N) choice=1; rc=1; break ;;
       enter) rc=$choice; break ;;
@@ -625,15 +625,19 @@ ui_catalog() {
   local own=0
   if [[ "${_UI_ACTIVE:-0}" != 1 ]]; then ui_begin || { _ui_catalog_text "$dir"; return $?; }; own=1; fi
 
-  local sel=0
+  local sel=0 refresh=1 n=0
+  local -a keys=() labels=() paths=()
   while true; do
-    # Gather fresh each pass (install state can change after an action).
-    local -a keys=() labels=() paths=()
-    _ui_catalog_collect "$dir" keys labels paths
-    local n=${#keys[@]}
-    if (( n == 0 )); then ui_notify "$(ui_t install_software)" "$(ui_t no_scripts)"; break; fi
-    (( sel >= n )) && sel=$(( n - 1 )); (( sel < 0 )) && sel=0
-    [[ -n "${keys[$sel]}" ]] || _ui_catalog_step keys sel 1   # never rest on a section header
+    # Metadata/status probing shells out to every script. Keep that off the hot
+    # keypress path; refresh only on entry and after returning from a child UI.
+    if (( refresh )); then
+      _ui_catalog_collect "$dir" keys labels paths
+      n=${#keys[@]}
+      if (( n == 0 )); then ui_notify "$(ui_t install_software)" "$(ui_t no_scripts)"; break; fi
+      (( sel >= n )) && sel=$(( n - 1 )); (( sel < 0 )) && sel=0
+      [[ -n "${keys[$sel]}" ]] || _ui_catalog_step keys sel 1   # never rest on a section header
+      refresh=0
+    fi
 
     [[ "${_UI_WINCH:-0}" == 1 ]] && { _UI_WINCH=0; ui_size; }
     local listrow=3 avail=$(( UI_ROWS - 3 - 1 )) top=0 i row
@@ -664,9 +668,11 @@ ui_catalog() {
           ui_end
           "${paths[$sel]}" ui || true
           ui_begin
+          refresh=1
         fi
         ;;
-      q|esc|left|h) break ;;
+      esc|backspace) break ;;
+      q|Q) break ;;
     esac
   done
   [[ $own == 1 ]] && ui_end
@@ -678,7 +684,7 @@ _ui_catalog_step() {
   local -n _keys="$1" _sel_ref="$2"; local dir="$3"
   local n=${#_keys[@]} i=$_sel_ref guard=0
   while (( guard++ < n )); do
-    (( i = (i + dir + n) % n ))
+    i=$(( (i + dir + n) % n ))
     [[ -n "${_keys[$i]}" ]] && break
   done
   _sel_ref=$i
