@@ -116,6 +116,9 @@ _tmux_valid_theme()      { case "$1" in none|catppuccin|dracula|themepack) retur
 _tmux_valid_status_pos() { case "$1" in top|bottom) return 0 ;; *) return 1 ;; esac; }
 _tmux_valid_int()        { case "$1" in ''|*[!0-9]*) return 1 ;; *) return 0 ;; esac; }
 _tmux_valid_key()        { case "$1" in ''|*[[:space:]]*) return 1 ;; *) return 0 ;; esac; }
+# A modifier chord (C-/M-/S-…) is meant as a DIRECT shortcut (bound with no prefix); a plain
+# key (v, w) is bound under the prefix. Used to decide `bind` vs `bind -n` for the entry keys.
+_tmux_key_is_chord()     { case "$1" in [CMS]-*) return 0 ;; *) return 1 ;; esac; }
 
 # --- Preference store ----------------------------------------------------------
 # Conservative defaults: a tasteful best-practice baseline (mouse, vi mode, true-color, big
@@ -355,14 +358,25 @@ bind -n S-Right next-window
 TMUXWIN
   fi
 
+  # Entry keys: a modifier chord (C-Space, C-Enter, M-x …) binds WITHOUT prefix (press it
+  # directly); a plain key binds under the prefix. C-Enter and similar need extended keys —
+  # enable them when a chord is in use (the OUTER terminal must also support extended keys).
+  if _tmux_key_is_chord "$COPY_MODE_KEY" || _tmux_key_is_chord "$TREE_KEY"; then
+    printf '\n# ---- Extended keys (so chords like C-Enter are distinct; needs terminal support) ----\n'
+    printf 'set -s extended-keys on\n'
+    printf "set -as terminal-features '*:extkeys'\n"
+  fi
+
   if [[ -n "$COPY_MODE_KEY" && "$COPY_MODE_KEY" != "default" ]]; then
-    printf '\n# ---- Copy mode entry (prefix + key; default [ still works) ----\n'
-    printf 'bind %s copy-mode\n' "$COPY_MODE_KEY"
+    printf '\n# ---- Enter copy mode (default prefix [ still works) ----\n'
+    if _tmux_key_is_chord "$COPY_MODE_KEY"; then printf 'bind -n %s copy-mode\n' "$COPY_MODE_KEY"
+    else                                         printf 'bind %s copy-mode\n'    "$COPY_MODE_KEY"; fi
   fi
 
   if [[ -n "$TREE_KEY" && "$TREE_KEY" != "default" ]]; then
-    printf '\n# ---- Window/session tree picker (prefix + key; default w still works) ----\n'
-    printf 'bind %s choose-tree -Zw\n' "$TREE_KEY"
+    printf '\n# ---- Window/session tree picker (default prefix w still works) ----\n'
+    if _tmux_key_is_chord "$TREE_KEY"; then printf 'bind -n %s choose-tree -Zw\n' "$TREE_KEY"
+    else                                    printf 'bind %s choose-tree -Zw\n'    "$TREE_KEY"; fi
   fi
 
   if [[ "$KEYBINDINGS" == on ]]; then
@@ -743,10 +757,14 @@ ui() {
       dkind+=(toggle);  did+=(keybindings); dlabel+=("$(_tmux_onoff_label 'Ergonomic keys' "$KEYBINDINGS")")
       dkind+=(toggle);  did+=(window-nav);  dlabel+=("$(_tmux_onoff_label 'Window switch keys' "$WINDOW_NAV")")
       local cmk_disp
-      if [[ "$COPY_MODE_KEY" == "default" ]]; then cmk_disp="prefix [ (default)"; else cmk_disp="prefix $COPY_MODE_KEY"; fi
+      if [[ "$COPY_MODE_KEY" == "default" ]]; then cmk_disp="prefix [ (default)"
+      elif _tmux_key_is_chord "$COPY_MODE_KEY"; then cmk_disp="$COPY_MODE_KEY (no prefix)"
+      else cmk_disp="prefix $COPY_MODE_KEY"; fi
       dkind+=(copymodekey); did+=(copymodekey); dlabel+=("$(_tmux_value_label 'Enter copy-mode' "$cmk_disp")")
       local tree_disp
-      if [[ "$TREE_KEY" == "default" ]]; then tree_disp="prefix w (default)"; else tree_disp="prefix $TREE_KEY"; fi
+      if [[ "$TREE_KEY" == "default" ]]; then tree_disp="prefix w (default)"
+      elif _tmux_key_is_chord "$TREE_KEY"; then tree_disp="$TREE_KEY (no prefix)"
+      else tree_disp="prefix $TREE_KEY"; fi
       dkind+=(treekey); did+=(treekey); dlabel+=("$(_tmux_value_label 'Window tree' "$tree_disp")")
 
       dkind+=(spacer); did+=(""); dlabel+=("")
@@ -857,11 +875,11 @@ ui() {
               [[ -n "$UI_INPUT" ]] && ui_run "prefix $UI_INPUT · tmux" -- "$0" configure --prefix "$UI_INPUT"
             fi ;;
           copymodekey)
-            if ui_input "key to enter copy-mode (prefix + key; 'default' = just [)" "$COPY_MODE_KEY"; then
+            if ui_input "copy-mode key — chord e.g. C-Space (direct), plain key e.g. v (prefix+key), 'default' = [" "$COPY_MODE_KEY"; then
               [[ -n "$UI_INPUT" ]] && ui_run "copy-mode key · tmux" -- "$0" configure --copy-mode-key "$UI_INPUT"
             fi ;;
           treekey)
-            if ui_input "key to open the window/session tree (prefix + key; 'default' = w)" "$TREE_KEY"; then
+            if ui_input "window-tree key — chord e.g. C-Enter (direct), plain key e.g. w (prefix+key), 'default' = w" "$TREE_KEY"; then
               [[ -n "$UI_INPUT" ]] && ui_run "window-tree key · tmux" -- "$0" configure --tree-key "$UI_INPUT"
             fi ;;
           history)
@@ -927,8 +945,12 @@ bin/ scripts. Re-running converges; safe to run twice.
                        --prefix <key>|default   remap prefix (e.g. C-a); default = C-b
                        --keybindings on|off ergonomic splits/nav/copy bindings (default: off)
                        --window-nav on|off  Alt+1..9 jump to window + Shift-Left/Right prev/next (default: off)
-                       --copy-mode-key <key>|default   key to enter copy-mode (prefix + key); default = just [
-                       --tree-key <key>|default        key to open the window/session tree (prefix + key); default = w
+                       --copy-mode-key <key>|default   key to enter copy-mode. A modifier chord
+                                            (e.g. C-Space) binds directly (no prefix); a plain key
+                                            (e.g. v) binds under the prefix. default = just [
+                       --tree-key <key>|default        key to open the window/session tree. Chord
+                                            (e.g. C-Enter) = direct; plain key = prefix+key. default = w
+                                            (chords like C-Enter need a terminal with extended-keys)
                      History:
                        --history <lines>    scrollback buffer        (default: 50000)
                        --escape-time <ms>   key wait after Esc       (default: 10)
