@@ -115,6 +115,7 @@ _tmux_valid_keymode()    { case "$1" in vi|emacs) return 0 ;; *) return 1 ;; esa
 _tmux_valid_theme()      { case "$1" in none|catppuccin|dracula|themepack) return 0 ;; *) return 1 ;; esac; }
 _tmux_valid_status_pos() { case "$1" in top|bottom) return 0 ;; *) return 1 ;; esac; }
 _tmux_valid_int()        { case "$1" in ''|*[!0-9]*) return 1 ;; *) return 0 ;; esac; }
+_tmux_valid_key()        { case "$1" in ''|*[[:space:]]*) return 1 ;; *) return 0 ;; esac; }
 
 # --- Preference store ----------------------------------------------------------
 # Conservative defaults: a tasteful best-practice baseline (mouse, vi mode, true-color, big
@@ -130,6 +131,7 @@ _tmux_defaults() {
   AGGRESSIVE_RESIZE="off"; CLIPBOARD="on"
   STATUS_POSITION="bottom"; STATUS_INTERVAL="5"
   MONITOR_ACTIVITY="off"; SET_TITLES="off"; KEYBINDINGS="off"
+  WINDOW_NAV="off"; COPY_MODE_KEY="default"
 }
 
 _tmux_load_state() {
@@ -156,6 +158,8 @@ _tmux_load_state() {
       MONITOR_ACTIVITY)  _tmux_valid_onoff "$v" && MONITOR_ACTIVITY="$v" ;;
       SET_TITLES)        _tmux_valid_onoff "$v" && SET_TITLES="$v" ;;
       KEYBINDINGS)       _tmux_valid_onoff "$v" && KEYBINDINGS="$v" ;;
+      WINDOW_NAV)        _tmux_valid_onoff "$v" && WINDOW_NAV="$v" ;;
+      COPY_MODE_KEY)     _tmux_valid_key "$v" && COPY_MODE_KEY="$v" ;;
     esac
   done <"$_TPREF"
 }
@@ -182,6 +186,8 @@ _tmux_save_state() {
     printf 'MONITOR_ACTIVITY=%s\n'  "$MONITOR_ACTIVITY"
     printf 'SET_TITLES=%s\n'        "$SET_TITLES"
     printf 'KEYBINDINGS=%s\n'       "$KEYBINDINGS"
+    printf 'WINDOW_NAV=%s\n'        "$WINDOW_NAV"
+    printf 'COPY_MODE_KEY=%s\n'     "$COPY_MODE_KEY"
   } >"$_TPREF"
 }
 
@@ -326,6 +332,30 @@ TMUXSTATIC
     printf 'set -g prefix %s\n' "$PREFIX"
     printf 'unbind C-b\n'
     printf 'bind %s send-prefix\n' "$PREFIX"
+  fi
+
+  if [[ "$WINDOW_NAV" == on ]]; then
+    cat <<'TMUXWIN'
+
+# ---- Window switching ----
+# Alt+<number> jumps to a window (no prefix); Shift+Left / Shift+Right = previous / next window.
+bind -n M-1 select-window -t :1
+bind -n M-2 select-window -t :2
+bind -n M-3 select-window -t :3
+bind -n M-4 select-window -t :4
+bind -n M-5 select-window -t :5
+bind -n M-6 select-window -t :6
+bind -n M-7 select-window -t :7
+bind -n M-8 select-window -t :8
+bind -n M-9 select-window -t :9
+bind -n S-Left previous-window
+bind -n S-Right next-window
+TMUXWIN
+  fi
+
+  if [[ -n "$COPY_MODE_KEY" && "$COPY_MODE_KEY" != "default" ]]; then
+    printf '\n# ---- Copy mode entry (prefix + key; default [ still works) ----\n'
+    printf 'bind %s copy-mode\n' "$COPY_MODE_KEY"
   fi
 
   if [[ "$KEYBINDINGS" == on ]]; then
@@ -479,6 +509,10 @@ do_configure() {
       --prefix=*)          PREFIX="${1#*=}"; [[ -n "$PREFIX" ]] || { log_err "--prefix needs a key or 'default'."; return 2; }; shift ;;
       --keybindings)       _tmux_set_onoff "${2:-}" KEYBINDINGS --keybindings || return 2; shift 2 ;;
       --keybindings=*)     _tmux_set_onoff "${1#*=}" KEYBINDINGS --keybindings || return 2; shift ;;
+      --window-nav)        _tmux_set_onoff "${2:-}" WINDOW_NAV --window-nav || return 2; shift 2 ;;
+      --window-nav=*)      _tmux_set_onoff "${1#*=}" WINDOW_NAV --window-nav || return 2; shift ;;
+      --copy-mode-key)     COPY_MODE_KEY="${2:-}"; _tmux_valid_key "$COPY_MODE_KEY" || { log_err "--copy-mode-key needs a single key (e.g. v) or 'default'."; return 2; }; shift 2 ;;
+      --copy-mode-key=*)   COPY_MODE_KEY="${1#*=}"; _tmux_valid_key "$COPY_MODE_KEY" || { log_err "--copy-mode-key needs a single key (e.g. v) or 'default'."; return 2; }; shift ;;
       # history
       --history)           _tmux_set_int "${2:-}" HISTORY --history || return 2; shift 2 ;;
       --history=*)         _tmux_set_int "${1#*=}" HISTORY --history || return 2; shift ;;
@@ -497,6 +531,7 @@ do_configure() {
     PLUGINS="$TMUX_RECOMMENDED_PLUGINS"
     [[ "$THEME" == "none" ]] && THEME="catppuccin"
     KEYBINDINGS="on"
+    WINDOW_NAV="on"
   fi
   if (( ! want_plugins )); then
     PLUGINS=""
@@ -633,6 +668,7 @@ _tmux_setting_val() {
     monitor-activity)  printf '%s' "$MONITOR_ACTIVITY" ;;
     set-titles)        printf '%s' "$SET_TITLES" ;;
     keybindings)       printf '%s' "$KEYBINDINGS" ;;
+    window-nav)        printf '%s' "$WINDOW_NAV" ;;
   esac
 }
 
@@ -693,9 +729,13 @@ ui() {
 
       dkind+=(spacer); did+=(""); dlabel+=("")
       dkind+=(header); did+=(""); dlabel+=("Keys")
-      dkind+=(keymode); did+=(keymode); dlabel+=("$(_tmux_value_label 'Copy mode' "$KEYMODE")")
+      dkind+=(keymode); did+=(keymode); dlabel+=("$(_tmux_value_label 'Mode keys' "$KEYMODE")")
       dkind+=(prefix);  did+=(prefix);  dlabel+=("$(_tmux_value_label 'Prefix key' "$PREFIX")")
       dkind+=(toggle);  did+=(keybindings); dlabel+=("$(_tmux_onoff_label 'Ergonomic keys' "$KEYBINDINGS")")
+      dkind+=(toggle);  did+=(window-nav);  dlabel+=("$(_tmux_onoff_label 'Window switch keys' "$WINDOW_NAV")")
+      local cmk_disp
+      if [[ "$COPY_MODE_KEY" == "default" ]]; then cmk_disp="prefix [ (default)"; else cmk_disp="prefix $COPY_MODE_KEY"; fi
+      dkind+=(copymodekey); did+=(copymodekey); dlabel+=("$(_tmux_value_label 'Enter copy-mode' "$cmk_disp")")
 
       dkind+=(spacer); did+=(""); dlabel+=("")
       dkind+=(header); did+=(""); dlabel+=("History")
@@ -804,6 +844,10 @@ ui() {
             if ui_input "prefix key (e.g. C-a; 'default' = C-b)" "$PREFIX"; then
               [[ -n "$UI_INPUT" ]] && ui_run "prefix $UI_INPUT · tmux" -- "$0" configure --prefix "$UI_INPUT"
             fi ;;
+          copymodekey)
+            if ui_input "key to enter copy-mode (prefix + key; 'default' = just [)" "$COPY_MODE_KEY"; then
+              [[ -n "$UI_INPUT" ]] && ui_run "copy-mode key · tmux" -- "$0" configure --copy-mode-key "$UI_INPUT"
+            fi ;;
           history)
             if ui_input "scrollback lines" "$HISTORY"; then
               [[ -n "$UI_INPUT" ]] && ui_run "history-limit · tmux" -- "$0" configure --history "$UI_INPUT"
@@ -866,6 +910,8 @@ bin/ scripts. Re-running converges; safe to run twice.
                        --keymode vi|emacs   copy-mode keys           (default: vi)
                        --prefix <key>|default   remap prefix (e.g. C-a); default = C-b
                        --keybindings on|off ergonomic splits/nav/copy bindings (default: off)
+                       --window-nav on|off  Alt+1..9 jump to window + Shift-Left/Right prev/next (default: off)
+                       --copy-mode-key <key>|default   key to enter copy-mode (prefix + key); default = just [
                      History:
                        --history <lines>    scrollback buffer        (default: 50000)
                        --escape-time <ms>   key wait after Esc       (default: 10)
