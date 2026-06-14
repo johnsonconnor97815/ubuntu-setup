@@ -131,7 +131,7 @@ _tmux_defaults() {
   AGGRESSIVE_RESIZE="off"; CLIPBOARD="on"
   STATUS_POSITION="bottom"; STATUS_INTERVAL="5"
   MONITOR_ACTIVITY="off"; SET_TITLES="off"; KEYBINDINGS="off"
-  WINDOW_NAV="off"; COPY_MODE_KEY="default"
+  WINDOW_NAV="off"; COPY_MODE_KEY="default"; TREE_KEY="default"
 }
 
 _tmux_load_state() {
@@ -160,6 +160,7 @@ _tmux_load_state() {
       KEYBINDINGS)       _tmux_valid_onoff "$v" && KEYBINDINGS="$v" ;;
       WINDOW_NAV)        _tmux_valid_onoff "$v" && WINDOW_NAV="$v" ;;
       COPY_MODE_KEY)     _tmux_valid_key "$v" && COPY_MODE_KEY="$v" ;;
+      TREE_KEY)          _tmux_valid_key "$v" && TREE_KEY="$v" ;;
     esac
   done <"$_TPREF"
 }
@@ -188,6 +189,7 @@ _tmux_save_state() {
     printf 'KEYBINDINGS=%s\n'       "$KEYBINDINGS"
     printf 'WINDOW_NAV=%s\n'        "$WINDOW_NAV"
     printf 'COPY_MODE_KEY=%s\n'     "$COPY_MODE_KEY"
+    printf 'TREE_KEY=%s\n'          "$TREE_KEY"
   } >"$_TPREF"
 }
 
@@ -358,6 +360,11 @@ TMUXWIN
     printf 'bind %s copy-mode\n' "$COPY_MODE_KEY"
   fi
 
+  if [[ -n "$TREE_KEY" && "$TREE_KEY" != "default" ]]; then
+    printf '\n# ---- Window/session tree picker (prefix + key; default w still works) ----\n'
+    printf 'bind %s choose-tree -Zw\n' "$TREE_KEY"
+  fi
+
   if [[ "$KEYBINDINGS" == on ]]; then
     cat <<'TMUXKEYS'
 
@@ -513,6 +520,8 @@ do_configure() {
       --window-nav=*)      _tmux_set_onoff "${1#*=}" WINDOW_NAV --window-nav || return 2; shift ;;
       --copy-mode-key)     COPY_MODE_KEY="${2:-}"; _tmux_valid_key "$COPY_MODE_KEY" || { log_err "--copy-mode-key needs a single key (e.g. v) or 'default'."; return 2; }; shift 2 ;;
       --copy-mode-key=*)   COPY_MODE_KEY="${1#*=}"; _tmux_valid_key "$COPY_MODE_KEY" || { log_err "--copy-mode-key needs a single key (e.g. v) or 'default'."; return 2; }; shift ;;
+      --tree-key)          TREE_KEY="${2:-}"; _tmux_valid_key "$TREE_KEY" || { log_err "--tree-key needs a single key (e.g. w) or 'default'."; return 2; }; shift 2 ;;
+      --tree-key=*)        TREE_KEY="${1#*=}"; _tmux_valid_key "$TREE_KEY" || { log_err "--tree-key needs a single key (e.g. w) or 'default'."; return 2; }; shift ;;
       # history
       --history)           _tmux_set_int "${2:-}" HISTORY --history || return 2; shift 2 ;;
       --history=*)         _tmux_set_int "${1#*=}" HISTORY --history || return 2; shift ;;
@@ -736,6 +745,9 @@ ui() {
       local cmk_disp
       if [[ "$COPY_MODE_KEY" == "default" ]]; then cmk_disp="prefix [ (default)"; else cmk_disp="prefix $COPY_MODE_KEY"; fi
       dkind+=(copymodekey); did+=(copymodekey); dlabel+=("$(_tmux_value_label 'Enter copy-mode' "$cmk_disp")")
+      local tree_disp
+      if [[ "$TREE_KEY" == "default" ]]; then tree_disp="prefix w (default)"; else tree_disp="prefix $TREE_KEY"; fi
+      dkind+=(treekey); did+=(treekey); dlabel+=("$(_tmux_value_label 'Window tree' "$tree_disp")")
 
       dkind+=(spacer); did+=(""); dlabel+=("")
       dkind+=(header); did+=(""); dlabel+=("History")
@@ -848,6 +860,10 @@ ui() {
             if ui_input "key to enter copy-mode (prefix + key; 'default' = just [)" "$COPY_MODE_KEY"; then
               [[ -n "$UI_INPUT" ]] && ui_run "copy-mode key · tmux" -- "$0" configure --copy-mode-key "$UI_INPUT"
             fi ;;
+          treekey)
+            if ui_input "key to open the window/session tree (prefix + key; 'default' = w)" "$TREE_KEY"; then
+              [[ -n "$UI_INPUT" ]] && ui_run "window-tree key · tmux" -- "$0" configure --tree-key "$UI_INPUT"
+            fi ;;
           history)
             if ui_input "scrollback lines" "$HISTORY"; then
               [[ -n "$UI_INPUT" ]] && ui_run "history-limit · tmux" -- "$0" configure --history "$UI_INPUT"
@@ -912,6 +928,7 @@ bin/ scripts. Re-running converges; safe to run twice.
                        --keybindings on|off ergonomic splits/nav/copy bindings (default: off)
                        --window-nav on|off  Alt+1..9 jump to window + Shift-Left/Right prev/next (default: off)
                        --copy-mode-key <key>|default   key to enter copy-mode (prefix + key); default = just [
+                       --tree-key <key>|default        key to open the window/session tree (prefix + key); default = w
                      History:
                        --history <lines>    scrollback buffer        (default: 50000)
                        --escape-time <ms>   key wait after Esc       (default: 10)
