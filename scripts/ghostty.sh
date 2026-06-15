@@ -402,6 +402,23 @@ _ghostty_size_valid() {
   (( 10#$1 >= 6 && 10#$1 <= 48 ))
 }
 _ghostty_int_valid() { case "$1" in ''|*[!0-9]*) return 1 ;; *) return 0 ;; esac; }
+# Initial window size is measured in terminal grid cells. Ghostty refuses windows smaller than
+# 10 wide x 4 high; the WM clamps anything larger than the screen, so the generous 1000 cap only
+# exists to catch obvious typos. An empty value means "unset" (use Ghostty's runtime default).
+_ghostty_cols_valid() { case "$1" in ''|*[!0-9]*) return 1 ;; esac; (( 10#$1 >= 10 && 10#$1 <= 1000 )); }
+_ghostty_rows_valid() { case "$1" in ''|*[!0-9]*) return 1 ;; esac; (( 10#$1 >= 4  && 10#$1 <= 1000 )); }
+# Parse a combined "COLSxROWS" spec (e.g. 120x36) into WINDOW_WIDTH/WINDOW_HEIGHT; the words
+# auto/default/none/off/0 (and empty) clear both back to the runtime default. Non-zero on garbage.
+_ghostty_parse_window_size() {
+  local spec="$1" w h
+  case "$spec" in
+    ''|auto|default|none|off|0) WINDOW_WIDTH=""; WINDOW_HEIGHT=""; return 0 ;;
+    *[xX]*) w="${spec%%[xX]*}"; h="${spec##*[xX]}" ;;
+    *) return 1 ;;
+  esac
+  _ghostty_cols_valid "$w" && _ghostty_rows_valid "$h" || return 1
+  WINDOW_WIDTH="$w"; WINDOW_HEIGHT="$h"
+}
 # Opacity in [0,1] (e.g. 1, 1.0, 0.95).
 _ghostty_opacity_valid() { [[ "$1" =~ ^(0(\.[0-9]+)?|1(\.0+)?)$ ]]; }
 _ghostty_cursor_valid() { case "$1" in block|bar|underline) return 0 ;; *) return 1 ;; esac; }
@@ -449,6 +466,8 @@ _ghostty_defaults() {
   THEME="dark:Catppuccin Mocha,light:Catppuccin Latte"  # auto light/dark
   FONT=""                 # empty = Ghostty's built-in default font
   FONT_SIZE="12"
+  WINDOW_WIDTH=""         # initial window size in grid cells (cols); empty = runtime default
+  WINDOW_HEIGHT=""        # initial window size in grid cells (rows); both required to apply
   OPACITY="1.0"           # fully opaque; lower needs a compositor
   CURSOR_STYLE="block"
   CURSOR_BLINK="true"
@@ -470,6 +489,8 @@ _ghostty_load() {
       THEME)             THEME="$val" ;;
       FONT)              FONT="$val" ;;
       FONT_SIZE)         _ghostty_size_valid "$val" && FONT_SIZE="$val" ;;
+      WINDOW_WIDTH)      _ghostty_cols_valid "$val" && WINDOW_WIDTH="$val" ;;
+      WINDOW_HEIGHT)     _ghostty_rows_valid "$val" && WINDOW_HEIGHT="$val" ;;
       OPACITY)           _ghostty_opacity_valid "$val" && OPACITY="$val" ;;
       CURSOR_STYLE)      _ghostty_cursor_valid "$val" && CURSOR_STYLE="$val" ;;
       CURSOR_BLINK)      _ghostty_norm_bool "$val" >/dev/null && CURSOR_BLINK="$(_ghostty_norm_bool "$val")" ;;
@@ -489,6 +510,8 @@ _ghostty_save() {
     printf 'THEME=%s\n'             "$THEME"
     printf 'FONT=%s\n'              "$FONT"
     printf 'FONT_SIZE=%s\n'         "$FONT_SIZE"
+    printf 'WINDOW_WIDTH=%s\n'      "$WINDOW_WIDTH"
+    printf 'WINDOW_HEIGHT=%s\n'     "$WINDOW_HEIGHT"
     printf 'OPACITY=%s\n'           "$OPACITY"
     printf 'CURSOR_STYLE=%s\n'      "$CURSOR_STYLE"
     printf 'CURSOR_BLINK=%s\n'      "$CURSOR_BLINK"
@@ -518,6 +541,13 @@ _ghostty_write_dropin() {
     printf '\n# --- Font ---\n'
     [[ -n "$FONT" ]] && printf 'font-family = %s\n' "$FONT"
     printf 'font-size = %s\n' "$FONT_SIZE"
+    # Ghostty applies an initial window size only when BOTH dimensions are set (in grid cells),
+    # so we emit the pair as a unit or not at all.
+    if [[ -n "$WINDOW_WIDTH" && -n "$WINDOW_HEIGHT" ]]; then
+      printf '\n# --- Initial window size (terminal grid cells; only the first window) ---\n'
+      printf 'window-width = %s\n'  "$WINDOW_WIDTH"
+      printf 'window-height = %s\n' "$WINDOW_HEIGHT"
+    fi
     printf '\n# --- Appearance / common settings ---\n'
     printf 'background-opacity = %s\n'      "$OPACITY"
     printf 'cursor-style = %s\n'            "$CURSOR_STYLE"
@@ -596,6 +626,18 @@ do_configure() {
       --size)
         if [[ $# -lt 2 ]] || ! _ghostty_size_valid "${2:-}"; then log_err "--size needs an integer from 6 to 48."; return 2; fi
         FONT_SIZE="$2"; shift 2 ;;
+      --window-size)
+        if [[ $# -lt 2 ]] || ! _ghostty_parse_window_size "${2:-}"; then log_err "--window-size needs COLSxROWS (e.g. 120x36), or 'auto' to reset to the default."; return 2; fi
+        shift 2 ;;
+      --window-size=*)
+        if ! _ghostty_parse_window_size "${1#--window-size=}"; then log_err "--window-size needs COLSxROWS (e.g. 120x36), or 'auto' to reset to the default."; return 2; fi
+        shift ;;
+      --window-width)
+        if [[ $# -lt 2 ]] || ! _ghostty_cols_valid "${2:-}"; then log_err "--window-width needs columns from 10 to 1000."; return 2; fi
+        WINDOW_WIDTH="$2"; shift 2 ;;
+      --window-height)
+        if [[ $# -lt 2 ]] || ! _ghostty_rows_valid "${2:-}"; then log_err "--window-height needs rows from 4 to 1000."; return 2; fi
+        WINDOW_HEIGHT="$2"; shift 2 ;;
       --opacity)
         if [[ $# -lt 2 ]] || ! _ghostty_opacity_valid "${2:-}"; then log_err "--opacity needs a value from 0 to 1 (e.g. 0.95)."; return 2; fi
         OPACITY="$2"; shift 2 ;;
@@ -631,6 +673,12 @@ do_configure() {
 
   _ghostty_validate_theme "$THEME"
   _ghostty_ensure_font "$FONT"
+  # Ghostty ignores a lone window dimension — warn rather than silently drop it.
+  if { [[ -n "$WINDOW_WIDTH" ]] && [[ -z "$WINDOW_HEIGHT" ]]; } || \
+     { [[ -z "$WINDOW_WIDTH" ]] && [[ -n "$WINDOW_HEIGHT" ]]; }; then
+    log_warn "Ghostty applies an initial window size only when BOTH width and height are set;"
+    log_warn "with just one it uses the default. Set both, e.g.: ${0##*/} configure --window-size 120x36"
+  fi
 
   _ghostty_save || { log_err "Failed to save preferences to $_G_PREF."; return 1; }
   _ghostty_write_dropin || { log_err "Failed to write the managed drop-in $_G_DROPIN."; return 1; }
@@ -658,6 +706,12 @@ ui() {
     if status >/dev/null 2>&1; then installed=1; ver="$(_ghostty_version)"; fi
     if (( installed )) && _ghostty_is_default 2>/dev/null; then is_def=1; fi
     local font_disp="${FONT:-${UI_MUTED}default${UI_OFF}}"
+    local wsize_disp
+    if [[ -n "$WINDOW_WIDTH" && -n "$WINDOW_HEIGHT" ]]; then
+      wsize_disp="${WINDOW_WIDTH}×${WINDOW_HEIGHT}"
+    else
+      wsize_disp="${UI_MUTED}default${UI_OFF}"
+    fi
 
     # ---- build display rows (parallel arrays: kind / id / label) ----
     local -a dkind=() did=() dlabel=()
@@ -670,6 +724,7 @@ ui() {
     dkind+=(opacity);did+=(opacity);dlabel+=("$(printf '%-16s %s  %s' 'Opacity' "$OPACITY" "$UI_ARROW")")
     dkind+=(cursor); did+=(cursor); dlabel+=("$(printf '%-16s %s  %s' 'Cursor style' "$CURSOR_STYLE" "$UI_ARROW")")
     dkind+=(padding);did+=(padding);dlabel+=("$(printf '%-16s %s  %s' 'Window padding' "$PADDING" "$UI_ARROW")")
+    dkind+=(wsize);  did+=(wsize);  dlabel+=("$(printf '%-16s %s  %s' 'Window size' "$wsize_disp" "$UI_ARROW")")
     dkind+=(spacer); did+=(""); dlabel+=("")
     dkind+=(header); did+=(""); dlabel+=("Behavior")
     dkind+=(toggle-copy);    did+=(copy);    dlabel+=("$(_ghostty_toggle_label 'Copy on select'       "$COPY_ON_SELECT")")
@@ -771,6 +826,12 @@ ui() {
             if ui_input "window padding (px)" "$PADDING"; then
               [[ -n "$UI_INPUT" ]] && ui_run "configure padding · ghostty" -- "$0" configure --padding "$UI_INPUT"
             fi ;;
+          wsize)
+            local cur=""
+            [[ -n "$WINDOW_WIDTH" && -n "$WINDOW_HEIGHT" ]] && cur="${WINDOW_WIDTH}x${WINDOW_HEIGHT}"
+            if ui_input "window size COLSxROWS, e.g. 120x36 (blank = default)" "$cur"; then
+              ui_run "configure window size · ghostty" -- "$0" configure --window-size "${UI_INPUT:-auto}"
+            fi ;;
           toggle-copy)    ui_run "toggle copy-on-select · ghostty" -- "$0" configure --copy-on-select "$(_ghostty_flip "$COPY_ON_SELECT")" ;;
           toggle-mouse)   ui_run "toggle mouse-hide · ghostty"     -- "$0" configure --mouse-hide "$(_ghostty_flip "$MOUSE_HIDE")" ;;
           toggle-confirm) ui_run "toggle confirm-close · ghostty"  -- "$0" configure --confirm-close "$(_ghostty_flip "$CONFIRM_CLOSE")" ;;
@@ -822,6 +883,10 @@ written to a managed drop-in (~/.config/ghostty/ubuntu-setup) and included from 
                        --font <family|none>    font family (e.g. "MesloLGS NF"); known Nerd
                                                Fonts are auto-installed via fonts.sh
                        --size <6-48>           font size in points
+                       --window-size <CxR|auto>  initial window size in grid cells
+                                               (e.g. 120x36; 'auto' resets to the default)
+                       --window-width <10-1000>  initial columns (needs --window-height too)
+                       --window-height <4-1000>  initial rows (needs --window-width too)
                        --opacity <0-1>         background opacity (needs a compositor)
                        --cursor <block|bar|underline>
                        --padding <px>          window padding (x and y)
