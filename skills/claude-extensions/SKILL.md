@@ -28,8 +28,9 @@ Your job:
 1. **Help the user choose** extensions on a machine whose owner you've never met (§2) — which MCP
    servers, plugins, skills — weighing **token cost, runtimes, and secrets**, then invoke the right
    action. Don't impose taste; recommend conservatively.
-2. **Evolve `scripts/claude.sh`** when the user wants something it doesn't know yet — a new curated
-   MCP server / marketplace / skill — under the **ubuntu-install** authoring contract (§4).
+2. **When `scripts/claude.sh` doesn't support something** the user wants — a new curated MCP server /
+   marketplace / skill — that is a change to the script **in the project repo** (§4), not a runtime edit
+   on the user's machine. (Any arbitrary server/marketplace/skill works with no code change — see §4.)
 
 Everything runs **as the normal user, user-space, with no sudo** (the config lives in `$HOME`);
 extension actions **refuse a sudo-wrapped run** so `~/.claude` stays user-owned. The only thing
@@ -118,13 +119,15 @@ ubuntu-install §5. These actions are user-space and need no sudo; say so.
   the `claude` CLI (which edits its own config); to roll back, re-add or re-enable.
 - **No Node, no `sudo npm`, no NOPASSWD** — same non-negotiables as the rest of the kit.
 
-## 4. Evolving `scripts/claude.sh` (for what it doesn't know yet)
+## 4. Extending `scripts/claude.sh` (a repo change, not a runtime action)
 
 You can always add an arbitrary server/marketplace/skill without a code change (`mcp-add … -- …`,
 `marketplace-add <repo>`, `skill-install <git-url>`). To make one **first-class** (a curated
-quick-add shown in the UI), extend the script under the **ubuntu-install** authoring contract:
+quick-add shown in the UI), the script must be extended **in the project repo** — a contributor
+change, then re-deployed with `bootstrap.sh`. Do **not** edit it on the user's machine at runtime.
+The how-to (follow the authoring contract in the repo's `CLAUDE.md`):
 
-1. Edit `scripts/claude.sh` in `~/.local/share/ubuntu-setup/` (a git repo):
+1. Edit `scripts/claude.sh` in the project repo:
    - **Curated MCP server:** add the key to `_CLAUDE_MCP_CURATED_KEYS` and a `case` arm in
      `_claude_mcp_curated` (`transport<TAB>spec<TAB>runtime<TAB>description`). **Verify the package /
      URL is real and current** before committing — these run on strangers' machines.
@@ -138,7 +141,7 @@ quick-add shown in the UI), extend the script under the **ubuntu-install** autho
    never an op.
 3. **Idempotent & safe:** check existence before add/remove; keep it user-space. Test (`bash -n`,
    `shellcheck -x --source-path=SCRIPTDIR`, `claude.sh status`, `claude.sh ui` on a no-TTY shell must
-   print guidance and exit 0), then run for real with confirmation. Commit; consider a PR upstream.
+   print guidance and exit 0), then run for real with confirmation. Commit in the repo, then re-run `bootstrap.sh` to deploy.
 
 ## 5. The interactive screen, and the boundary with bootstrap
 
@@ -166,7 +169,7 @@ for a server to actually connect (`claude mcp get <name>` health-checks it).
 ## Common mistakes
 
 - **Improvising raw `claude mcp`/`claude plugin` commands or hand-editing `~/.claude.json`** instead
-  of running or evolving `scripts/claude.sh` — the point is one tested, idempotent, reviewable path.
+  of running `scripts/claude.sh` — the point is one tested, idempotent, reviewable path.
 - **Bulk-enabling MCP servers/plugins** and blowing up the context window — enable what's needed,
   `plugin-disable` the rest.
 - **Selecting a Node-based MCP server with no Node installed** → it won't connect. Check first; the

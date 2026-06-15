@@ -6,7 +6,7 @@
 # and composes its helpers, so the project's non-negotiables — idempotency probes,
 # per-command sudo (never whole-root), non-interactive apt, channel-conservative repo
 # setup, back-up-before-edit — are implemented ONCE here and inherited by every script,
-# including ones the LLM authors later. Authoring a conformant script is mostly a matter
+# including ones added to the repo later. Writing a conformant script is mostly a matter
 # of calling these functions; unsafe patterns (sudo npm, apt-key, whole-root) have no
 # primitive on purpose.
 #

@@ -15,8 +15,8 @@
 
 set -Eeuo pipefail
 
-# Resolve our real location even when invoked through a PATH symlink (deployed as
-# ~/.local/bin/swkit -> $KIT_HOME/swkit), so the library next to us is found.
+# Resolve our real location even when invoked through a PATH symlink (installed as
+# ~/.local/bin/swkit -> the clone's swkit), so the library next to us (in the clone) is found.
 _self="$(readlink -f "${BASH_SOURCE[0]}")"
 _kit_here="$(cd "$(dirname "$_self")" && pwd)"
 # shellcheck source=lib/common.sh
@@ -66,8 +66,9 @@ supports: install, remove, status, meta, help, ui (and sometimes configure).
 'ui' opens an interactive screen in a terminal; with no terminal it prints how to
 drive the script by explicit operation. Operations and exit codes pass straight through.
 
-No script for what you need? An LLM (or you) can author one by copying
-scripts/TEMPLATE.sh to scripts/<software>.sh and filling in the four functions.
+No script for what you need? Add one in the project repo by copying
+scripts/TEMPLATE.sh to scripts/<software>.sh, filling in the four functions, then
+re-running bootstrap.sh to deploy.
 EOF
 }
 
@@ -171,7 +172,7 @@ cmd_run() {
   if [[ ! -f "$script" || ! -x "$script" ]]; then
     log_err "No script for '$software'."
     log_err "Run 'swkit list' to see what is available."
-    log_err "An LLM can author one by copying scripts/TEMPLATE.sh to scripts/${software}.sh."
+    log_err "Add one in the project repo: copy scripts/TEMPLATE.sh to scripts/${software}.sh, then re-run bootstrap.sh."
     return 1
   fi
   # No op given: open the script's interactive screen when we have a terminal, otherwise

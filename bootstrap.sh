@@ -1,25 +1,23 @@
 #!/usr/bin/env bash
 #
-# bootstrap.sh — turn a fresh Ubuntu machine into an LLM-driven software manager.
+# bootstrap.sh — set up a fresh Ubuntu machine to manage its software via a script collection.
 #
 # The real work of installing/configuring software lives in a COLLECTION OF SCRIPTS
 # (lib/ + scripts/) — one script per piece of software, each with a uniform interface
 # (install/remove/configure/status/meta) AND its own interactive screen (the `ui` entry
-# mode). Three entry points drive those scripts:
+# mode), organised by category. Three entry points drive those scripts:
 #   1. this launcher's TUI (a modern full-screen renderer in lib/ui.sh, with a plain-text
 #      fallback and no whiptail dependency),
 #   2. a human running `swkit <software> <op>` directly,
-#   3. the LLM, via the bundled skills.
-# The LLM is special: besides RUNNING scripts it ORGANISES, RECOMMENDS, and EVOLVES
-# them — authoring a new script for software not yet covered, fixing stale ones. So
-# "coverage" grows over time; this bootstrap ships a seed set plus the machinery.
+#   3. the LLM, via the bundled skills — it RUNS and RECOMMENDS scripts (it does not author
+#      or evolve them; the scripts are maintained in this repo).
 #
 # bootstrap.sh itself is a LAUNCHER: it ensures a few dependencies (git/curl/ca-certificates),
-# DEPLOYS the script collection to a git-tracked dir ($KIT_HOME = ~/.local/share/ubuntu-setup)
-# so the LLM's edits are versioned and survive updates (vendor-branch + merge, never a blind
-# clobber), deploys the skills, then opens the TUI: "Install software" hands off to the
-# shared catalog browser (ui_catalog) which lists scripts by category and drills into each
-# script's OWN ui(); a Settings page switches language and toggles passwordless sudo.
+# symlinks `swkit` onto PATH so the kit RUNS IN PLACE from this clone (no separate deployed
+# copy — the clone is the single source of truth), deploys the skills, then opens the TUI:
+# "Install software" hands off to the shared catalog browser (ui_catalog) which lists scripts
+# by category and drills into each script's OWN ui(); a Settings page switches language and
+# toggles passwordless sudo. Keep the clone where you want it installed.
 #
 # Usage: ./bootstrap.sh [--only claude|codex] [--method native|npm] [--with-node]
 #                       [--skip-skills] [--headless] [--tui]
@@ -54,7 +52,6 @@ HEADLESS=0        # forced headless by a scripting flag
 FORCE_TUI=0       # --tui forces the menu when a terminal is present
 LANG_CODE="en"    # interface language: en / zh / ja
 CURRENT_STEP="startup"
-KIT_HOME_DIR=""   # resolved in main(): ~/.local/share/ubuntu-setup
 
 # --- Logging (stderr; colors only on a tty) ------------------------------------
 # bootstrap keeps its own step-aware logger; the library's log_* names coexist and are
@@ -162,17 +159,17 @@ usage() {
   cat <<'EOF'
 Usage: ./bootstrap.sh [options]
 
-Sets up a fresh Ubuntu (20.04+) machine for LLM-driven software management. The actual
-install/configure logic lives in a collection of scripts (scripts/*.sh) backed by a
-shared library (lib/common.sh); bootstrap deploys that collection to a git-tracked dir
-(~/.local/share/ubuntu-setup), deploys the skills, and provides a TUI front end.
+Sets up a fresh Ubuntu (20.04+) machine to manage its software via a collection of scripts
+(scripts/*.sh) backed by a shared library (lib/common.sh). The kit runs in place from this
+clone — bootstrap just symlinks `swkit` onto your PATH, deploys the skills, and provides a TUI
+front end. Keep the clone where you want it installed (deleting it removes the kit).
 
 With a terminal and no scripting flags it opens a modern full-screen TUI (lib/ui.sh, with a
 plain-text fallback — no whiptail needed): "Install software" browses the script collection
 by category and drills into each script's OWN interactive screen (install/remove/configure/
 plugins/…), and a Settings page switches language and toggles passwordless sudo for the LLM.
 Run scripts directly with `swkit <software> <op>` (or `swkit <software>` for its screen),
-or ask the LLM (it can also author/evolve scripts for software not yet covered).
+or ask the LLM (via the bundled skills) to run them for you.
 
 Headless options (any of these, or no terminal, switches off the TUI):
   --only claude|codex   Install only one of the two CLIs (default: both)
@@ -427,136 +424,39 @@ configure_passwordless_sudo() {
   fi
 }
 
-# --- Kit deployment (the script collection -> a git-tracked $KIT_HOME) ----------
-# The collection (lib/ scripts/ swkit) is deployed to ~/.local/share/ubuntu-setup, which
-# is a git repo. The shipped tree lives on a `vendor` branch; the user/LLM work on `main`.
-# Updates refresh `vendor` and `git merge` it into `main`, so LLM-authored scripts are
-# preserved and shipped changes that conflict with local edits are surfaced (not clobbered).
+# --- Run in place + swkit on PATH ----------------------------------------------
+# There is NO separate deployed copy of the kit: it runs directly from this clone. swkit is
+# symlinked from here onto the user's PATH, and each script finds its siblings (lib/, other
+# scripts) relative to its own location via lib/common.sh — so the clone is the single source
+# of truth. Keep the clone where you want it installed; deleting it removes the kit.
 
-kit_home() { printf '%s/.local/share/ubuntu-setup\n' "$(resolve_target_home)"; }
+# Scripts directory bootstrap runs scripts from: this clone.
+kit_scripts_dir() { printf '%s/scripts\n' "$SCRIPT_DIR"; }
 
-# Directory bootstrap runs scripts from: the deployed kit when present, else the repo.
-kit_scripts_dir() {
-  if [[ -d "$KIT_HOME_DIR/scripts" ]]; then
-    printf '%s/scripts\n' "$KIT_HOME_DIR"
-  else
-    printf '%s/scripts\n' "$SCRIPT_DIR"
-  fi
+# Remove a kit deployed by the old (removed) $KIT_HOME copy model, so nothing stale lingers and
+# `swkit` can't resolve to an out-of-date copy. Only our own deploys ever created it; guard
+# against the clone itself living there.
+remove_legacy_kit_home() {
+  local legacy; legacy="$(resolve_target_home)/.local/share/ubuntu-setup"
+  [[ -d "$legacy" && "$legacy" != "$SCRIPT_DIR" && -e "$legacy/swkit" && -d "$legacy/scripts" ]] || return 0
+  rm -rf "$legacy"
+  info "Removed the old deployed kit at $legacy — the kit now runs in place from $SCRIPT_DIR."
 }
 
-# git wrapper for the kit repo, with a fixed identity (so commits never need user config).
-kit_git() {
-  git -C "$KIT_HOME_DIR" -c user.name='ubuntu-setup' -c user.email='ubuntu-setup@localhost' "$@"
-}
-
-# Replace the vendored entries (lib/ scripts/ swkit) with a pristine copy from the repo.
-# rm-then-copy so files removed upstream don't linger; never touches non-vendored files.
-kit_lay_down_vendor() {
-  local e
-  for e in lib scripts; do
-    rm -rf "${KIT_HOME_DIR:?}/$e"
-    cp -R "$SCRIPT_DIR/$e" "$KIT_HOME_DIR/$e"
-  done
-  cp -f "$SCRIPT_DIR/swkit" "$KIT_HOME_DIR/swkit"
-  chmod +x "$KIT_HOME_DIR/swkit" "$KIT_HOME_DIR"/scripts/*.sh 2>/dev/null || true
-}
-
-# Plain (untracked) copy — used when git is unavailable or under a sudo wrapper. Merges
-# the shipped files in, overwriting same-named files but keeping any others.
-deploy_kit_copy() {
-  local e
-  for e in lib scripts; do
-    ensure_user_dir "$KIT_HOME_DIR/$e"
-    cp -R "$SCRIPT_DIR/$e/." "$KIT_HOME_DIR/$e/"
-  done
-  cp -f "$SCRIPT_DIR/swkit" "$KIT_HOME_DIR/swkit"
-  chmod +x "$KIT_HOME_DIR/swkit" "$KIT_HOME_DIR"/scripts/*.sh 2>/dev/null || true
-}
-
-# git-tracked deploy: init on first run (main + vendor), else refresh vendor and merge
-# into main. Each fallible git step is checked explicitly so it works regardless of the
-# surrounding errexit context, returning non-zero to let the caller fall back to a copy.
-deploy_kit_git() {
-  if [[ ! -d "$KIT_HOME_DIR/.git" ]]; then
-    kit_git init -q || return 1
-    kit_git checkout -q -B main || return 1
-    kit_lay_down_vendor
-    kit_git add -A || return 1
-    kit_git commit -q -m "Initial kit (shipped by bootstrap.sh)" || return 1
-    kit_git branch -f vendor || return 1
-    info "Initialized kit repo at $KIT_HOME_DIR (branches: main, vendor)."
-    return 0
-  fi
-
-  # Recover from an interrupted prior run that left the repo on the vendor branch: force
-  # back to main, discarding any stray vendor-side working-tree changes. vendor is
-  # pristine (only bootstrap writes it), so nothing of the user's/LLM's lives there to
-  # lose — whereas carrying that stray state onto main could poison the scripts that run.
-  local cur
-  cur="$(kit_git rev-parse --abbrev-ref HEAD 2>/dev/null || echo '')"
-  if [[ "$cur" != "main" ]]; then
-    warn "Kit repo was left on '${cur:-?}' (interrupted update?) — restoring main."
-    kit_git checkout -q -f main || return 1
-  fi
-  if ! kit_git diff --quiet || ! kit_git diff --cached --quiet; then
-    info "Local changes in $KIT_HOME_DIR — committing a snapshot before updating."
-    kit_git add -A || return 1
-    kit_git commit -q -m "Snapshot of local changes before kit update" || true
-  fi
-
-  kit_git checkout -q vendor || return 1
-  kit_lay_down_vendor
-  kit_git add -A || return 1
-  if kit_git diff --cached --quiet; then
-    info "Shipped kit unchanged — nothing to update."
-    kit_git checkout -q main || return 1
-    return 0
-  fi
-  kit_git commit -q -m "vendor: sync shipped kit" || return 1
-  kit_git checkout -q main || return 1
-
-  if kit_git merge --no-edit vendor >/dev/null 2>&1; then
-    info "Merged shipped kit updates into $KIT_HOME_DIR."
-  else
-    local conflicts
-    conflicts="$(kit_git diff --name-only --diff-filter=U 2>/dev/null | tr '\n' ' ')"
-    kit_git merge --abort 2>/dev/null || true
-    warn "Shipped updates conflict with your local changes to: ${conflicts}"
-    warn "Left your version in place. Reconcile with:  git -C $KIT_HOME_DIR merge vendor"
-  fi
-}
-
-deploy_kit() {
-  step "Deploy script collection to $KIT_HOME_DIR"
-  ensure_user_dir "$KIT_HOME_DIR"
-
-  if running_as_sudo_wrapper; then
-    warn "Running under sudo — deploying the kit without git tracking."
-    warn "Run as your normal user for a tracked, LLM-evolvable deployment."
-    deploy_kit_copy
-    maybe_chown_user "$KIT_HOME_DIR"
-    return 0
-  fi
-
-  if ! command -v git >/dev/null 2>&1; then
-    info "git not found; trying to install it for change-tracked deployment..."
-    apt_install git || { warn "Could not install git — deploying without version tracking."; deploy_kit_copy; return 0; }
-  fi
-
-  deploy_kit_git || { warn "git deploy hit a problem — falling back to a plain copy."; deploy_kit_copy; }
-}
-
-# Symlink swkit onto the user's PATH and make sure ~/.local/bin is on PATH.
+# Symlink swkit (in this clone) onto the user's PATH and make sure ~/.local/bin is on PATH.
 install_swkit_path() {
+  step "Link swkit onto PATH (the kit runs in place from $SCRIPT_DIR)"
+  remove_legacy_kit_home
+  chmod +x "$SCRIPT_DIR/swkit" "$SCRIPT_DIR"/scripts/*.sh 2>/dev/null || true
   local bindir
   bindir="$(resolve_target_home)/.local/bin"
   ensure_user_dir "$bindir"
-  ln -sf "$KIT_HOME_DIR/swkit" "$bindir/swkit"
+  ln -sf "$SCRIPT_DIR/swkit" "$bindir/swkit"
   if running_as_sudo_wrapper; then
     chown -h "$SUDO_USER:$(id -gn "$SUDO_USER")" "$bindir/swkit" 2>/dev/null || true
   fi
   ensure_local_bin_on_path
-  info "swkit -> $bindir/swkit (run 'swkit list' to browse the collection)."
+  info "swkit -> $bindir/swkit -> $SCRIPT_DIR/swkit (run 'swkit list' to browse the collection)."
 }
 
 # --- Skill deployment ----------------------------------------------------------
@@ -664,8 +564,8 @@ All done. Next steps:
        claude:  "Use the ubuntu-install skill to install docker"
        codex:   type '/ubuntu-install' and then ask it to install docker
 
-Re-running ./bootstrap.sh at any time is safe — installed components are skipped, and
-the script collection is updated without losing scripts the LLM has authored.
+Re-running ./bootstrap.sh at any time is safe — installed components are skipped. The kit runs
+in place from this clone; `git pull` here updates the scripts (swkit points straight at them).
 EOF
 }
 
@@ -676,7 +576,6 @@ run_headless() {
   # the credential cache for the apt steps (kit deps, CLI installs) that follow.
   configure_passwordless_sudo
 
-  deploy_kit
   install_swkit_path
 
   local dir; dir="$(kit_scripts_dir)"
@@ -717,16 +616,14 @@ main() {
     warn "You ran this script under sudo as a whole. That is not recommended:"
     warn "the CLIs will be installed into root's home, not yours. Prefer running"
     warn "as your normal user — sudo is applied per command only where required."
-    warn "The kit and skills will still be deployed to the real user's home: $(resolve_target_home)"
+    warn "skills will still be deployed to the real user's home: $(resolve_target_home)"
   fi
 
   load_config
   export UI_LANG="$LANG_CODE"   # lib/ui.sh's ui_t renders the catalog/scripts in this language
-  KIT_HOME_DIR="$(kit_home)"
 
   # TUI when there is a terminal and either nothing forces headless, or --tui overrides.
   if have_tty && { [[ $HEADLESS -eq 0 ]] || [[ $FORCE_TUI -eq 1 ]]; }; then
-    deploy_kit
     install_swkit_path
     deploy_skills
     run_tui

@@ -4,7 +4,7 @@
 #
 # This installs the Node.js shipped in Ubuntu's own apt repos — an explicit opt-in
 # runtime. It intentionally does NOT add a NodeSource (or any vendor) apt repo: picking
-# a newer channel is a taste/version decision left to a future LLM-authored evolution.
+# a newer channel is a taste/version decision left to a future change to this script in the repo.
 
 set -Eeuo pipefail
 

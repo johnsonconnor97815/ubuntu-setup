@@ -24,8 +24,9 @@ So your job here is:
 1. **Help the user choose** components on a machine whose owner you've never met (§2) —
    framework, prompt, which plugins, whether to switch the login shell — then invoke the right
    action. Don't impose taste; recommend conservative defaults for headless servers.
-2. **Evolve `scripts/zsh.sh`** when the user wants something it doesn't know yet — a new prompt,
-   or a plugin to add to the *named* set — under the **ubuntu-install** authoring contract (§4).
+2. **When `scripts/zsh.sh` doesn't support something** the user wants — a new prompt, or a plugin in
+   the *named* set — that is a change to the script **in the project repo** (§4), not a runtime edit on
+   the user's machine. (For any arbitrary plugin you can always `add-plugin <git-url>` — no code change.)
 
 Everything `zsh.sh` does is subject to **ubuntu-install §5** for sudo: your shell has no terminal
 to type a password; `sudo_run` probes with `sudo -n true` and, if a password is needed, prints
@@ -143,13 +144,15 @@ in `/etc/shells`, resolves the real target user — but **the operational discip
 - Try it now without logging out: `exec zsh`. Verify: `getent passwd "$USER" | cut -d: -f7`.
 - Escape hatch if a fresh login breaks: `chsh -s /bin/bash` (or `sudo chsh -s /bin/bash "$USER"`).
 
-## 4. Evolving `scripts/zsh.sh` (for what it doesn't know yet)
+## 4. Extending `scripts/zsh.sh` (a repo change, not a runtime action)
 
 For a plugin not in the named set, you can always `add-plugin <git-url>` (no code change). But to
 make a new component **first-class** (a named plugin with the right install/slot, a new prompt, a
-new framework), extend the script under the **ubuntu-install** authoring contract:
+new framework), the script must be extended **in the project repo** — a contributor change, then
+re-deployed with `bootstrap.sh`. Do **not** edit the script on the user's machine at runtime. The
+how-to (follow the authoring contract in the repo's `CLAUDE.md`):
 
-1. Edit `scripts/zsh.sh` in `~/.local/share/ubuntu-setup/` (a git repo). To add a named plugin: add
+1. Edit `scripts/zsh.sh` in the project repo. To add a named plugin: add
    its key to `ZSH_KNOWN_PLUGINS`, an install case in `_zsh_plugin_ensure`, a purge case in
    `_zsh_plugin_purge`, an emit case in `_zsh_emit_plugin`, and a slot in `_zsh_plugins_in_slot`
    (fpath / normal / eval / syntax / post-syntax — get the load order right). For a new prompt: a
@@ -163,7 +166,7 @@ new framework), extend the script under the **ubuntu-install** authoring contrac
    Install into user space where possible; the drop-in/`~/.zshrc` are written as the user, never sudo.
 4. **Idempotent & safe:** install only if missing; the drop-in is regenerated wholesale (no in-place
    edits); keep syntax-highlighting last and history-substring-search after it. Test (`bash -n`, then
-   `timeout … zsh -i -c 'exit 0'`), commit, consider a PR upstream.
+   `timeout … zsh -i -c 'exit 0'`), commit in the repo, and re-run `bootstrap.sh` to deploy.
 
 ## 5. The interactive screen, and the boundary with bootstrap
 
@@ -181,12 +184,12 @@ limitation anymore.
 drive zsh by explicit action — `swkit zsh add-plugin <…>`, `swkit zsh prompt <…>`, etc. — exactly as
 in §1; the `ui` screen is for the human at a terminal. There is no zsh logic duplicated in the
 bootstrap bash: every entry point (the `ui` screen, `swkit`, you) invokes this one script. Truly
-bespoke configuration is the taste conversation (§2) plus, where a capability is missing, evolving
-the script (§4).
+bespoke configuration is the taste conversation (§2) plus, where a capability is missing, a change
+to the script in the repo (§4).
 
 ## 6. Reference — understanding behind the script
 
-Details to *understand* (and preserve when you evolve the script); most are handled by `zsh.sh`.
+Details to *understand* (and preserve when the script is changed in the repo); most are handled by `zsh.sh`.
 
 - **Plugin load order.** fpath additions (completions) **before** compinit; `zsh-autosuggestions`
   before `zsh-syntax-highlighting`; **`zsh-syntax-highlighting` last** of the highlighters;
@@ -204,7 +207,7 @@ Details to *understand* (and preserve when you evolve the script); most are hand
 - **Migration.** An older fully-managed `~/.zshrc` (first line `# managed by ubuntu-setup zsh.sh`)
   is backed up and replaced by the one-line source model; personal lines are preserved in the `.bak`.
 - **Migration from bash.** zsh doesn't read `~/.bashrc`/`~/.profile`; copy PATH/aliases/functions into
-  `~/.zshrc` (or `~/.zshenv`). The baseline doesn't migrate these — flag it or evolve the script.
+  `~/.zshrc` (or `~/.zshenv`). The baseline doesn't migrate these — flag it (or change the script in the repo).
 - **Rollback.** Remove the source line from `~/.zshrc` + delete `~/.config/zsh/ubuntu-setup.zsh` (the
   user's own `~/.zshrc` is untouched), or restore a `.bak`. Login shell back to bash: `chsh -s /bin/bash`.
   Remove zsh only after the login shell is back to bash for every affected user (`swkit zsh remove`
@@ -219,7 +222,7 @@ Nerd Font locally for Starship/Powerlevel10k icons; `p10k configure`).
 
 ## Common mistakes
 
-- **Improvising raw install/config commands** instead of running or evolving `scripts/zsh.sh` — the
+- **Improvising raw install/config commands** instead of running `scripts/zsh.sh` — the
   whole point is one tested, idempotent, reviewable implementation, with state tracked.
 - **Editing the managed drop-in or the state file by hand** — they're regenerated on every change;
   use the actions, and put personal settings in `~/.zshrc` (sourced before the drop-in).
