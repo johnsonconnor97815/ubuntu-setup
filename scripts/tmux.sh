@@ -48,11 +48,21 @@ readonly TPM_REPO="https://github.com/tmux-plugins/tpm"
 
 # Curated, first-class plugin keys (short names). Anything else add-plugin accepts as an
 # arbitrary "owner/repo", "owner/repo#branch", or git URL (TPM clones it the same way).
-readonly TMUX_KNOWN_PLUGINS="sensible resurrect continuum yank pain-control vim-navigator open fzf battery cpu prefix-highlight"
+# All are official tmux-plugins / pure-tmux except vim-navigator, fzf and mode-indicator —
+# none pulls in a runtime the way fzf-url/extrakto would (those need fzf/Python and are
+# deliberately NOT curated). The status-bar widgets (battery/cpu/prefix-highlight/
+# mode-indicator/online-status/net-speed) only show up once their interpolation is added to
+# status-right — _tmux_emit_block does that automatically when no theme owns the status bar.
+readonly TMUX_KNOWN_PLUGINS="sensible resurrect continuum sessionist yank pain-control vim-navigator open fzf logging battery cpu prefix-highlight mode-indicator online-status net-speed"
 
 # The popular "batteries-included" set applied by `configure --recommended` (and the UI's
 # "Apply recommended setup" row) — a conservative bare `configure` enables NONE of these.
-readonly TMUX_RECOMMENDED_PLUGINS="sensible resurrect continuum yank pain-control"
+readonly TMUX_RECOMMENDED_PLUGINS="sensible resurrect continuum sessionist yank pain-control"
+
+# Status-bar widget plugins: enabling one is pointless unless its interpolation is placed in
+# status-right. _tmux_emit_block assembles status-right from the enabled ones, but ONLY when
+# no theme is active (a theme owns the status bar and would clash). Order here = display order.
+readonly TMUX_STATUS_WIDGETS="prefix-highlight mode-indicator net-speed online-status cpu battery"
 
 # Markers delimiting the region we own inside ~/.tmux.conf. Matched as EXACT lines.
 readonly TMUX_BLOCK_BEGIN="# >>> ubuntu-setup tmux (managed block) >>>"
@@ -112,10 +122,19 @@ _tmux_resolve_paths() {
 # --- Validation ----------------------------------------------------------------
 _tmux_valid_onoff()      { case "$1" in on|off) return 0 ;; *) return 1 ;; esac; }
 _tmux_valid_keymode()    { case "$1" in vi|emacs) return 0 ;; *) return 1 ;; esac; }
-_tmux_valid_theme()      { case "$1" in none|catppuccin|dracula|themepack) return 0 ;; *) return 1 ;; esac; }
+_tmux_valid_theme()      { case "$1" in none|catppuccin|dracula|themepack|gruvbox|tokyo-night) return 0 ;; *) return 1 ;; esac; }
 _tmux_valid_status_pos() { case "$1" in top|bottom) return 0 ;; *) return 1 ;; esac; }
 _tmux_valid_int()        { case "$1" in ''|*[!0-9]*) return 1 ;; *) return 0 ;; esac; }
 _tmux_valid_key()        { case "$1" in ''|*[[:space:]]*) return 1 ;; *) return 0 ;; esac; }
+# A space-separated list of one or more keys (each a valid single key) — used by the split
+# keys, which bind several keys (e.g. '\ |') to the same split action.
+_tmux_valid_keylist() {
+  local k; local -a arr
+  IFS=$' \t' read -ra arr <<<"$1"
+  (( ${#arr[@]} >= 1 )) || return 1
+  for k in "${arr[@]}"; do _tmux_valid_key "$k" || return 1; done
+  return 0
+}
 # A modifier chord (C-/M-/S-…) is meant as a DIRECT shortcut (bound with no prefix); a plain
 # key (v, w) is bound under the prefix. Used to decide `bind` vs `bind -n` for the entry keys.
 _tmux_key_is_chord()     { case "$1" in [CMS]-*) return 0 ;; *) return 1 ;; esac; }
@@ -135,6 +154,11 @@ _tmux_defaults() {
   STATUS_POSITION="bottom"; STATUS_INTERVAL="5"
   MONITOR_ACTIVITY="off"; SET_TITLES="off"; KEYBINDINGS="off"
   WINDOW_NAV="off"; COPY_MODE_KEY="default"; TREE_KEY="default"
+  # Each split direction binds one OR more keys (space-separated): \ and | both split L/R,
+  # - and _ both split T/B — i.e. the shifted and unshifted form of the same physical key, so
+  # the user never has to think about Shift. Only emitted when KEYBINDINGS=on.
+  SPLIT_H_KEY='\ |'; SPLIT_V_KEY='- _'; PANE_KEYS="off"; ALT_SPLIT="off"
+  RESURRECT_STRATEGY="off"; CONTINUUM_BOOT="off"
 }
 
 _tmux_load_state() {
@@ -164,6 +188,12 @@ _tmux_load_state() {
       WINDOW_NAV)        _tmux_valid_onoff "$v" && WINDOW_NAV="$v" ;;
       COPY_MODE_KEY)     _tmux_valid_key "$v" && COPY_MODE_KEY="$v" ;;
       TREE_KEY)          _tmux_valid_key "$v" && TREE_KEY="$v" ;;
+      SPLIT_H_KEY)       _tmux_valid_keylist "$v" && SPLIT_H_KEY="$v" ;;
+      SPLIT_V_KEY)       _tmux_valid_keylist "$v" && SPLIT_V_KEY="$v" ;;
+      PANE_KEYS)         _tmux_valid_onoff "$v" && PANE_KEYS="$v" ;;
+      ALT_SPLIT)         _tmux_valid_onoff "$v" && ALT_SPLIT="$v" ;;
+      RESURRECT_STRATEGY) _tmux_valid_onoff "$v" && RESURRECT_STRATEGY="$v" ;;
+      CONTINUUM_BOOT)    _tmux_valid_onoff "$v" && CONTINUUM_BOOT="$v" ;;
     esac
   done <"$_TPREF"
 }
@@ -193,6 +223,12 @@ _tmux_save_state() {
     printf 'WINDOW_NAV=%s\n'        "$WINDOW_NAV"
     printf 'COPY_MODE_KEY=%s\n'     "$COPY_MODE_KEY"
     printf 'TREE_KEY=%s\n'          "$TREE_KEY"
+    printf 'SPLIT_H_KEY=%s\n'       "$SPLIT_H_KEY"
+    printf 'SPLIT_V_KEY=%s\n'       "$SPLIT_V_KEY"
+    printf 'PANE_KEYS=%s\n'         "$PANE_KEYS"
+    printf 'ALT_SPLIT=%s\n'         "$ALT_SPLIT"
+    printf 'RESURRECT_STRATEGY=%s\n' "$RESURRECT_STRATEGY"
+    printf 'CONTINUUM_BOOT=%s\n'    "$CONTINUUM_BOOT"
   } >"$_TPREF"
 }
 
@@ -218,26 +254,106 @@ _tmux_known_spec() {
     battery)          printf 'tmux-plugins/tmux-battery' ;;
     cpu)              printf 'tmux-plugins/tmux-cpu' ;;
     prefix-highlight) printf 'tmux-plugins/tmux-prefix-highlight' ;;
+    sessionist)       printf 'tmux-plugins/tmux-sessionist' ;;
+    logging)          printf 'tmux-plugins/tmux-logging' ;;
+    mode-indicator)   printf 'MunifTanjim/tmux-mode-indicator' ;;
+    online-status)    printf 'tmux-plugins/tmux-online-status' ;;
+    net-speed)        printf 'tmux-plugins/tmux-net-speed' ;;
     *) return 1 ;;
   esac
 }
 
-# A one-line description of a curated plugin (for the UI). Empty for unknown keys.
+# Localized one-line descriptions for the curated plugins and themes (UI only). Keys are
+# "<lang>:<name>" for plugins and "<lang>:theme:<name>" for themes; the plugin/theme NAMES
+# themselves are never translated (project rule — see lib/ui.sh's UI_MSG note). This mirrors
+# the ui_t lookup shape but is kept local so the generic UI library is not polluted with
+# tmux-specific strings. _tmux_known_desc / _tmux_theme_desc resolve the row for ${UI_LANG}
+# (set by bootstrap or kit_load_lang), falling back to English then empty.
+declare -gA TMUX_I18N
+# -- plugin descriptions (English) --
+TMUX_I18N[en:sensible]="sane defaults everyone agrees on"
+TMUX_I18N[en:resurrect]="save/restore sessions across reboots"
+TMUX_I18N[en:continuum]="auto-save sessions every 15 min"
+TMUX_I18N[en:sessionist]="session shortcuts (create/switch/kill)"
+TMUX_I18N[en:yank]="copy to the system clipboard"
+TMUX_I18N[en:pain-control]="standard pane split/resize bindings"
+TMUX_I18N[en:vim-navigator]="Ctrl-h/j/k/l across vim + tmux"
+TMUX_I18N[en:open]="open highlighted URLs / files"
+TMUX_I18N[en:fzf]="fuzzy-find sessions/windows/panes"
+TMUX_I18N[en:logging]="log output & capture the screen"
+TMUX_I18N[en:battery]="battery indicator in the status bar"
+TMUX_I18N[en:cpu]="CPU indicator in the status bar"
+TMUX_I18N[en:prefix-highlight]="show when prefix is pressed"
+TMUX_I18N[en:mode-indicator]="show the current mode in the status bar"
+TMUX_I18N[en:online-status]="online/offline indicator"
+TMUX_I18N[en:net-speed]="network up/down speed"
+# -- plugin descriptions (简体中文) --
+TMUX_I18N[zh:sensible]="大家公认的合理默认值"
+TMUX_I18N[zh:resurrect]="重启后保存/恢复会话"
+TMUX_I18N[zh:continuum]="每 15 分钟自动保存会话"
+TMUX_I18N[zh:sessionist]="会话快捷键(新建/切换/关闭)"
+TMUX_I18N[zh:yank]="复制到系统剪贴板"
+TMUX_I18N[zh:pain-control]="标准的窗格分屏/调整键位"
+TMUX_I18N[zh:vim-navigator]="Ctrl-h/j/k/l 在 vim 与 tmux 间移动"
+TMUX_I18N[zh:open]="打开选中的 URL / 文件"
+TMUX_I18N[zh:fzf]="模糊查找会话/窗口/窗格"
+TMUX_I18N[zh:logging]="记录输出并截取屏幕"
+TMUX_I18N[zh:battery]="状态栏电池指示"
+TMUX_I18N[zh:cpu]="状态栏 CPU 指示"
+TMUX_I18N[zh:prefix-highlight]="按下 prefix 时高亮提示"
+TMUX_I18N[zh:mode-indicator]="状态栏显示当前模式"
+TMUX_I18N[zh:online-status]="在线/离线状态指示"
+TMUX_I18N[zh:net-speed]="网络上行/下行速度"
+# -- plugin descriptions (日本語) --
+TMUX_I18N[ja:sensible]="誰もが認める無難なデフォルト"
+TMUX_I18N[ja:resurrect]="再起動をまたいでセッションを保存/復元"
+TMUX_I18N[ja:continuum]="15 分ごとにセッションを自動保存"
+TMUX_I18N[ja:sessionist]="セッション操作のショートカット"
+TMUX_I18N[ja:yank]="システムのクリップボードへコピー"
+TMUX_I18N[ja:pain-control]="標準的なペイン分割/リサイズ操作"
+TMUX_I18N[ja:vim-navigator]="vim と tmux をまたぐ Ctrl-h/j/k/l 移動"
+TMUX_I18N[ja:open]="選択した URL / ファイルを開く"
+TMUX_I18N[ja:fzf]="セッション/ウィンドウ/ペインをあいまい検索"
+TMUX_I18N[ja:logging]="出力ログと画面キャプチャ"
+TMUX_I18N[ja:battery]="ステータスバーにバッテリー表示"
+TMUX_I18N[ja:cpu]="ステータスバーに CPU 表示"
+TMUX_I18N[ja:prefix-highlight]="prefix 押下時に表示"
+TMUX_I18N[ja:mode-indicator]="現在のモードをステータスバーに表示"
+TMUX_I18N[ja:online-status]="オンライン/オフライン状態を表示"
+TMUX_I18N[ja:net-speed]="ネットワークの上り/下り速度"
+# -- theme descriptions --
+TMUX_I18N[en:theme:none]="no theme plugin"
+TMUX_I18N[en:theme:catppuccin]="soothing pastel theme"
+TMUX_I18N[en:theme:dracula]="dark theme with vivid accents"
+TMUX_I18N[en:theme:themepack]="powerline-style theme pack"
+TMUX_I18N[en:theme:gruvbox]="retro-groove warm colors"
+TMUX_I18N[en:theme:tokyo-night]="modern blue night theme"
+TMUX_I18N[zh:theme:none]="不使用主题插件"
+TMUX_I18N[zh:theme:catppuccin]="柔和的马卡龙配色"
+TMUX_I18N[zh:theme:dracula]="暗色 + 鲜明强调色"
+TMUX_I18N[zh:theme:themepack]="powerline 风格主题包"
+TMUX_I18N[zh:theme:gruvbox]="复古暖色调"
+TMUX_I18N[zh:theme:tokyo-night]="现代蓝色夜间主题"
+TMUX_I18N[ja:theme:none]="テーマプラグインなし"
+TMUX_I18N[ja:theme:catppuccin]="やわらかなパステルテーマ"
+TMUX_I18N[ja:theme:dracula]="鮮やかなアクセントの暗色テーマ"
+TMUX_I18N[ja:theme:themepack]="powerline 風テーマパック"
+TMUX_I18N[ja:theme:gruvbox]="レトロで温かみのある配色"
+TMUX_I18N[ja:theme:tokyo-night]="モダンな青系ナイトテーマ"
+
+# Resolve the localized language code (en/zh/ja) for the I18N lookups; unknown -> en.
+_tmux_lang() { local l="${UI_LANG:-en}"; case "$l" in en|zh|ja) printf '%s' "$l" ;; *) printf 'en' ;; esac; }
+
+# A localized one-line description of a curated plugin (for the UI). Empty for unknown keys.
 _tmux_known_desc() {
-  case "$1" in
-    sensible)         printf 'sane defaults everyone agrees on' ;;
-    resurrect)        printf 'save/restore sessions across reboots' ;;
-    continuum)        printf 'auto-save sessions every 15 min' ;;
-    yank)             printf 'copy to the system clipboard' ;;
-    pain-control)     printf 'standard pane split/resize bindings' ;;
-    vim-navigator)    printf 'Ctrl-h/j/k/l across vim + tmux' ;;
-    open)             printf 'open highlighted URLs / files' ;;
-    fzf)              printf 'fuzzy-find sessions/windows/panes' ;;
-    battery)          printf 'battery indicator in the status bar' ;;
-    cpu)              printf 'CPU indicator in the status bar' ;;
-    prefix-highlight) printf 'show when prefix is pressed' ;;
-    *)                printf '' ;;
-  esac
+  local lang; lang="$(_tmux_lang)"
+  printf '%s' "${TMUX_I18N[$lang:$1]:-${TMUX_I18N[en:$1]:-}}"
+}
+
+# A localized one-line description of a theme (for the UI picker). Empty for unknown themes.
+_tmux_theme_desc() {
+  local lang; lang="$(_tmux_lang)"
+  printf '%s' "${TMUX_I18N[$lang:theme:$1]:-${TMUX_I18N[en:theme:$1]:-}}"
 }
 
 # Resolve a plugin key to the spec TPM understands (curated -> owner/repo; else the key is
@@ -257,11 +373,32 @@ _tmux_plugin_dir() {
 # The plugin spec for a theme (none/unknown -> non-zero, no theme plugin).
 _tmux_theme_spec() {
   case "$1" in
-    catppuccin) printf 'catppuccin/tmux' ;;
-    dracula)    printf 'dracula/tmux' ;;
-    themepack)  printf 'jimeh/tmux-themepack' ;;
+    catppuccin)  printf 'catppuccin/tmux' ;;
+    dracula)     printf 'dracula/tmux' ;;
+    themepack)   printf 'jimeh/tmux-themepack' ;;
+    gruvbox)     printf 'egel/tmux-gruvbox' ;;
+    tokyo-night) printf 'janoamaral/tokyo-night-tmux' ;;
     *) return 1 ;;
   esac
+}
+
+# The per-theme tmux option that selects a flavor/variant, and that option's default value.
+# Each theme names it differently (catppuccin: @catppuccin_flavor; egel/gruvbox: @tmux-gruvbox;
+# janoamaral/tokyo-night: @tokyo-night-tmux_theme; jimeh/themepack: @themepack). Emits
+# "<option>\t<default>"; non-zero when the theme takes no flavor (dracula/none).
+_tmux_theme_flavor_opt() {
+  case "$1" in
+    catppuccin)  printf '@catppuccin_flavor\tmocha' ;;
+    themepack)   printf '@themepack\tpowerline/default/cyan' ;;
+    gruvbox)     printf '@tmux-gruvbox\tdark' ;;
+    tokyo-night) printf '@tokyo-night-tmux_theme\tnight' ;;
+    *) return 1 ;;
+  esac
+}
+
+# Whether a theme renders Nerd Font glyphs (so we offer to install MesloLGS NF, like zsh.sh).
+_tmux_theme_wants_font() {
+  case "$1" in catppuccin|gruvbox|tokyo-night|themepack) return 0 ;; *) return 1 ;; esac
 }
 
 # --- TPM (Tmux Plugin Manager) -------------------------------------------------
@@ -380,12 +517,21 @@ TMUXWIN
   fi
 
   if [[ "$KEYBINDINGS" == on ]]; then
+    printf '\n# ---- Ergonomic keybindings ----\n'
+    printf '# Split keeping the current path (keys configurable via --split-h / --split-v).\n'
+    # Each direction can bind several keys (\ and |, - and _): loop and emit one bind per key.
+    # Keys are single-quoted so a literal backslash binds cleanly (in tmux.conf single quotes
+    # treat \ literally, so 'bind \' would otherwise be mis-parsed).
+    local _splitk; local -a _splith _splitv
+    IFS=$' \t' read -ra _splith <<<"$SPLIT_H_KEY"
+    IFS=$' \t' read -ra _splitv <<<"$SPLIT_V_KEY"
+    for _splitk in "${_splith[@]}"; do
+      printf "bind '%s' split-window -h -c \"#{pane_current_path}\"\n" "$_splitk"
+    done
+    for _splitk in "${_splitv[@]}"; do
+      printf "bind '%s' split-window -v -c \"#{pane_current_path}\"\n" "$_splitk"
+    done
     cat <<'TMUXKEYS'
-
-# ---- Ergonomic keybindings ----
-# Split keeping the current path: | vertical, - horizontal; new window keeps the path too.
-bind | split-window -h -c "#{pane_current_path}"
-bind - split-window -v -c "#{pane_current_path}"
 bind c new-window -c "#{pane_current_path}"
 # vim-style pane navigation (note: rebinds prefix-l away from last-window)
 bind h select-pane -L
@@ -405,27 +551,90 @@ bind -T copy-mode-vi MouseDragEnd1Pane send -X copy-selection-and-cancel
 TMUXKEYS
   fi
 
+  if [[ "$PANE_KEYS" == on ]]; then
+    cat <<'TMUXPANE'
+
+# ---- Pane management ----
+# prefix S toggles synchronized input to every pane in the window (type once, run everywhere).
+bind S set-window-option synchronize-panes \; display-message "sync-panes #{?synchronize-panes,on,off}"
+# prefix b breaks the current pane into its own window; > / < swap it down / up in the layout.
+bind b break-pane
+bind > swap-pane -D
+bind < swap-pane -U
+# (zoom the current pane with the built-in prefix z)
+TMUXPANE
+  fi
+
+  if [[ "$ALT_SPLIT" == on ]]; then
+    printf '\n# ---- No-prefix split / navigation (Alt) ----\n'
+    printf '# NOTE: these claim Alt+Enter and Alt+arrows globally and can clash with your\n'
+    printf '# terminal, shell or (n)vim. Turn off with: swkit tmux configure --alt-split off\n'
+    printf 'bind -n M-Enter split-window -h -c "#{pane_current_path}"\n'
+    printf 'bind -n M-Left  select-pane -L\n'
+    printf 'bind -n M-Right select-pane -R\n'
+    printf 'bind -n M-Up    select-pane -U\n'
+    printf 'bind -n M-Down  select-pane -D\n'
+  fi
+
   if _tmux_tpm_installed; then
-    local k tspec
+    local k tspec tflav topt tdef
     printf '\n# ---- Plugins (Tmux Plugin Manager) ----\n'
     printf "set -g @plugin '%s'\n" "tmux-plugins/tpm"
-    for k in $PLUGINS; do
-      printf "set -g @plugin '%s'\n" "$(_tmux_plugin_spec "$k")"
-    done
+    # Order matters: theme FIRST (egel/gruvbox and catppuccin want their @plugin ahead of the
+    # widget plugins they style), continuum LAST. continuum autosaves via a status-right hook,
+    # so a theme (or any plugin) that rewrites status-right after it would silence the autosave
+    # — it must be the last plugin sourced. Everything else keeps its declared order in between.
     if tspec="$(_tmux_theme_spec "$THEME")"; then
       printf "set -g @plugin '%s'\n" "$tspec"
     fi
+    for k in $PLUGINS; do
+      [[ "$k" == continuum ]] && continue
+      printf "set -g @plugin '%s'\n" "$(_tmux_plugin_spec "$k")"
+    done
+    _tmux_list_has continuum "$PLUGINS" && printf "set -g @plugin '%s'\n" "tmux-plugins/tmux-continuum"
 
     printf '\n# ---- Plugin settings ----\n'
-    _tmux_list_has resurrect "$PLUGINS" && printf "set -g @resurrect-capture-pane-contents 'on'\n"
+    if _tmux_list_has resurrect "$PLUGINS"; then
+      printf "set -g @resurrect-capture-pane-contents 'on'\n"
+      if [[ "$RESURRECT_STRATEGY" == on ]]; then
+        printf "set -g @resurrect-strategy-vim 'session'\n"
+        printf "set -g @resurrect-strategy-nvim 'session'\n"
+      fi
+    fi
     if _tmux_list_has continuum "$PLUGINS"; then
       printf "set -g @continuum-restore 'on'\n"
       printf "set -g @continuum-save-interval '15'\n"
+      [[ "$CONTINUUM_BOOT" == on ]] && printf "set -g @continuum-boot 'on'\n"
     fi
-    case "$THEME" in
-      catppuccin) printf "set -g @catppuccin_flavor '%s'\n"  "${THEME_FLAVOR:-mocha}" ;;
-      themepack)  printf "set -g @themepack '%s'\n"          "${THEME_FLAVOR:-powerline/default/cyan}" ;;
-    esac
+    # Theme flavor — the selecting option name differs per theme (see _tmux_theme_flavor_opt);
+    # themes without a flavor (dracula/none) make it return non-zero and emit nothing.
+    if tflav="$(_tmux_theme_flavor_opt "$THEME")"; then
+      topt="${tflav%%$'\t'*}"; tdef="${tflav#*$'\t'}"
+      printf "set -g %s '%s'\n" "$topt" "${THEME_FLAVOR:-$tdef}"
+    fi
+
+    # Status-bar widgets stay invisible unless their interpolation sits in status-right.
+    # Assemble it from the enabled widgets — but ONLY when no theme is active (a theme owns
+    # status-right and would clash). With a theme the widget plugins still load; the theme
+    # decides where to place them.
+    if [[ "$THEME" == none ]]; then
+      local sr="" w
+      for w in $TMUX_STATUS_WIDGETS; do
+        _tmux_list_has "$w" "$PLUGINS" || continue
+        case "$w" in
+          prefix-highlight) sr="${sr}#{prefix_highlight}" ;;
+          mode-indicator)   sr="${sr}#{tmux_mode_indicator} " ;;
+          net-speed)        sr="${sr}D:#{download_speed} U:#{upload_speed} " ;;
+          online-status)    sr="${sr}net:#{online_status} " ;;
+          cpu)              sr="${sr}cpu:#{cpu_percentage} " ;;
+          battery)          sr="${sr}#{battery_icon} #{battery_percentage} " ;;
+        esac
+      done
+      if [[ -n "$sr" ]]; then
+        printf '\n# ---- Status-right widgets (assembled because no theme owns the status bar) ----\n'
+        printf 'set -g status-right "%s %%Y-%%m-%%d %%H:%%M "\n' "$sr"
+      fi
+    fi
 
     cat <<'TMUXTPM'
 
@@ -469,16 +678,50 @@ _tmux_imply_resurrect() {
   fi
 }
 
+# Flavors are theme-specific (catppuccin 'mocha' is meaningless to gruvbox, which wants 'dark').
+# THEME_FLAVOR is a single stored value, so switching themes can leave a stale flavor behind —
+# reset it to the new theme's default whenever it doesn't belong to the current theme. themepack
+# flavors are freeform "powerline/<…>" paths, so only sanity-check the shape.
+_tmux_normalize_flavor() {
+  case "$THEME" in
+    catppuccin)  _tmux_list_has "$THEME_FLAVOR" "mocha macchiato frappe latte" || THEME_FLAVOR="mocha" ;;
+    gruvbox)     _tmux_list_has "$THEME_FLAVOR" "dark dark256 light light256"  || THEME_FLAVOR="dark" ;;
+    tokyo-night) _tmux_list_has "$THEME_FLAVOR" "night storm day"              || THEME_FLAVOR="night" ;;
+    themepack)   [[ "$THEME_FLAVOR" == */* ]]                                  || THEME_FLAVOR="powerline/default/cyan" ;;
+  esac
+}
+
+# A themed status bar (catppuccin/gruvbox/tokyo-night/themepack) renders Nerd Font glyphs;
+# install the recommended MesloLGS NF via the kit's dedicated fonts.sh (font logic lives in ONE
+# place — see zsh.sh). Best-effort: a failure only warns and the theme still applies. Over SSH
+# the glyphs are drawn by the CLIENT terminal — fonts.sh prints that guidance.
+_tmux_ensure_theme_font() {
+  local fonts="$KIT_SCRIPTS_DIR/fonts.sh"
+  if [[ -x "$fonts" ]]; then
+    if "$fonts" status >/dev/null 2>&1; then
+      log_info "Recommended Nerd Font (MesloLGS NF) already installed."
+    else
+      log_info "Installing the recommended Nerd Font (MesloLGS NF) via fonts.sh…"
+      "$fonts" install meslolgs || log_warn "Could not install the Nerd Font automatically — run 'swkit fonts install' yourself."
+    fi
+  else
+    log_warn "fonts.sh not found; install a Nerd Font with 'swkit fonts install' for theme glyphs."
+  fi
+  log_warn "Nerd Font glyphs render in your LOCAL terminal — over SSH, also install/select MesloLGS NF on your client."
+}
+
 # Whether the config should carry a plugin manager + plugins at all.
 _tmux_want_plugins() { [[ -n "$PLUGINS" || "$THEME" != "none" ]]; }
 
 # Resolve everything enabled, (re)generate the block, install declared plugins.
 _tmux_apply() {
   _tmux_imply_resurrect
+  _tmux_normalize_flavor
   if _tmux_want_plugins; then _tmux_ensure_tpm || return 1; fi
   _tmux_write_block || return 1
   _tmux_save_state
   if _tmux_tpm_installed && _tmux_want_plugins; then _tmux_run_install_plugins; fi
+  if _tmux_theme_wants_font "$THEME"; then _tmux_ensure_theme_font; fi
   log_info "Applied tmux config — theme=$THEME, mouse=$MOUSE, keys=$KEYMODE, plugins=[${PLUGINS:-none}]."
   log_info "Reload a running tmux with:  tmux source-file ~/.tmux.conf   (or just start a new tmux)."
 }
@@ -488,15 +731,29 @@ _tmux_apply() {
 _tmux_set_onoff() { local v="$1"; local -n _r="$2"; _tmux_valid_onoff "$v" || { log_err "$3 needs on|off."; return 2; }; _r="$v"; }
 _tmux_set_int()   { local v="$1"; local -n _r="$2"; _tmux_valid_int "$v"   || { log_err "$3 needs a non-negative integer."; return 2; }; _r="$v"; }
 
+# Keybinding preset: a one-shot ergonomic key setup the user can apply without thinking about
+# each individual key. Turns on the ergonomic split/nav/copy bindings, window switching and
+# pane-management keys, and resets the split keys to the dual L/R (\ |) and T/B (- _) defaults.
+# Deliberately leaves plugins/theme/prefix/keymode alone — keys only. Used by both
+# `configure --keys-preset` and (folded in) `configure --recommended`.
+_tmux_apply_keys_preset() {
+  KEYBINDINGS="on"
+  WINDOW_NAV="on"
+  PANE_KEYS="on"
+  SPLIT_H_KEY='\ |'
+  SPLIT_V_KEY='- _'
+}
+
 do_configure() {
   if ! status >/dev/null 2>&1; then log_info "Install tmux first (swkit tmux install)."; return 0; fi
   _tmux_resolve_paths || return 1
   _tmux_load_state
 
-  local want_plugins=1 plugins_set="" recommended=0
+  local want_plugins=1 plugins_set="" recommended=0 keys_preset=0
   while [[ $# -gt 0 ]]; do
     case "$1" in
       --recommended) recommended=1; shift ;;
+      --keys-preset) keys_preset=1; shift ;;
       # appearance
       --theme)            _tmux_valid_theme "${2:-}" || { log_err "--theme: none|catppuccin|dracula|themepack."; return 2; }; THEME="$2"; shift 2 ;;
       --theme=*)          THEME="${1#*=}"; _tmux_valid_theme "$THEME" || { log_err "--theme: none|catppuccin|dracula|themepack."; return 2; }; shift ;;
@@ -536,11 +793,24 @@ do_configure() {
       --copy-mode-key=*)   COPY_MODE_KEY="${1#*=}"; _tmux_valid_key "$COPY_MODE_KEY" || { log_err "--copy-mode-key needs a single key (e.g. v) or 'default'."; return 2; }; shift ;;
       --tree-key)          TREE_KEY="${2:-}"; _tmux_valid_key "$TREE_KEY" || { log_err "--tree-key needs a single key (e.g. w) or 'default'."; return 2; }; shift 2 ;;
       --tree-key=*)        TREE_KEY="${1#*=}"; _tmux_valid_key "$TREE_KEY" || { log_err "--tree-key needs a single key (e.g. w) or 'default'."; return 2; }; shift ;;
+      --split-h)           SPLIT_H_KEY="${2:-}"; _tmux_valid_keylist "$SPLIT_H_KEY" || { log_err "--split-h needs one or more keys (space-separated, e.g. '\\ |')."; return 2; }; shift 2 ;;
+      --split-h=*)         SPLIT_H_KEY="${1#*=}"; _tmux_valid_keylist "$SPLIT_H_KEY" || { log_err "--split-h needs one or more keys (space-separated, e.g. '\\ |')."; return 2; }; shift ;;
+      --split-v)           SPLIT_V_KEY="${2:-}"; _tmux_valid_keylist "$SPLIT_V_KEY" || { log_err "--split-v needs one or more keys (space-separated, e.g. '- _')."; return 2; }; shift 2 ;;
+      --split-v=*)         SPLIT_V_KEY="${1#*=}"; _tmux_valid_keylist "$SPLIT_V_KEY" || { log_err "--split-v needs one or more keys (space-separated, e.g. '- _')."; return 2; }; shift ;;
+      --pane-keys)         _tmux_set_onoff "${2:-}" PANE_KEYS --pane-keys || return 2; shift 2 ;;
+      --pane-keys=*)       _tmux_set_onoff "${1#*=}" PANE_KEYS --pane-keys || return 2; shift ;;
+      --alt-split)         _tmux_set_onoff "${2:-}" ALT_SPLIT --alt-split || return 2; shift 2 ;;
+      --alt-split=*)       _tmux_set_onoff "${1#*=}" ALT_SPLIT --alt-split || return 2; shift ;;
       # history
       --history)           _tmux_set_int "${2:-}" HISTORY --history || return 2; shift 2 ;;
       --history=*)         _tmux_set_int "${1#*=}" HISTORY --history || return 2; shift ;;
       --escape-time)       _tmux_set_int "${2:-}" ESCAPE_TIME --escape-time || return 2; shift 2 ;;
       --escape-time=*)     _tmux_set_int "${1#*=}" ESCAPE_TIME --escape-time || return 2; shift ;;
+      # session automation
+      --resurrect-strategy)   _tmux_set_onoff "${2:-}" RESURRECT_STRATEGY --resurrect-strategy || return 2; shift 2 ;;
+      --resurrect-strategy=*) _tmux_set_onoff "${1#*=}" RESURRECT_STRATEGY --resurrect-strategy || return 2; shift ;;
+      --continuum-boot)       _tmux_set_onoff "${2:-}" CONTINUUM_BOOT --continuum-boot || return 2; shift 2 ;;
+      --continuum-boot=*)     _tmux_set_onoff "${1#*=}" CONTINUUM_BOOT --continuum-boot || return 2; shift ;;
       # plugins
       --plugins)           plugins_set="${2:-}"; shift 2 || { log_err "--plugins needs a value."; return 2; } ;;
       --plugins=*)         plugins_set="${1#*=}"; shift ;;
@@ -553,9 +823,11 @@ do_configure() {
   if (( recommended )); then
     PLUGINS="$TMUX_RECOMMENDED_PLUGINS"
     [[ "$THEME" == "none" ]] && THEME="catppuccin"
-    KEYBINDINGS="on"
-    WINDOW_NAV="on"
+    _tmux_apply_keys_preset
+    RESURRECT_STRATEGY="on"
+    CONTINUUM_BOOT="on"
   fi
+  (( keys_preset )) && _tmux_apply_keys_preset
   if (( ! want_plugins )); then
     PLUGINS=""
   elif [[ -n "$plugins_set" ]]; then
@@ -692,6 +964,10 @@ _tmux_setting_val() {
     set-titles)        printf '%s' "$SET_TITLES" ;;
     keybindings)       printf '%s' "$KEYBINDINGS" ;;
     window-nav)        printf '%s' "$WINDOW_NAV" ;;
+    pane-keys)          printf '%s' "$PANE_KEYS" ;;
+    alt-split)          printf '%s' "$ALT_SPLIT" ;;
+    resurrect-strategy) printf '%s' "$RESURRECT_STRATEGY" ;;
+    continuum-boot)     printf '%s' "$CONTINUUM_BOOT" ;;
   esac
 }
 
@@ -752,6 +1028,7 @@ ui() {
 
       dkind+=(spacer); did+=(""); dlabel+=("")
       dkind+=(header); did+=(""); dlabel+=("Keys")
+      dkind+=(keyspreset); did+=(keyspreset); dlabel+=("$(ui_badge check) Apply recommended keybindings (ergonomic split/nav/copy + window & pane keys)")
       dkind+=(keymode); did+=(keymode); dlabel+=("$(_tmux_value_label 'Mode keys' "$KEYMODE")")
       dkind+=(prefix);  did+=(prefix);  dlabel+=("$(_tmux_value_label 'Prefix key' "$PREFIX")")
       dkind+=(toggle);  did+=(keybindings); dlabel+=("$(_tmux_onoff_label 'Ergonomic keys' "$KEYBINDINGS")")
@@ -766,6 +1043,15 @@ ui() {
       elif _tmux_key_is_chord "$TREE_KEY"; then tree_disp="$TREE_KEY (no prefix)"
       else tree_disp="prefix $TREE_KEY"; fi
       dkind+=(treekey); did+=(treekey); dlabel+=("$(_tmux_value_label 'Window tree' "$tree_disp")")
+      dkind+=(splith);  did+=(splith);  dlabel+=("$(_tmux_value_label 'Split -h (L/R)' "prefix $SPLIT_H_KEY")")
+      dkind+=(splitv);  did+=(splitv);  dlabel+=("$(_tmux_value_label 'Split -v (T/B)' "prefix $SPLIT_V_KEY")")
+      dkind+=(toggle);  did+=(pane-keys); dlabel+=("$(_tmux_onoff_label 'Pane mgmt keys' "$PANE_KEYS")")
+      dkind+=(toggle);  did+=(alt-split); dlabel+=("$(_tmux_onoff_label 'Alt split (no prefix)' "$ALT_SPLIT")")
+
+      dkind+=(spacer); did+=(""); dlabel+=("")
+      dkind+=(header); did+=(""); dlabel+=("Session")
+      dkind+=(toggle); did+=(resurrect-strategy); dlabel+=("$(_tmux_onoff_label 'Save vim/nvim sessions' "$RESURRECT_STRATEGY")")
+      dkind+=(toggle); did+=(continuum-boot);     dlabel+=("$(_tmux_onoff_label 'Auto-start on boot' "$CONTINUUM_BOOT")")
 
       dkind+=(spacer); did+=(""); dlabel+=("")
       dkind+=(header); did+=(""); dlabel+=("History")
@@ -850,15 +1136,29 @@ ui() {
             fi ;;
           theme)
             ui_pick "tmux — theme" "current: $THEME" "" -- \
-              none "none (no theme plugin)" catppuccin "Catppuccin" dracula "Dracula" themepack "Themepack (powerline)"
+              none "$(_tmux_theme_desc none)" \
+              catppuccin "Catppuccin — $(_tmux_theme_desc catppuccin)" \
+              dracula "Dracula — $(_tmux_theme_desc dracula)" \
+              themepack "Themepack — $(_tmux_theme_desc themepack)" \
+              gruvbox "Gruvbox — $(_tmux_theme_desc gruvbox)" \
+              tokyo-night "Tokyo Night — $(_tmux_theme_desc tokyo-night)"
             if [[ -n "$UI_PICK" ]]; then
-              if [[ "$UI_PICK" == "catppuccin" ]]; then
-                ui_pick "Catppuccin flavor" "current: $THEME_FLAVOR" "" -- \
-                  mocha "Mocha (dark)" macchiato "Macchiato" frappe "Frappe" latte "Latte (light)"
-                [[ -n "$UI_PICK" ]] && ui_run "theme catppuccin $UI_PICK · tmux" -- "$0" theme catppuccin "$UI_PICK"
-              else
-                ui_run "theme $UI_PICK · tmux" -- "$0" theme "$UI_PICK"
-              fi
+              case "$UI_PICK" in
+                catppuccin)
+                  ui_pick "Catppuccin flavor" "current: $THEME_FLAVOR" "" -- \
+                    mocha "Mocha (dark)" macchiato "Macchiato" frappe "Frappe" latte "Latte (light)"
+                  [[ -n "$UI_PICK" ]] && ui_run "theme catppuccin $UI_PICK · tmux" -- "$0" theme catppuccin "$UI_PICK" ;;
+                gruvbox)
+                  ui_pick "Gruvbox flavor" "current: $THEME_FLAVOR" "" -- \
+                    dark "Dark (16-color)" dark256 "Dark (256)" light "Light (16-color)" light256 "Light (256)"
+                  [[ -n "$UI_PICK" ]] && ui_run "theme gruvbox $UI_PICK · tmux" -- "$0" theme gruvbox "$UI_PICK" ;;
+                tokyo-night)
+                  ui_pick "Tokyo Night flavor" "current: $THEME_FLAVOR" "" -- \
+                    night "Night (default)" storm "Storm" day "Day (light)"
+                  [[ -n "$UI_PICK" ]] && ui_run "theme tokyo-night $UI_PICK · tmux" -- "$0" theme tokyo-night "$UI_PICK" ;;
+                *)
+                  ui_run "theme $UI_PICK · tmux" -- "$0" theme "$UI_PICK" ;;
+              esac
             fi ;;
           statuspos)
             ui_pick "tmux — status bar position" "current: $STATUS_POSITION" "" -- top "top" bottom "bottom"
@@ -882,6 +1182,14 @@ ui() {
             if ui_input "window-tree key — chord e.g. C-Enter (direct), plain key e.g. w (prefix+key), 'default' = w" "$TREE_KEY"; then
               [[ -n "$UI_INPUT" ]] && ui_run "window-tree key · tmux" -- "$0" configure --tree-key "$UI_INPUT"
             fi ;;
+          splith)
+            if ui_input "horizontal-split key(s) (-h, side by side; space-separated, e.g. '\\ |'; ergonomic keys must be on)" "$SPLIT_H_KEY"; then
+              [[ -n "$UI_INPUT" ]] && ui_run "split-h key · tmux" -- "$0" configure --split-h "$UI_INPUT"
+            fi ;;
+          splitv)
+            if ui_input "vertical-split key(s) (-v, stacked; space-separated, e.g. '- _'; ergonomic keys must be on)" "$SPLIT_V_KEY"; then
+              [[ -n "$UI_INPUT" ]] && ui_run "split-v key · tmux" -- "$0" configure --split-v "$UI_INPUT"
+            fi ;;
           history)
             if ui_input "scrollback lines" "$HISTORY"; then
               [[ -n "$UI_INPUT" ]] && ui_run "history-limit · tmux" -- "$0" configure --history "$UI_INPUT"
@@ -895,6 +1203,7 @@ ui() {
             cur="$(_tmux_setting_val "$tf")"
             ui_run "$tf $(_tmux_flip_onoff "$cur") · tmux" -- "$0" configure "--$tf" "$(_tmux_flip_onoff "$cur")" ;;
           recommended) ui_run "recommended setup · tmux" -- "$0" configure --recommended ;;
+          keyspreset)   ui_run "keybindings preset · tmux" -- "$0" configure --keys-preset ;;
           plugin)
             local pn="${did[$sel]}"
             if _tmux_list_has "$pn" "$PLUGINS"; then ui_run "remove-plugin $pn · tmux" -- "$0" remove-plugin "$pn"
@@ -925,10 +1234,13 @@ bin/ scripts. Re-running converges; safe to run twice.
   install            Install tmux via apt
   remove             Uninstall tmux (apt remove — keeps ~/.tmux.conf, plugins and TPM)
   configure [opts]   Re-spec options/plugins/theme. Options:
-                       --recommended            TPM + popular plugins + Catppuccin + ergonomic keys
+                       --recommended            TPM + popular plugins + Catppuccin + ergonomic
+                                                & pane keys + session automation (boot/restore)
                      Appearance:
-                       --theme none|catppuccin|dracula|themepack   (default: none)
-                       --theme-flavor <flavor>  Catppuccin: mocha|macchiato|frappe|latte
+                       --theme none|catppuccin|dracula|themepack|gruvbox|tokyo-night (default: none)
+                       --theme-flavor <flavor>  catppuccin: mocha|macchiato|frappe|latte;
+                                                gruvbox: dark|dark256|light|light256;
+                                                tokyo-night: night|storm|day; themepack: powerline/<…>
                        --status-position top|bottom                (default: bottom)
                        --status-interval <seconds>                 (default: 5)
                      Behavior (on|off):
@@ -941,6 +1253,10 @@ bin/ scripts. Re-running converges; safe to run twice.
                        --monitor-activity   highlight active windows  (default: off)
                        --set-titles         set the terminal title    (default: off)
                      Keys:
+                       --keys-preset        one-shot ergonomic keybinding preset — turns on
+                                            --keybindings + --window-nav + --pane-keys and the
+                                            dual split keys (\ | and - _); leaves plugins/theme
+                                            alone. The quick way to set up shortcuts.
                        --keymode vi|emacs   copy-mode keys           (default: vi)
                        --prefix <key>|default   remap prefix (e.g. C-a); default = C-b
                        --keybindings on|off ergonomic splits/nav/copy bindings (default: off)
@@ -951,6 +1267,16 @@ bin/ scripts. Re-running converges; safe to run twice.
                        --tree-key <key>|default        key to open the window/session tree. Chord
                                             (e.g. C-Enter) = direct; plain key = prefix+key. default = w
                                             (chords like C-Enter need a terminal with extended-keys)
+                       --split-h "<keys>"   ergonomic horizontal-split key(s) (-h, L/R); space-
+                                            separated to bind several               (default: \ |)
+                       --split-v "<keys>"   ergonomic vertical-split key(s) (-v, T/B); space-
+                                            separated to bind several               (default: - _)
+                       --pane-keys on|off   pane mgmt: sync-input(S)/break(b)/swap(>/<) (default: off)
+                       --alt-split on|off   no-prefix Alt+Enter split & Alt+arrows nav (default: off;
+                                            may clash with your terminal/shell/(n)vim)
+                     Session:
+                       --resurrect-strategy on|off  also save vim/nvim editor sessions (default: off)
+                       --continuum-boot on|off      auto-start tmux on boot via continuum (default: off)
                      History:
                        --history <lines>    scrollback buffer        (default: 50000)
                        --escape-time <ms>   key wait after Esc       (default: 10)
@@ -966,8 +1292,9 @@ bin/ scripts. Re-running converges; safe to run twice.
                      Any other value is treated as an owner/repo or git URL.
   remove-plugin <name|owner/repo|git-url>
                      Disable a plugin (removes its clone from ~/.tmux/plugins)
-  theme <none|catppuccin|dracula|themepack> [flavor]
-                     Set the theme (and optional flavor)
+  theme <none|catppuccin|dracula|themepack|gruvbox|tokyo-night> [flavor]
+                     Set the theme (and optional flavor). catppuccin/gruvbox/tokyo-night/themepack
+                     pull in a Nerd Font (MesloLGS NF) via fonts.sh for their glyphs.
   ui                 Open the interactive component manager (needs a terminal)
   status             Print 'tmux -V'; exit code 0 iff installed
   meta               Print machine-readable metadata (for the TUI / swkit list)
