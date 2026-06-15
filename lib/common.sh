@@ -226,6 +226,28 @@ npm_global_writable() {
 # Print one "KEY=VALUE" metadata line (a convenience for meta functions).
 emit_meta_line() { printf '%s=%s\n' "$1" "$2"; }
 
+# Load the persisted interface language into UI_LANG if it is not already set, so a script
+# run DIRECTLY (via swkit or the LLM, not through bootstrap.sh which already exports UI_LANG)
+# still renders chrome — and translated strings like the tmux plugin descriptions — in the
+# user's chosen language. The language lives in ~/.config/ubuntu-setup/config as LANG_CODE,
+# written by bootstrap.sh's Settings page. PARSED WITH grep, never sourced: that file is
+# user-writable and must not be executed. Honors SUDO_USER so a sudo-wrapped run reads the
+# real user's config, not root's. Best-effort: any miss leaves UI_LANG unset and ui_t falls
+# back to English. (This is the lib-level counterpart of bootstrap.sh's load_config/save_lang
+# — keep the file path and accepted codes in sync across the two.)
+kit_load_lang() {
+  [[ -n "${UI_LANG:-}" ]] && return 0
+  local home="${HOME:-}" cfg code
+  if [[ $EUID -eq 0 && -n "${SUDO_USER:-}" ]]; then
+    home="$(getent passwd "$SUDO_USER" | cut -d: -f6 2>/dev/null || true)"
+  fi
+  [[ -n "$home" ]] || return 0
+  cfg="$home/.config/ubuntu-setup/config"
+  [[ -f "$cfg" ]] || return 0
+  code="$(grep -E '^LANG_CODE=' "$cfg" 2>/dev/null | tail -n1 | cut -d= -f2- | tr -d '[:space:]' || true)"
+  case "$code" in zh|en|ja) export UI_LANG="$code" ;; esac
+}
+
 # Route a script's subcommand to its convention functions. A script defines
 #   meta status do_install do_remove [do_configure] [ui] usage
 # and ends with `kit_dispatch "$@"`. configure is offered only if do_configure exists.
@@ -241,6 +263,7 @@ emit_meta_line() { printf '%s=%s\n' "$1" "$2"; }
 # non-interactive shell) it prints how to drive the script by explicit op instead, and
 # exits 0 — the programmatic op interface is unchanged and always available.
 kit_dispatch() {
+  kit_load_lang   # honor the user's persisted interface language even when run directly
   local cmd="${1:-help}"
   [[ $# -gt 0 ]] && shift
   case "$cmd" in
