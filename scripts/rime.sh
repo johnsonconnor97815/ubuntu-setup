@@ -233,9 +233,38 @@ _rime_post_install_notes() {
 }
 
 # Is `pkg` an installable apt candidate right now? (No sudo; reads existing apt lists.)
+# LC_ALL=C forces apt-cache's field labels to English — without it, on a localized system
+# the label is translated (e.g. zh "候选：") and grepping for "Candidate:" matches nothing,
+# so every probe falsely reports "unavailable". (Same rule as the lib's locale-proofing:
+# decide on stable text, never on text that gets translated.)
 _rime_apt_available() {
-  local cand; cand="$(apt-cache policy "$1" 2>/dev/null | awk '/Candidate:/{print $2; exit}')"
+  local cand; cand="$(LC_ALL=C apt-cache policy "$1" 2>/dev/null | awk '/Candidate:/{print $2; exit}')"
   [[ -n "$cand" && "$cand" != "(none)" ]]
+}
+
+# Install the GTK/Qt IM modules so apps use fcitx5's native frontend. WITHOUT these, GTK/Qt
+# apps fall back to XIM (XMODIFIERS), which works for typing but mis-positions the candidate
+# window (it floats to a screen corner instead of following the cursor). Prefer the metapackage
+# fcitx5-frontend-all (covers gtk2/3/4 + qt5/6, future-proof); fall back to the modern set if
+# the metapackage is absent. recommends are off by lib policy, so we install these explicitly.
+_rime_install_frontends() {
+  if _rime_apt_available fcitx5-frontend-all; then
+    apt_install fcitx5-frontend-all || log_warn "Could not install fcitx5-frontend-all (GTK/Qt IM modules)."
+    return 0
+  fi
+  local p any=0
+  for p in fcitx5-frontend-gtk3 fcitx5-frontend-gtk4 fcitx5-frontend-qt5 fcitx5-frontend-qt6; do
+    if _rime_apt_available "$p"; then
+      if apt_install "$p"; then any=1; else log_warn "Could not install $p."; fi
+    fi
+  done
+  (( any )) || log_warn "No fcitx5 GTK/Qt IM modules were available — apps may fall back to XIM (mis-positioned candidate window)."
+}
+
+# Are the GTK/Qt IM modules present? (Used to self-heal older installs that missed them.)
+_rime_frontends_present() {
+  pkg_installed fcitx5-frontend-gtk3 || pkg_installed fcitx5-frontend-gtk4 \
+    || pkg_installed fcitx5-frontend-qt6 || pkg_installed fcitx5-frontend-all
 }
 
 # --- Managed files (own them; rewrite wholesale + convergent; back up first) ----
@@ -327,6 +356,12 @@ do_install() {
   if status >/dev/null 2>&1; then
     log_info "RIME engine already installed ($(status 2>/dev/null)) — converging config."
     _rime_load
+    # Self-heal older installs that missed the GTK/Qt IM modules (their absence makes apps
+    # fall back to XIM, which mis-positions the candidate window).
+    if ! _rime_frontends_present; then
+      log_info "GTK/Qt IM modules are missing — installing them (apps were falling back to XIM)…"
+      _rime_install_frontends
+    fi
     _rime_write_envd || log_warn "Could not write the IM environment file."
     _rime_write_autostart || log_warn "Could not write the fcitx5 autostart entry."
     # Re-assert the framework selection too (harmless if already fcitx5).
@@ -340,16 +375,8 @@ do_install() {
   # Core: framework + RIME engine + GUI config tool + the framework selector.
   apt_install fcitx5 fcitx5-rime fcitx5-config-qt im-config
 
-  # Frontends so GTK/Qt apps can use fcitx5 (recommends are off by lib policy, so add them
-  # explicitly; names vary across releases — install each that has a candidate, skip the rest).
-  local p
-  for p in fcitx5-frontend-gtk3 fcitx5-frontend-gtk4 fcitx5-frontend-qt5; do
-    if _rime_apt_available "$p"; then
-      apt_install "$p" || log_warn "Could not install $p — some apps may not use fcitx5."
-    else
-      log_warn "No apt candidate for $p on this release — skipping (apps may still work)."
-    fi
-  done
+  # GTK/Qt IM modules (without them apps fall back to XIM → mis-positioned candidate window).
+  _rime_install_frontends
 
   # Select fcitx5 as the input-method framework (Ubuntu's blessed selector; user-space).
   if have_cmd im-config; then
