@@ -537,7 +537,7 @@ ui() {
 
   local sel=0 g refresh=1
   local installed=0 ver=""
-  local mcp_names="" plug_state="" skill_list=""
+  local mcp_names="" plug_state="" skill_list="" mkt_list=""
   while true; do
     [[ "${_UI_WINCH:-0}" == 1 ]] && { _UI_WINCH=0; ui_size; }
 
@@ -551,6 +551,10 @@ ui() {
         mcp_names="$(_claude_mcp_configured_names 2>/dev/null || true)"
         plug_state="$(_claude_plugins_state 2>/dev/null || true)"
         skill_list="$(_claude_skill_list 2>/dev/null || true)"
+        # Cache the marketplace list ONCE here, like the other slow `claude` probes — the
+        # per-keypress render below matches against this cache instead of re-shelling out
+        # to `claude plugin marketplace list` every frame (that was the navigation lag).
+        mkt_list="$(claude plugin marketplace list 2>/dev/null || true)"
       fi
       refresh=0
     fi
@@ -560,7 +564,7 @@ ui() {
     if (( ! installed )); then
       dkind+=(install); did+=(install); dlabel+=("$(ui_badge missing) $(ui_t install) Claude Code CLI")
     else
-      local key on nm en def transport rt desc note repo present
+      local key on nm en def transport rt desc note repo present mkt_lc
 
       # ---- MCP servers ----
       dkind+=(header); did+=(""); dlabel+=("MCP servers")
@@ -586,8 +590,9 @@ ui() {
       # ---- Plugins & marketplaces ----
       dkind+=(spacer); did+=(""); dlabel+=("")
       dkind+=(header); did+=(""); dlabel+=("Plugins & marketplaces")
+      mkt_lc="${mkt_list,,}"   # case-insensitive match against the cached list (no claude call)
       for repo in $_CLAUDE_MKT_CURATED; do
-        if _claude_marketplace_present "$repo"; then present=1; else present=0; fi
+        if [[ "$mkt_lc" == *"${repo,,}"* ]]; then present=1; else present=0; fi
         dkind+=(marketplace); did+=("$repo")
         if (( present )); then dlabel+=("  ${UI_OK}${UI_CHK_ON}${UI_OFF} $repo ${UI_MUTED}— $(_claude_mkt_desc "$repo")${UI_OFF}")
         else dlabel+=("  ${UI_MUTED}${UI_CHK_OFF}${UI_OFF} $repo ${UI_MUTED}— $(_claude_mkt_desc "$repo")${UI_OFF}"); fi
