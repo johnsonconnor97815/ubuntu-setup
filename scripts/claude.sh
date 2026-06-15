@@ -19,7 +19,7 @@
 #   mcp-add <name> [-t stdio|http|sse] [-s scope] [-e K=V]... -- <command…|url>   (curated names need no args)
 #   mcp-remove <name>            ·  mcp-search <term>            (registry search; needs jq)
 #   marketplace-add <owner/repo|url|path>  ·  marketplace-remove <name>
-#   plugin-install <name@marketplace>  ·  plugin-remove <name>
+#   plugin-install <name@marketplace|curated-name>  ·  plugin-remove <name>
 #   plugin-enable <name>         ·  plugin-disable <name>        (toggle without uninstalling)
 #   skill-install <git-url|curated-name> [name] [subdir]  ·  skill-remove <name>
 #
@@ -39,8 +39,12 @@ readonly _CLAUDE_MIN_NODE_MAJOR=18
 # Verified 2026-06-14: npm packages exist; all stdio servers use npx (Node), context7 is HTTP
 # (no runtime). Deliberately Node-only (no uv/uvx) so curated quick-adds work with just Node.
 readonly _CLAUDE_MCP_CURATED_KEYS="sequential-thinking filesystem memory playwright context7"
-# Curated plugin marketplaces (official Anthropic, verified).
-readonly _CLAUDE_MKT_CURATED="anthropics/claude-plugins-official anthropics/skills"
+# Curated plugin marketplaces (verified 2026-06-14).
+readonly _CLAUDE_MKT_CURATED="anthropics/claude-plugins-official anthropics/skills forrestchang/andrej-karpathy-skills"
+# Curated plugins (the "curated" half; arbitrary name@marketplace add is always allowed).
+# Each curated plugin bundles the marketplace it comes from, so a one-click install can add
+# that marketplace first. Verified 2026-06-14.
+readonly _CLAUDE_PLUGIN_CURATED_KEYS="andrej-karpathy-skills"
 # Curated standalone skills, taken from the official anthropics/skills repo (subdir skills/<n>).
 readonly _CLAUDE_SKILL_CURATED_KEYS="pdf docx pptx frontend-design mcp-builder"
 # Skills the kit itself deploys to ~/.claude/skills — never let this manager delete them.
@@ -304,9 +308,20 @@ do_mcp_search() {
 
 _claude_mkt_desc() {
   case "$1" in
-    anthropics/claude-plugins-official) printf 'Official Anthropic plugins' ;;
-    anthropics/skills)                  printf 'Official Anthropic skills (as plugins)' ;;
+    anthropics/claude-plugins-official)  printf 'Official Anthropic plugins' ;;
+    anthropics/skills)                   printf 'Official Anthropic skills (as plugins)' ;;
+    forrestchang/andrej-karpathy-skills) printf 'Karpathy-inspired Claude Code guidelines' ;;
     *) printf '' ;;
+  esac
+}
+
+# Curated plugin: key -> "plugin-spec<TAB>marketplace-repo<TAB>description". The spec is the
+# full <name@marketplace>; the repo is the marketplace to add as a prerequisite. Returns
+# non-zero for unknown keys.
+_claude_plugin_curated() {
+  case "$1" in
+    andrej-karpathy-skills) printf 'andrej-karpathy-skills@karpathy-skills\tforrestchang/andrej-karpathy-skills\tKarpathy-inspired coding guidelines (all projects)' ;;
+    *) return 1 ;;
   esac
 }
 
@@ -363,11 +378,36 @@ do_marketplace_remove() {
   claude plugin marketplace remove "$name"
 }
 
+# Install a curated plugin by key (idempotent), adding its bundled marketplace first if needed.
+_claude_plugin_add_curated() {
+  local key="$1" def spec repo
+  def="$(_claude_plugin_curated "$key")" || { log_err "Unknown curated plugin '$key'."; return 2; }
+  IFS=$'\t' read -r spec repo _ <<<"$def"
+  if _claude_plugin_installed "$spec"; then
+    log_info "Plugin '$spec' already installed — skipping."
+    return 0
+  fi
+  if [[ -n "$repo" ]] && ! _claude_marketplace_present "$repo"; then
+    log_info "Adding plugin marketplace '$repo' (needed by '$key')…"
+    claude plugin marketplace add "$repo"
+  fi
+  log_info "Installing plugin '$spec' at user scope…"
+  claude plugin install --scope user "$spec"
+}
+
 do_plugin_install() {
   _claude_gate || return 0
   _claude_user_paths || return 1
   local spec="${1:-}"
-  [[ -n "$spec" ]] || { log_err "Usage: claude plugin-install <name@marketplace>"; return 2; }
+  if [[ -z "$spec" ]]; then
+    log_err "Usage: claude plugin-install <name@marketplace|curated-name>"
+    log_err "Curated plugins: $_CLAUDE_PLUGIN_CURATED_KEYS"
+    return 2
+  fi
+  # Curated shortcut: a bare curated name (no @marketplace) installs from its bundled marketplace.
+  if [[ "$spec" != *@* ]] && _claude_plugin_curated "$spec" >/dev/null 2>&1; then
+    _claude_plugin_add_curated "$spec"; return $?
+  fi
   if _claude_plugin_installed "$spec"; then
     log_info "Plugin '$spec' already installed — skipping."
     return 0
@@ -599,14 +639,25 @@ ui() {
       done
       dkind+=(marketplace_add); did+=(marketplace_add); dlabel+=("  ${UI_ACCENT}+${UI_OFF} add marketplace…")
       # installed plugins
+      local -a installed_plugins=()
       if [[ -n "$plug_state" ]]; then
         while IFS=$'\t' read -r nm en; do
           [[ -n "$nm" ]] || continue
+          installed_plugins+=("${nm%@*}")
           dkind+=(plugin); did+=("$nm")
           if [[ "$en" == "1" ]]; then dlabel+=("  ${UI_OK}${UI_DOT_ON}${UI_OFF} $nm ${UI_MUTED}(enabled)${UI_OFF}")
           else dlabel+=("  ${UI_MUTED}${UI_DOT_OFF} $nm (disabled)${UI_OFF}"); fi
         done <<<"$plug_state"
       fi
+      # curated plugins not already installed
+      for key in $_CLAUDE_PLUGIN_CURATED_KEYS; do
+        local palready=0 p
+        for p in "${installed_plugins[@]}"; do [[ "$p" == "$key" ]] && { palready=1; break; }; done
+        (( palready )) && continue
+        def="$(_claude_plugin_curated "$key")"; IFS=$'\t' read -r _ _ desc <<<"$def"
+        dkind+=(plugin_curated); did+=("$key")
+        dlabel+=("  ${UI_MUTED}${UI_CHK_OFF}${UI_OFF} $key ${UI_MUTED}— $desc${UI_OFF}")
+      done
       dkind+=(plugin_add); did+=(plugin_add); dlabel+=("  ${UI_ACCENT}+${UI_OFF} install plugin…")
 
       # ---- Skills ----
@@ -732,6 +783,8 @@ ui() {
             if (( pen )); then ui_run "plugin-disable $pn · claude" -- "$0" plugin-disable "$pn"
             else ui_run "plugin-enable $pn · claude" -- "$0" plugin-enable "$pn"; fi
             refresh=1 ;;
+          plugin_curated)
+            ui_run "plugin-install ${did[$sel]} · claude" -- "$0" plugin-install "${did[$sel]}"; refresh=1 ;;
           plugin_add)
             if ui_input "plugin (name@marketplace)" "" && [[ -n "$UI_INPUT" ]]; then
               ui_run "plugin-install $UI_INPUT · claude" -- "$0" plugin-install "$UI_INPUT"; refresh=1
@@ -788,7 +841,9 @@ Plugins & marketplaces (claude plugin):
   marketplace-add <owner/repo|url|path>   Add a plugin marketplace. Curated:
                                     $_CLAUDE_MKT_CURATED
   marketplace-remove <name>       Remove a configured marketplace.
-  plugin-install <name@marketplace>   Install a plugin (scope user). After adding a
+  plugin-install <curated-name>   Install a curated plugin (adds its marketplace first). Curated:
+                                    $_CLAUDE_PLUGIN_CURATED_KEYS
+  plugin-install <name@marketplace>   Install any plugin (scope user). After adding a
                                   marketplace, browse with: claude plugin list --available
   plugin-remove <name>            Uninstall a plugin.
   plugin-enable <name> / plugin-disable <name>   Toggle a plugin without uninstalling it.
