@@ -7,15 +7,22 @@
 # a theme, and a broad set of best-practice OPTIONS (mouse, clipboard, vi copy mode, scrollback,
 # escape-time, status bar, ergonomic keybindings, …) — tracking everything in a small
 # KEY=VALUE state file (~/.config/ubuntu-setup/tmux.conf). Every change regenerates a single
-# MANAGED BLOCK inside the user's ~/.tmux.conf (delimited by markers, rewritten wholesale,
+# MANAGED BLOCK inside the user's tmux config (delimited by markers, rewritten wholesale,
 # convergent) while preserving everything the user wrote OUTSIDE the markers.
 #
-# Why a managed block (not a separate sourced drop-in, unlike zsh.sh/ghostty.sh): TPM
-# discovers plugins by reading the `set -g @plugin '...'` lines in the MAIN tmux config file
-# (~/.tmux.conf or $XDG_CONFIG_HOME/tmux/tmux.conf) — it does NOT follow `source-file` into an
-# included file. So the @plugin declarations and the final `run '.../tpm'` line must live in
-# ~/.tmux.conf itself; the marker block is how we own a region there without clobbering the
-# rest. Plugin install/update/clean is driven non-interactively via TPM's bin/ scripts
+# WHICH file: tmux (3.1+) loads BOTH ~/.tmux.conf and $XDG_CONFIG_HOME/tmux/tmux.conf when both
+# exist, sourcing the XDG file LAST — so it WINS on any conflicting binding/option. We therefore
+# own our block in whichever file tmux loads last: the XDG path when it already exists (e.g. a
+# user running oh-my-tmux), else the conventional ~/.tmux.conf. Otherwise our keys/options would
+# load first and be silently overridden. (See _tmux_resolve_paths.)
+#
+# Why a managed block (not a separate sourced drop-in, unlike zsh.sh/ghostty.sh): TPM discovers
+# plugins by reading the `set -g @plugin '...'` lines in the MAIN tmux config file — it does NOT
+# follow `source-file` into an included file. So the @plugin declarations and the final
+# `run '.../tpm'` line must live in that main file itself; the marker block is how we own a region
+# there without clobbering the rest. TPM also keys its plugin dir off the same XDG rule
+# (<xdg>/tmux/plugins when the XDG config exists, else ~/.tmux/plugins), which _tmux_resolve_paths
+# mirrors. Plugin install/update/clean is driven non-interactively via TPM's bin/ scripts
 # (install_plugins / update_plugins / clean_plugins), which work without a running tmux server.
 #
 # The settings are grounded in widely-recommended tmux best practices (escape-time for
@@ -99,8 +106,18 @@ do_remove() {
 }
 
 # --- Target user / home + state ------------------------------------------------
-# Sets globals: _THOME _TCONF _TPREF _TPREF_DIR _TPLUGDIR _TPM_DIR. Refuses a sudo-wrapped run
-# so dotfiles stay user-owned. $HOME is correct in the (only allowed) non-sudo case.
+# Sets globals: _THOME _TCONF _TCONF_ALT _TPREF _TPREF_DIR _TPLUGDIR _TPM_DIR. Refuses a
+# sudo-wrapped run so dotfiles stay user-owned. $HOME is correct in the (only allowed) non-sudo case.
+#
+# Picking the target config file is NOT just "~/.tmux.conf": tmux (3.1+) loads BOTH ~/.tmux.conf
+# AND $XDG_CONFIG_HOME/tmux/tmux.conf when both exist, sourcing the XDG file LAST — so the XDG
+# file WINS on every conflicting binding/option. A user who already keeps a config at the XDG
+# path (e.g. oh-my-tmux) would therefore have our keys/options silently overridden if we only
+# owned a block in ~/.tmux.conf. TPM applies the very same rule for plugin storage: it uses
+# <xdg>/tmux/plugins when that file exists, else ~/.tmux/plugins. So we mirror both: own our
+# managed block in the file tmux loads LAST (the XDG path when it exists, else ~/.tmux.conf),
+# and point TPM at the matching plugin dir. _TCONF_ALT is the other candidate — _tmux_write_block
+# strips any stale block from it so there is exactly one source of truth.
 _tmux_resolve_paths() {
   if [[ $EUID -eq 0 && -n "${SUDO_USER:-}" ]]; then
     log_err "Run tmux configuration as your normal user, not via sudo — ~/.tmux.conf and the"
@@ -111,11 +128,16 @@ _tmux_resolve_paths() {
   _THOME="${HOME:-}"
   [[ -n "$_THOME" ]] || _THOME="$(getent passwd "$user" | cut -d: -f6 || true)"
   [[ -n "$_THOME" ]] || { log_err "Could not resolve the home directory for '$user'."; return 1; }
-  _TCONF="$_THOME/.tmux.conf"                       # the user's real tmux config (we own a marked block)
+  local xdg_base="${XDG_CONFIG_HOME:-$_THOME/.config}"
+  local xdg_conf="$xdg_base/tmux/tmux.conf" home_conf="$_THOME/.tmux.conf"
+  if [[ -f "$xdg_conf" ]]; then
+    _TCONF="$xdg_conf"; _TCONF_ALT="$home_conf"; _TPLUGDIR="$xdg_base/tmux/plugins"
+  else
+    _TCONF="$home_conf"; _TCONF_ALT="$xdg_conf"; _TPLUGDIR="$_THOME/.tmux/plugins"
+  fi
+  _TPM_DIR="$_TPLUGDIR/tpm"
   _TPREF_DIR="$_THOME/.config/ubuntu-setup"
   _TPREF="$_TPREF_DIR/tmux.conf"                    # the kit's own KEY=VALUE preference store
-  _TPLUGDIR="$_THOME/.tmux/plugins"
-  _TPM_DIR="$_TPLUGDIR/tpm"
   mkdir -p "$_TPREF_DIR" "$_TPLUGDIR"
 }
 
@@ -460,10 +482,12 @@ set -g default-terminal "tmux-256color"
 set -ag terminal-overrides ",xterm-256color:RGB,*256col*:RGB,alacritty:RGB,xterm-ghostty:RGB"
 set -g display-time 2000
 set -g display-panes-time 2000
-
-# ---- Reload (prefix r) ----
-bind r source-file ~/.tmux.conf \; display-message "tmux.conf reloaded"
 TMUXSTATIC
+
+  # Reload binds the file we actually own (~/.tmux.conf or the XDG path) — an absolute path so
+  # `prefix r` re-sources the right config regardless of which one tmux loaded.
+  printf '\n# ---- Reload (prefix r) ----\n'
+  printf 'bind r source-file %s \\; display-message "tmux.conf reloaded"\n' "$_TCONF"
 
   printf '\n# ---- Status bar ----\n'
   printf 'set -g status-position %s\n' "$STATUS_POSITION"
@@ -636,24 +660,41 @@ TMUXPANE
       fi
     fi
 
-    cat <<'TMUXTPM'
-
-# Auto-install TPM + the declared plugins on a fresh machine (skipped once TPM exists).
-if "test ! -d ~/.tmux/plugins/tpm" \
-   "run 'git clone --depth=1 https://github.com/tmux-plugins/tpm ~/.tmux/plugins/tpm && ~/.tmux/plugins/tpm/bin/install_plugins'"
-
-# Initialize TPM — keep this the LAST line of the managed block.
-run '~/.tmux/plugins/tpm/tpm'
-TMUXTPM
+    # TPM lives under ~/.tmux/plugins, or <xdg>/tmux/plugins when an XDG config exists (TPM's
+    # own rule — see _tmux_resolve_paths). Emit the resolved absolute path so the bootstrap +
+    # init point at the same dir TPM uses at runtime.
+    printf '\n# Auto-install TPM + the declared plugins on a fresh machine (skipped once TPM exists).\n'
+    printf 'if "test ! -d %s" \\\n' "$_TPM_DIR"
+    printf '   "run '\''git clone --depth=1 %s %s && %s/bin/install_plugins'\''"\n' "$TPM_REPO" "$_TPM_DIR" "$_TPM_DIR"
+    printf '\n# Initialize TPM — keep this the LAST line of the managed block.\n'
+    printf 'run '\''%s/tpm'\''\n' "$_TPM_DIR"
   fi
 
   printf '%s\n' "$TMUX_BLOCK_END"
 }
 
-# Rewrite the managed block inside ~/.tmux.conf: strip any existing block (anywhere), then
-# append a freshly generated one at the END (so TPM's `run` stays last). Everything outside
-# the markers is preserved. Backs up before any change; no-op when content is unchanged.
+# Remove our managed block (markers + body) from $1 if present, backing up first. Used to clear
+# a stale block from the config file we are NOT targeting (e.g. ~/.tmux.conf left behind after a
+# user adds an XDG config), so there is exactly one source of truth and TPM's `run`/@plugin lines
+# aren't processed twice. No-op when the file is absent or carries no block of ours.
+_tmux_strip_block() {
+  local f="${1:-}" tmp
+  [[ -n "$f" && -f "$f" ]] || return 0
+  grep -qxF "$TMUX_BLOCK_BEGIN" "$f" || return 0
+  tmp="$(mktemp)"
+  awk -v b="$TMUX_BLOCK_BEGIN" -v e="$TMUX_BLOCK_END" \
+    '$0==b{inblk=1} inblk==0{print} $0==e{inblk=0}' "$f" >"$tmp"
+  backup_file "$f"
+  mv "$tmp" "$f" || { rm -f "$tmp"; return 1; }
+  log_info "Removed a stale ubuntu-setup block from $f — the managed block now lives in $_TCONF."
+}
+
+# Rewrite the managed block inside the target config (~/.tmux.conf or the XDG path — see
+# _tmux_resolve_paths): strip any existing block (anywhere), then append a freshly generated one
+# at the END (so TPM's `run` stays last). Everything outside the markers is preserved. Any stale
+# block in the OTHER candidate file is removed too. Backs up before any change; no-op when unchanged.
 _tmux_write_block() {
+  _tmux_strip_block "${_TCONF_ALT:-}" || return 1
   mkdir -p "$(dirname "$_TCONF")"
   local tmp body newf
   tmp="$(mktemp)"
@@ -723,7 +764,11 @@ _tmux_apply() {
   if _tmux_tpm_installed && _tmux_want_plugins; then _tmux_run_install_plugins; fi
   if _tmux_theme_wants_font "$THEME"; then _tmux_ensure_theme_font; fi
   log_info "Applied tmux config — theme=$THEME, mouse=$MOUSE, keys=$KEYMODE, plugins=[${PLUGINS:-none}]."
-  log_info "Reload a running tmux with:  tmux source-file ~/.tmux.conf   (or just start a new tmux)."
+  if [[ "$_TCONF" != "$_THOME/.tmux.conf" ]]; then
+    log_info "Target config is $_TCONF — tmux loads this XDG file LAST, so the kit's keys/options win"
+    log_info "(a block in ~/.tmux.conf would be overridden by it). Your own content there is preserved + backed up."
+  fi
+  log_info "Reload a running tmux with:  tmux source-file $_TCONF   (or just start a new tmux)."
 }
 
 # --- configure -----------------------------------------------------------------
@@ -867,7 +912,7 @@ do_uninstall_tpm() {
   _tmux_write_block || return 1
   _tmux_save_state
   log_info "Cloned plugins remain under $_TPLUGDIR (remove them by hand if you want)."
-  log_info "Reload a running tmux with:  tmux source-file ~/.tmux.conf"
+  log_info "Reload a running tmux with:  tmux source-file $_TCONF"
 }
 
 do_update_plugins() {
@@ -1000,7 +1045,7 @@ ui() {
     if (( ! installed )); then
       dkind+=(install); did+=(install); dlabel+=("$(ui_badge missing) $(ui_t install) tmux — terminal multiplexer")
     else
-      dkind+=(note); did+=(""); dlabel+=("Settings write a managed block in ~/.tmux.conf; your own config is preserved.")
+      dkind+=(note); did+=(""); dlabel+=("Settings write a managed block in your tmux config (~/.tmux.conf, or the XDG path if you have one); your own config is preserved.")
       dkind+=(spacer); did+=(""); dlabel+=("")
       dkind+=(header); did+=(""); dlabel+=("Plugin manager")
       local tpm_badge
