@@ -196,6 +196,24 @@ _zsh_ensure_zoxide() {
   ensure_local_bin_on_path
 }
 
+# One-time migration: import the legacy rupa/z database (~/.z, written by Oh My Zsh's `z`
+# plugin) into zoxide. When zoxide is enabled it owns the `z` command (see _zsh_emit_dropin),
+# so without this the directories the user accumulated under OMZ `z` would be invisible to
+# `z`. Sentinel-guarded — `zoxide import --merge` ADDS scores, so re-running would double-count.
+_zsh_import_legacy_z() {
+  local legacy="$_ZHOME/.z" sentinel="$_ZHOME/.config/zsh/.zoxide-imported-from-z"
+  [[ -s "$legacy" ]] || return 0          # nothing to migrate (fresh machine / no OMZ-z history)
+  [[ -e "$sentinel" ]] && return 0        # already imported once
+  have_cmd zoxide || return 0
+  if zoxide import --from z --merge "$legacy"; then
+    : >"$sentinel"
+    log_info "Imported existing ~/.z directory history into zoxide (one-time migration)."
+  else
+    log_warn "Could not import ~/.z into zoxide — old 'z' history may be missing."
+    log_warn "Retry manually with:  zoxide import --from z --merge ~/.z"
+  fi
+}
+
 # Ensure the recommended Nerd Font (MesloLGS NF) is installed, by delegating to the kit's
 # dedicated fonts.sh — so Starship / Powerlevel10k glyphs render on a LOCAL display. Font
 # logic lives in ONE place (fonts.sh), not duplicated here. Best-effort: a failure (e.g. no
@@ -368,7 +386,20 @@ ZRC
     [[ "${OMZ_WAIT_DOTS:-1}" == "1" ]]       && printf 'COMPLETION_WAITING_DOTS="true"\n'
     [[ "${OMZ_CORRECTION:-0}" == "1" ]]      && printf 'ENABLE_CORRECTION="true"\n'
     case "${OMZ_HIST_STAMPS:-yyyy-mm-dd}" in none|"") ;; *) printf 'HIST_STAMPS="%s"\n' "$OMZ_HIST_STAMPS" ;; esac
-    printf 'plugins=(%s)\n' "${OMZ_PLUGINS:-git}"
+    # zoxide (a kit plugin, sourced in the eval slot BELOW) and Oh My Zsh's bundled `z` plugin
+    # BOTH bind the `z` command; whichever loads last wins. zoxide loads after oh-my-zsh.sh, so
+    # it silently shadows OMZ `z` while using a SEPARATE database — `z` then "forgets" the
+    # directories OMZ `z` recorded in ~/.z. When zoxide is enabled it owns `z`, so drop `z` from
+    # the OMZ plugin list (same reason autosuggestions/syntax-highlighting aren't OMZ plugins:
+    # avoid a double-load). Disable zoxide to fall back to the classic OMZ `z`.
+    local omz_plugins="${OMZ_PLUGINS:-git}"
+    if _zsh_plugin_in zoxide "$PLUGINS" && _zsh_plugin_in z "$omz_plugins"; then
+      local _op _kept=""
+      for _op in $omz_plugins; do [[ "$_op" == "z" ]] || _kept="${_kept:+$_kept }$_op"; done
+      omz_plugins="$_kept"
+      printf '# NOTE: OMZ z plugin omitted here — zoxide (below) provides the z command.\n'
+    fi
+    printf 'plugins=(%s)\n' "$omz_plugins"
     cat <<'ZRC'
 source "$ZSH/oh-my-zsh.sh"
 ZRC
@@ -505,6 +536,16 @@ _zsh_apply() {
     pure)          _zsh_git_clone "$PURE_REPO" "$_ZPLUGDIR/pure" "Pure prompt" || return 1 ;;
   esac
   for p in $PLUGINS; do _zsh_plugin_ensure "$p" || log_warn "Could not install plugin '$p' — its source line will be skipped."; done
+
+  # zoxide owns the `z` command when enabled: migrate any legacy ~/.z history into it once, and
+  # warn if Oh My Zsh's `z` plugin is also enabled (both bind `z`; zoxide wins — see _zsh_emit_dropin).
+  if _zsh_plugin_in zoxide "$PLUGINS"; then
+    _zsh_import_legacy_z
+    if [[ "$FRAMEWORK" == "oh-my-zsh" ]] && _zsh_plugin_in z "$OMZ_PLUGINS"; then
+      log_warn "zoxide and Oh My Zsh's 'z' plugin are both enabled — both provide 'z'; zoxide wins."
+      log_warn "Prefer the classic OMZ 'z'? Disable zoxide:  swkit zsh remove-plugin zoxide"
+    fi
+  fi
 
   backup_file "$_ZDROPIN"
   _zsh_emit_dropin >"$_ZDROPIN"
