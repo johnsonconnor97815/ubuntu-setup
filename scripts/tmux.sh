@@ -147,6 +147,8 @@ _tmux_valid_keymode()    { case "$1" in vi|emacs) return 0 ;; *) return 1 ;; esa
 _tmux_valid_theme()      { case "$1" in none|catppuccin|dracula|themepack|gruvbox|tokyo-night) return 0 ;; *) return 1 ;; esac; }
 _tmux_valid_status_pos() { case "$1" in top|bottom) return 0 ;; *) return 1 ;; esac; }
 _tmux_valid_int()        { case "$1" in ''|*[!0-9]*) return 1 ;; *) return 0 ;; esac; }
+# Scroll speed: 'default' (keep tmux's built-in 5 lines/notch) or a positive integer of lines.
+_tmux_valid_scroll()     { case "$1" in default) return 0 ;; ''|0|*[!0-9]*) return 1 ;; *) return 0 ;; esac; }
 _tmux_valid_key()        { case "$1" in ''|*[[:space:]]*) return 1 ;; *) return 0 ;; esac; }
 # A space-separated list of one or more keys (each a valid single key) — used by the split
 # keys, which bind several keys (e.g. '\ |') to the same split action.
@@ -170,7 +172,7 @@ _tmux_defaults() {
   PLUGINS=""
   THEME="none"; THEME_FLAVOR="mocha"
   MOUSE="on"; KEYMODE="vi"; PREFIX="default"
-  HISTORY="50000"; ESCAPE_TIME="10"
+  HISTORY="50000"; ESCAPE_TIME="10"; SCROLL_SPEED="default"
   BASE_INDEX="on"; RENUMBER="on"; FOCUS_EVENTS="on"
   AGGRESSIVE_RESIZE="off"; CLIPBOARD="on"
   STATUS_POSITION="bottom"; STATUS_INTERVAL="5"
@@ -197,6 +199,7 @@ _tmux_load_state() {
       PREFIX)            PREFIX="$v" ;;
       HISTORY)           _tmux_valid_int "$v" && HISTORY="$v" ;;
       ESCAPE_TIME)       _tmux_valid_int "$v" && ESCAPE_TIME="$v" ;;
+      SCROLL_SPEED)      _tmux_valid_scroll "$v" && SCROLL_SPEED="$v" ;;
       BASE_INDEX)        _tmux_valid_onoff "$v" && BASE_INDEX="$v" ;;
       RENUMBER)          _tmux_valid_onoff "$v" && RENUMBER="$v" ;;
       FOCUS_EVENTS)      _tmux_valid_onoff "$v" && FOCUS_EVENTS="$v" ;;
@@ -232,6 +235,7 @@ _tmux_save_state() {
     printf 'PREFIX=%s\n'            "$PREFIX"
     printf 'HISTORY=%s\n'           "$HISTORY"
     printf 'ESCAPE_TIME=%s\n'       "$ESCAPE_TIME"
+    printf 'SCROLL_SPEED=%s\n'      "$SCROLL_SPEED"
     printf 'BASE_INDEX=%s\n'        "$BASE_INDEX"
     printf 'RENUMBER=%s\n'          "$RENUMBER"
     printf 'FOCUS_EVENTS=%s\n'      "$FOCUS_EVENTS"
@@ -383,6 +387,7 @@ TMUX_I18N[en:in_split_h]="horizontal-split key(s) (-h, side by side; space-separ
 TMUX_I18N[en:in_split_v]="vertical-split key(s) (-v, stacked; space-separated, e.g. '- _'; ergonomic keys must be on)"
 TMUX_I18N[en:in_history]="scrollback lines"
 TMUX_I18N[en:in_escape_time]="escape-time ms (10 is good for vim/neovim)"
+TMUX_I18N[en:in_scroll_speed]="mouse-wheel scroll speed — lines per notch ('default' = tmux's 5)"
 # -- ui chrome (简体中文) --
 TMUX_I18N[zh:foot_installed]="↑↓ 移动   ↵/space 切换·编辑   a 加插件   esc/q 关闭"
 TMUX_I18N[zh:foot_uninstalled]="↑↓ 移动   ↵/space 安装   esc/q 关闭"
@@ -402,6 +407,7 @@ TMUX_I18N[zh:in_split_h]="水平分屏键(-h,左右并排;空格分隔,如 '\\ |
 TMUX_I18N[zh:in_split_v]="垂直分屏键(-v,上下堆叠;空格分隔,如 '- _';需先开启人体工学键位)"
 TMUX_I18N[zh:in_history]="回滚行数"
 TMUX_I18N[zh:in_escape_time]="escape-time 毫秒(vim/neovim 建议 10)"
+TMUX_I18N[zh:in_scroll_speed]="鼠标滚轮滚动速度 — 每格行数('default' = tmux 默认的 5)"
 # -- ui chrome (日本語) --
 TMUX_I18N[ja:foot_installed]="↑↓ 移動   ↵/space 切替·編集   a プラグイン追加   esc/q 閉じる"
 TMUX_I18N[ja:foot_uninstalled]="↑↓ 移動   ↵/space インストール   esc/q 閉じる"
@@ -421,6 +427,7 @@ TMUX_I18N[ja:in_split_h]="水平分割キー(-h、左右に並ぶ;スペース�
 TMUX_I18N[ja:in_split_v]="垂直分割キー(-v、上下に重なる;スペース区切り、例 '- _';エルゴノミクスキーを先に有効化)"
 TMUX_I18N[ja:in_history]="スクロールバックの行数"
 TMUX_I18N[ja:in_escape_time]="escape-time ミリ秒(vim/neovim には 10 が良い)"
+TMUX_I18N[ja:in_scroll_speed]="マウスホイールのスクロール速度 — 1 ノッチあたりの行数('default' = tmux 既定の 5)"
 
 # Resolve the localized language code (en/zh/ja) for the I18N lookups; unknown -> en.
 _tmux_lang() { local l="${UI_LANG:-en}"; case "$l" in en|zh|ja) printf '%s' "$l" ;; *) printf 'en' ;; esac; }
@@ -541,6 +548,18 @@ TMUXHEAD
   [[ "$AGGRESSIVE_RESIZE" == on ]] && printf 'setw -g aggressive-resize on\n'
   [[ "$MONITOR_ACTIVITY" == on ]]  && printf 'setw -g monitor-activity on\nset -g visual-activity off\n'
   [[ "$SET_TITLES" == on ]]        && printf 'set -g set-titles on\nset -g set-titles-string "#S  #I:#W"\n'
+
+  # Mouse scroll speed: tmux has no scroll-speed option — the wheel scrolls a fixed number of
+  # lines per notch (5 by default) via copy-mode's WheelUp/DownPane bindings. Override those
+  # bindings to change it. Bind in BOTH copy-mode tables (vi + emacs) so it tracks any mode-keys.
+  # Only matters when mouse is on; harmless otherwise. 'default' keeps tmux's built-in behavior.
+  if [[ "$SCROLL_SPEED" != "default" ]]; then
+    printf '\n# ---- Mouse scroll speed (lines per wheel notch in copy mode; needs mouse on) ----\n'
+    printf 'bind -T copy-mode-vi WheelUpPane   select-pane \\; send -X -N %s scroll-up\n'   "$SCROLL_SPEED"
+    printf 'bind -T copy-mode-vi WheelDownPane select-pane \\; send -X -N %s scroll-down\n' "$SCROLL_SPEED"
+    printf 'bind -T copy-mode    WheelUpPane   select-pane \\; send -X -N %s scroll-up\n'   "$SCROLL_SPEED"
+    printf 'bind -T copy-mode    WheelDownPane select-pane \\; send -X -N %s scroll-down\n' "$SCROLL_SPEED"
+  fi
 
   cat <<'TMUXSTATIC'
 
@@ -968,6 +987,8 @@ do_configure() {
       --history=*)         _tmux_set_int "${1#*=}" HISTORY --history || return 2; shift ;;
       --escape-time)       _tmux_set_int "${2:-}" ESCAPE_TIME --escape-time || return 2; shift 2 ;;
       --escape-time=*)     _tmux_set_int "${1#*=}" ESCAPE_TIME --escape-time || return 2; shift ;;
+      --scroll-speed)      SCROLL_SPEED="${2:-}"; _tmux_valid_scroll "$SCROLL_SPEED" || { log_err "--scroll-speed needs a positive integer (lines per wheel notch) or 'default'."; return 2; }; shift 2 ;;
+      --scroll-speed=*)    SCROLL_SPEED="${1#*=}"; _tmux_valid_scroll "$SCROLL_SPEED" || { log_err "--scroll-speed needs a positive integer (lines per wheel notch) or 'default'."; return 2; }; shift ;;
       # session automation
       --resurrect-strategy)   _tmux_set_onoff "${2:-}" RESURRECT_STRATEGY --resurrect-strategy || return 2; shift 2 ;;
       --resurrect-strategy=*) _tmux_set_onoff "${1#*=}" RESURRECT_STRATEGY --resurrect-strategy || return 2; shift ;;
@@ -1219,6 +1240,9 @@ ui() {
       dkind+=(header); did+=(""); dlabel+=("History")
       dkind+=(history); did+=(history); dlabel+=("$(_tmux_value_label 'Scrollback lines' "$HISTORY")")
       dkind+=(escape);  did+=(escape);  dlabel+=("$(_tmux_value_label 'Escape time' "${ESCAPE_TIME}ms")")
+      local ss_disp
+      if [[ "$SCROLL_SPEED" == "default" ]]; then ss_disp="default (5)"; else ss_disp="$SCROLL_SPEED lines"; fi
+      dkind+=(scrollspeed); did+=(scrollspeed); dlabel+=("$(_tmux_value_label 'Scroll speed' "$ss_disp")")
 
       dkind+=(spacer); did+=(""); dlabel+=("")
       dkind+=(recommended); did+=(recommended); dlabel+=("$(ui_badge check) Apply recommended setup (TPM + popular plugins + theme + ergonomic keys)")
@@ -1360,6 +1384,10 @@ ui() {
             if ui_input "$(_tmux_t in_escape_time)" "$ESCAPE_TIME"; then
               [[ -n "$UI_INPUT" ]] && ui_run "escape-time · tmux" -- "$0" configure --escape-time "$UI_INPUT"
             fi ;;
+          scrollspeed)
+            if ui_input "$(_tmux_t in_scroll_speed)" "$SCROLL_SPEED"; then
+              [[ -n "$UI_INPUT" ]] && ui_run "scroll-speed · tmux" -- "$0" configure --scroll-speed "$UI_INPUT"
+            fi ;;
           toggle)
             local tf="${did[$sel]}" cur
             cur="$(_tmux_setting_val "$tf")"
@@ -1442,6 +1470,9 @@ bin/ scripts. Re-running converges; safe to run twice.
                      History:
                        --history <lines>    scrollback buffer        (default: 50000)
                        --escape-time <ms>   key wait after Esc       (default: 10)
+                       --scroll-speed <n>|default  mouse-wheel scroll speed: lines per wheel
+                                            notch in copy mode (default: default = tmux's 5;
+                                            only affects scrolling when --mouse is on)
                      Plugins:
                        --plugins "a b c"    set enabled (curated) plugins; known names:
                                             $TMUX_KNOWN_PLUGINS
