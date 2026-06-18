@@ -13,3 +13,10 @@
 # but guard against stray copies during local testing)
 *.log
 .cache/
+
+# Local AI dev-workflow scaffolding (Trellis) + code-intel index — not part of the deliverable
+.trellis/
+.agents/
+.codex/
+.claude/
+.codegraph/
