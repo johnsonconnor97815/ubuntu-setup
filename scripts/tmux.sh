@@ -552,9 +552,17 @@ set -g display-panes-time 2000
 TMUXSTATIC
 
   # Reload binds the file we actually own (~/.tmux.conf or the XDG path) — an absolute path so
-  # `prefix r` re-sources the right config regardless of which one tmux loaded.
+  # `prefix r` re-sources the right config regardless of which one tmux loaded. EXCEPTION: when our
+  # block is embedded in a third-party framework (oh-my-tmux …), `source-file`'ing the whole file
+  # re-runs that framework's load-time run-shell hooks and errors (the same reason
+  # _tmux_reload_running skips auto-reload there), so bind `r` to a restart hint instead of a
+  # reload that would error.
   printf '\n# ---- Reload (prefix r) ----\n'
-  printf 'bind r source-file %s \\; display-message "tmux.conf reloaded"\n' "$_TCONF"
+  if _tmux_foreign_runshell; then
+    printf 'bind r display-message "ubuntu-setup: restart tmux to apply changes"\n'
+  else
+    printf 'bind r source-file %s \\; display-message "tmux.conf reloaded"\n' "$_TCONF"
+  fi
 
   printf '\n# ---- Status bar ----\n'
   printf 'set -g status-position %s\n' "$STATUS_POSITION"
@@ -821,20 +829,45 @@ _tmux_ensure_theme_font() {
 # Whether the config should carry a plugin manager + plugins at all.
 _tmux_want_plugins() { [[ -n "$PLUGINS" || "$THEME" != "none" ]]; }
 
+# True when $_TCONF carries run-shell / if-shell directives OUTSIDE our managed block — i.e. our
+# block is embedded in a larger third-party framework config (oh-my-tmux …) whose hooks run on
+# every load. Re-sourcing the whole file as a "reload" re-runs them and they can return non-zero
+# (e.g. oh-my-tmux's `run '"$TMUX_PROGRAM" … source "$TMUX_CONF_LOCAL"'`), which tmux surfaces as
+# an error popup. We match only directives at line start: a `bind … run …` is just a binding with
+# no load-time side effect and must NOT count. Our own block (incl. its `run '…/tpm'`) is skipped.
+_tmux_foreign_runshell() {
+  [[ -f "$_TCONF" ]] || return 1
+  awk '
+    index($0, "# >>> ubuntu-setup tmux (managed block) >>>") { blk=1; next }
+    index($0, "# <<< ubuntu-setup tmux (managed block) <<<") { blk=0; next }
+    !blk && /^[[:space:]]*(run-shell|run|if-shell|if)[[:space:]]/ { hit=1 }
+    END { exit (hit ? 0 : 1) }
+  ' "$_TCONF"
+}
+
 # Make the change take effect immediately: if a tmux server is already running, re-source the
 # config we own so every existing session picks up the new options/keys/plugins with no manual
 # step. The server is user-owned and _tmux_resolve_paths already refused a sudo-wrapped run, so
 # this `tmux` runs as the right user. Fail-safe: a failed source-file only warns (re-running, or
 # `prefix r`, is the recovery) and never aborts. With no server we just say how to start one.
+# EXCEPTION: when our block lives inside a third-party framework config (oh-my-tmux …), sourcing
+# the whole file re-runs that framework's run-shell hooks and errors, so we skip auto-reload and
+# tell the user to reload it their own way — settings are written regardless.
 _tmux_reload_running() {
-  if have_cmd tmux && tmux info >/dev/null 2>&1; then
-    if tmux source-file "$_TCONF" >/dev/null 2>&1; then
-      log_info "Reloaded the running tmux server — changes are live in your existing sessions."
-    else
-      log_warn "Could not auto-reload the running tmux (re-run, or press 'prefix r' / 'tmux source-file $_TCONF')."
-    fi
-  else
+  if ! { have_cmd tmux && tmux info >/dev/null 2>&1; }; then
     log_info "No tmux server is running — changes apply when you start tmux."
+    return 0
+  fi
+  if _tmux_foreign_runshell; then
+    log_info "Config written to $_TCONF. It also hosts a third-party framework (e.g. oh-my-tmux) with"
+    log_info "its own load-time hooks, so re-sourcing the whole file would error — reload it your usual"
+    log_info "way — restart tmux or start a new session — to apply the change."
+    return 0
+  fi
+  if tmux source-file "$_TCONF" >/dev/null 2>&1; then
+    log_info "Reloaded the running tmux server — changes are live in your existing sessions."
+  else
+    log_warn "Could not auto-reload the running tmux (re-run, or press 'prefix r' / 'tmux source-file $_TCONF')."
   fi
 }
 
