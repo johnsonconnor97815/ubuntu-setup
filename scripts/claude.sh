@@ -50,6 +50,185 @@ readonly _CLAUDE_SKILL_CURATED_KEYS="pdf docx pptx frontend-design mcp-builder"
 # Skills the kit itself deploys to ~/.claude/skills — never let this manager delete them.
 readonly _CLAUDE_SKILL_PROTECTED="ubuntu-install zsh-setup claude-extensions"
 
+# --- i18n (software-specific strings) ------------------------------------------
+# Same shape as lib/ui.sh's UI_MSG/ui_t, kept local so the generic UI library stays free of
+# Claude-specific text. Proper nouns stay UNtranslated: the software name, MCP/plugin/skill
+# *names* (sequential-thinking, pdf, …), marketplace owner/repo (anthropics/skills),
+# transports (stdio/http/sse), "native"/"npm", package/URL specs. Only descriptive and
+# operational wording is localized — INCLUDING the one-line catalog descriptions (mcp_desc:*,
+# mkt_desc:*, plugin_desc:*, skill_desc:*), which the curated helpers keep in English for the
+# command specs but ui() renders from here. Resolve with _claude_t KEY (fallback en -> key).
+declare -gA CLAUDE_I18N
+# Section headers / rows / status tags / hints
+CLAUDE_I18N[en:mcp_servers]="MCP servers"
+CLAUDE_I18N[en:plugins_mkts]="Plugins & marketplaces"
+CLAUDE_I18N[en:skills]="Skills"
+CLAUDE_I18N[en:add_mcp]="add MCP server…"
+CLAUDE_I18N[en:add_mkt]="add marketplace…"
+CLAUDE_I18N[en:add_plugin]="install plugin…"
+CLAUDE_I18N[en:add_skill]="add skill from git…"
+CLAUDE_I18N[en:tag_configured]="configured"
+CLAUDE_I18N[en:tag_enabled]="enabled"
+CLAUDE_I18N[en:tag_disabled]="disabled"
+CLAUDE_I18N[en:tag_kit]="kit"
+CLAUDE_I18N[en:foot_main]="↑↓ move   ↵/space toggle/select   esc/q close"
+CLAUDE_I18N[en:foot_plugin]="↑↓ move   ↵/space enable/disable   x uninstall   esc/q close"
+CLAUDE_I18N[en:foot_install]="↑↓ move   ↵/space install   esc/q close"
+# Install-method picker
+CLAUDE_I18N[en:pick_method]="Claude Code CLI — install method"
+CLAUDE_I18N[en:method_native]="native (official installer, no Node)"
+CLAUDE_I18N[en:method_npm]="npm (needs Node >= {N})"
+# Confirms / notifies / prompts
+CLAUDE_I18N[en:confirm_remove_cli]="Uninstall the Claude Code CLI?"
+CLAUDE_I18N[en:confirm_remove_plugin]="Uninstall plugin '{X}'?"
+CLAUDE_I18N[en:confirm_remove_mcp]="Remove MCP server '{X}'?"
+CLAUDE_I18N[en:confirm_remove_mkt]="Remove marketplace '{X}'?"
+CLAUDE_I18N[en:confirm_remove_skill]="Remove skill '{X}'? (a backup is saved first)"
+CLAUDE_I18N[en:prompt_mcp_name]="MCP server name"
+CLAUDE_I18N[en:pick_transport]="Transport for '{X}'"
+CLAUDE_I18N[en:tr_stdio]="stdio (local command)"
+CLAUDE_I18N[en:tr_http]="http (remote URL)"
+CLAUDE_I18N[en:tr_sse]="sse (remote URL)"
+CLAUDE_I18N[en:prompt_cmd]="command (e.g. npx -y some-mcp)"
+CLAUDE_I18N[en:prompt_url]="server URL"
+CLAUDE_I18N[en:prompt_mkt]="marketplace (owner/repo, git URL, or path)"
+CLAUDE_I18N[en:prompt_plugin]="plugin (name@marketplace)"
+CLAUDE_I18N[en:prompt_skill_url]="skill git URL"
+CLAUDE_I18N[en:prompt_skill_name]="name (blank = derive)"
+CLAUDE_I18N[en:prompt_skill_subdir]="subdir (blank = repo root)"
+CLAUDE_I18N[en:skill_title]="Skill '{X}'"
+CLAUDE_I18N[en:skill_protected]="This skill is deployed by the ubuntu-setup kit and is protected here."
+# Curated catalog one-line descriptions (names stay untranslated; only the gloss is localized)
+CLAUDE_I18N[en:mcp_desc:sequential-thinking]="Structured step-by-step reasoning"
+CLAUDE_I18N[en:mcp_desc:filesystem]="Read/write files under your home"
+CLAUDE_I18N[en:mcp_desc:memory]="Persistent knowledge-graph memory"
+CLAUDE_I18N[en:mcp_desc:playwright]="Drive a real browser (Playwright)"
+CLAUDE_I18N[en:mcp_desc:context7]="Up-to-date library / API docs"
+CLAUDE_I18N[en:mkt_desc:anthropics/claude-plugins-official]="Official Anthropic plugins"
+CLAUDE_I18N[en:mkt_desc:anthropics/skills]="Official Anthropic skills (as plugins)"
+CLAUDE_I18N[en:mkt_desc:forrestchang/andrej-karpathy-skills]="Karpathy-inspired Claude Code guidelines"
+CLAUDE_I18N[en:plugin_desc:andrej-karpathy-skills]="Karpathy-inspired coding guidelines (all projects)"
+CLAUDE_I18N[en:skill_desc:pdf]="Fill, parse and generate PDFs"
+CLAUDE_I18N[en:skill_desc:docx]="Create and edit Word documents"
+CLAUDE_I18N[en:skill_desc:pptx]="Create and edit PowerPoint decks"
+CLAUDE_I18N[en:skill_desc:frontend-design]="Produce polished web UIs"
+CLAUDE_I18N[en:skill_desc:mcp-builder]="Scaffold new MCP servers"
+
+CLAUDE_I18N[zh:mcp_servers]="MCP 服务器"
+CLAUDE_I18N[zh:plugins_mkts]="插件与市场"
+CLAUDE_I18N[zh:skills]="Skills"
+CLAUDE_I18N[zh:add_mcp]="添加 MCP 服务器…"
+CLAUDE_I18N[zh:add_mkt]="添加市场…"
+CLAUDE_I18N[zh:add_plugin]="安装插件…"
+CLAUDE_I18N[zh:add_skill]="从 git 添加 skill…"
+CLAUDE_I18N[zh:tag_configured]="已配置"
+CLAUDE_I18N[zh:tag_enabled]="已启用"
+CLAUDE_I18N[zh:tag_disabled]="已禁用"
+CLAUDE_I18N[zh:tag_kit]="kit"
+CLAUDE_I18N[zh:foot_main]="↑↓ 移动   ↵/space 切换/选择   esc/q 关闭"
+CLAUDE_I18N[zh:foot_plugin]="↑↓ 移动   ↵/space 启用/禁用   x 卸载   esc/q 关闭"
+CLAUDE_I18N[zh:foot_install]="↑↓ 移动   ↵/space 安装   esc/q 关闭"
+CLAUDE_I18N[zh:pick_method]="Claude Code CLI — 安装方式"
+CLAUDE_I18N[zh:method_native]="native(官方安装器,无需 Node)"
+CLAUDE_I18N[zh:method_npm]="npm(需 Node >= {N})"
+CLAUDE_I18N[zh:confirm_remove_cli]="卸载 Claude Code CLI?"
+CLAUDE_I18N[zh:confirm_remove_plugin]="卸载插件 '{X}'?"
+CLAUDE_I18N[zh:confirm_remove_mcp]="移除 MCP 服务器 '{X}'?"
+CLAUDE_I18N[zh:confirm_remove_mkt]="移除市场 '{X}'?"
+CLAUDE_I18N[zh:confirm_remove_skill]="移除 skill '{X}'?(会先备份)"
+CLAUDE_I18N[zh:prompt_mcp_name]="MCP 服务器名"
+CLAUDE_I18N[zh:pick_transport]="'{X}' 的传输方式"
+CLAUDE_I18N[zh:tr_stdio]="stdio(本地命令)"
+CLAUDE_I18N[zh:tr_http]="http(远程 URL)"
+CLAUDE_I18N[zh:tr_sse]="sse(远程 URL)"
+CLAUDE_I18N[zh:prompt_cmd]="命令(如 npx -y some-mcp)"
+CLAUDE_I18N[zh:prompt_url]="服务器 URL"
+CLAUDE_I18N[zh:prompt_mkt]="市场(owner/repo、git URL 或路径)"
+CLAUDE_I18N[zh:prompt_plugin]="插件(name@marketplace)"
+CLAUDE_I18N[zh:prompt_skill_url]="skill 的 git URL"
+CLAUDE_I18N[zh:prompt_skill_name]="名称(留空=自动推导)"
+CLAUDE_I18N[zh:prompt_skill_subdir]="子目录(留空=仓库根)"
+CLAUDE_I18N[zh:skill_title]="Skill '{X}'"
+CLAUDE_I18N[zh:skill_protected]="此 skill 由 ubuntu-setup kit 部署,在此受保护。"
+CLAUDE_I18N[zh:mcp_desc:sequential-thinking]="结构化的逐步推理"
+CLAUDE_I18N[zh:mcp_desc:filesystem]="读写你 home 下的文件"
+CLAUDE_I18N[zh:mcp_desc:memory]="持久化的知识图谱记忆"
+CLAUDE_I18N[zh:mcp_desc:playwright]="驱动真实浏览器(Playwright)"
+CLAUDE_I18N[zh:mcp_desc:context7]="最新的库 / API 文档"
+CLAUDE_I18N[zh:mkt_desc:anthropics/claude-plugins-official]="Anthropic 官方插件"
+CLAUDE_I18N[zh:mkt_desc:anthropics/skills]="Anthropic 官方 skills(作为插件)"
+CLAUDE_I18N[zh:mkt_desc:forrestchang/andrej-karpathy-skills]="Karpathy 风格的 Claude Code 准则"
+CLAUDE_I18N[zh:plugin_desc:andrej-karpathy-skills]="Karpathy 风格的编码准则(所有项目)"
+CLAUDE_I18N[zh:skill_desc:pdf]="填写、解析与生成 PDF"
+CLAUDE_I18N[zh:skill_desc:docx]="创建与编辑 Word 文档"
+CLAUDE_I18N[zh:skill_desc:pptx]="创建与编辑 PowerPoint 演示文稿"
+CLAUDE_I18N[zh:skill_desc:frontend-design]="制作精致的网页 UI"
+CLAUDE_I18N[zh:skill_desc:mcp-builder]="脚手架式生成新的 MCP 服务器"
+
+CLAUDE_I18N[ja:mcp_servers]="MCP サーバー"
+CLAUDE_I18N[ja:plugins_mkts]="プラグインとマーケットプレイス"
+CLAUDE_I18N[ja:skills]="Skills"
+CLAUDE_I18N[ja:add_mcp]="MCP サーバーを追加…"
+CLAUDE_I18N[ja:add_mkt]="マーケットプレイスを追加…"
+CLAUDE_I18N[ja:add_plugin]="プラグインをインストール…"
+CLAUDE_I18N[ja:add_skill]="git から skill を追加…"
+CLAUDE_I18N[ja:tag_configured]="設定済み"
+CLAUDE_I18N[ja:tag_enabled]="有効"
+CLAUDE_I18N[ja:tag_disabled]="無効"
+CLAUDE_I18N[ja:tag_kit]="kit"
+CLAUDE_I18N[ja:foot_main]="↑↓ 移動   ↵/space 切替/選択   esc/q 閉じる"
+CLAUDE_I18N[ja:foot_plugin]="↑↓ 移動   ↵/space 有効/無効   x アンインストール   esc/q 閉じる"
+CLAUDE_I18N[ja:foot_install]="↑↓ 移動   ↵/space インストール   esc/q 閉じる"
+CLAUDE_I18N[ja:pick_method]="Claude Code CLI — インストール方法"
+CLAUDE_I18N[ja:method_native]="native(公式インストーラー、Node 不要)"
+CLAUDE_I18N[ja:method_npm]="npm(Node >= {N} が必要)"
+CLAUDE_I18N[ja:confirm_remove_cli]="Claude Code CLI をアンインストールしますか?"
+CLAUDE_I18N[ja:confirm_remove_plugin]="プラグイン '{X}' をアンインストールしますか?"
+CLAUDE_I18N[ja:confirm_remove_mcp]="MCP サーバー '{X}' を削除しますか?"
+CLAUDE_I18N[ja:confirm_remove_mkt]="マーケットプレイス '{X}' を削除しますか?"
+CLAUDE_I18N[ja:confirm_remove_skill]="skill '{X}' を削除しますか?(先にバックアップを保存)"
+CLAUDE_I18N[ja:prompt_mcp_name]="MCP サーバー名"
+CLAUDE_I18N[ja:pick_transport]="'{X}' のトランスポート"
+CLAUDE_I18N[ja:tr_stdio]="stdio(ローカルコマンド)"
+CLAUDE_I18N[ja:tr_http]="http(リモート URL)"
+CLAUDE_I18N[ja:tr_sse]="sse(リモート URL)"
+CLAUDE_I18N[ja:prompt_cmd]="コマンド(例 npx -y some-mcp)"
+CLAUDE_I18N[ja:prompt_url]="サーバー URL"
+CLAUDE_I18N[ja:prompt_mkt]="マーケットプレイス(owner/repo、git URL、またはパス)"
+CLAUDE_I18N[ja:prompt_plugin]="プラグイン(name@marketplace)"
+CLAUDE_I18N[ja:prompt_skill_url]="skill の git URL"
+CLAUDE_I18N[ja:prompt_skill_name]="名前(空=自動導出)"
+CLAUDE_I18N[ja:prompt_skill_subdir]="サブディレクトリ(空=リポジトリのルート)"
+CLAUDE_I18N[ja:skill_title]="Skill '{X}'"
+CLAUDE_I18N[ja:skill_protected]="この skill は ubuntu-setup kit によって配置され、ここでは保護されています。"
+CLAUDE_I18N[ja:mcp_desc:sequential-thinking]="構造化された段階的な推論"
+CLAUDE_I18N[ja:mcp_desc:filesystem]="ホーム配下のファイルを読み書き"
+CLAUDE_I18N[ja:mcp_desc:memory]="永続的なナレッジグラフのメモリ"
+CLAUDE_I18N[ja:mcp_desc:playwright]="実ブラウザを操作(Playwright)"
+CLAUDE_I18N[ja:mcp_desc:context7]="最新のライブラリ / API ドキュメント"
+CLAUDE_I18N[ja:mkt_desc:anthropics/claude-plugins-official]="Anthropic 公式プラグイン"
+CLAUDE_I18N[ja:mkt_desc:anthropics/skills]="Anthropic 公式 skills(プラグインとして)"
+CLAUDE_I18N[ja:mkt_desc:forrestchang/andrej-karpathy-skills]="Karpathy 風の Claude Code ガイドライン"
+CLAUDE_I18N[ja:plugin_desc:andrej-karpathy-skills]="Karpathy 風のコーディングガイドライン(全プロジェクト)"
+CLAUDE_I18N[ja:skill_desc:pdf]="PDF の記入・解析・生成"
+CLAUDE_I18N[ja:skill_desc:docx]="Word 文書の作成と編集"
+CLAUDE_I18N[ja:skill_desc:pptx]="PowerPoint の作成と編集"
+CLAUDE_I18N[ja:skill_desc:frontend-design]="洗練された Web UI を作成"
+CLAUDE_I18N[ja:skill_desc:mcp-builder]="新しい MCP サーバーを scaffold"
+
+# _claude_t KEY — localized Claude string for $UI_LANG (en/zh/ja), fallback en -> key.
+_claude_t() {
+  local lang; lang="$(ui_lang)"
+  printf '%s' "${CLAUDE_I18N[$lang:$1]:-${CLAUDE_I18N[en:$1]:-$1}}"
+}
+
+# _claude_tx KEY TOKEN VALUE — like _claude_t but substitutes the {TOKEN} placeholder with
+# VALUE (kept out of printf to stay SC2059-clean). Used for confirms/titles that embed a name.
+_claude_tx() {
+  local s; s="$(_claude_t "$1")"
+  printf '%s' "${s//\{$2\}/$3}"
+}
+
 meta() {
   cat <<'META'
 key=claude
@@ -566,8 +745,8 @@ do_skill_remove() {
 # meta op.
 _claude_ui_footer() {
   case "$1" in
-    plugin) printf '↑↓ move   ↵/space enable/disable   x uninstall   esc/q close' ;;
-    *)      printf '↑↓ move   ↵/space toggle/select   esc/q close' ;;
+    plugin) _claude_t foot_plugin ;;
+    *)      _claude_t foot_main ;;
   esac
 }
 
@@ -607,37 +786,38 @@ ui() {
       local key on nm en def transport rt desc note repo present mkt_lc
 
       # ---- MCP servers ----
-      dkind+=(header); did+=(""); dlabel+=("MCP servers")
+      dkind+=(header); did+=(""); dlabel+=("$(_claude_t mcp_servers)")
       # user-configured servers (exclude plugin/account-managed and curated dups)
       while IFS= read -r nm; do
         [[ -n "$nm" ]] || continue
         case "$nm" in plugin:*|"claude.ai "*) continue ;; esac
         case " $_CLAUDE_MCP_CURATED_KEYS " in *" $nm "*) continue ;; esac
-        dkind+=(mcp_user); did+=("$nm"); dlabel+=("  ${UI_OK}${UI_CHK_ON}${UI_OFF} $nm ${UI_MUTED}(configured)${UI_OFF}")
+        dkind+=(mcp_user); did+=("$nm"); dlabel+=("  ${UI_OK}${UI_CHK_ON}${UI_OFF} $nm ${UI_MUTED}($(_claude_t tag_configured))${UI_OFF}")
       done <<<"$mcp_names"
-      # curated catalog
+      # curated catalog (the gloss is localized; the spec/runtime label stay as-is)
       for key in $_CLAUDE_MCP_CURATED_KEYS; do
         on=0
         case $'\n'"$mcp_names"$'\n' in *$'\n'"$key"$'\n'*) on=1 ;; esac
-        def="$(_claude_mcp_curated "$key")"; IFS=$'\t' read -r transport _ rt desc <<<"$def"
+        def="$(_claude_mcp_curated "$key")"; IFS=$'\t' read -r transport _ rt _ <<<"$def"
+        desc="$(_claude_t "mcp_desc:$key")"
         note=""; [[ "$rt" != "-" ]] && note=" ${UI_MUTED}($rt)${UI_OFF}"
         dkind+=(mcp_curated); did+=("$key")
         if (( on )); then dlabel+=("  ${UI_OK}${UI_CHK_ON}${UI_OFF} $key ${UI_MUTED}— $desc${UI_OFF}")
         else dlabel+=("  ${UI_MUTED}${UI_CHK_OFF}${UI_OFF} $key ${UI_MUTED}— $desc${UI_OFF}$note"); fi
       done
-      dkind+=(mcp_add); did+=(mcp_add); dlabel+=("  ${UI_ACCENT}+${UI_OFF} add MCP server…")
+      dkind+=(mcp_add); did+=(mcp_add); dlabel+=("  ${UI_ACCENT}+${UI_OFF} $(_claude_t add_mcp)")
 
       # ---- Plugins & marketplaces ----
       dkind+=(spacer); did+=(""); dlabel+=("")
-      dkind+=(header); did+=(""); dlabel+=("Plugins & marketplaces")
+      dkind+=(header); did+=(""); dlabel+=("$(_claude_t plugins_mkts)")
       mkt_lc="${mkt_list,,}"   # case-insensitive match against the cached list (no claude call)
       for repo in $_CLAUDE_MKT_CURATED; do
         if [[ "$mkt_lc" == *"${repo,,}"* ]]; then present=1; else present=0; fi
         dkind+=(marketplace); did+=("$repo")
-        if (( present )); then dlabel+=("  ${UI_OK}${UI_CHK_ON}${UI_OFF} $repo ${UI_MUTED}— $(_claude_mkt_desc "$repo")${UI_OFF}")
-        else dlabel+=("  ${UI_MUTED}${UI_CHK_OFF}${UI_OFF} $repo ${UI_MUTED}— $(_claude_mkt_desc "$repo")${UI_OFF}"); fi
+        if (( present )); then dlabel+=("  ${UI_OK}${UI_CHK_ON}${UI_OFF} $repo ${UI_MUTED}— $(_claude_t "mkt_desc:$repo")${UI_OFF}")
+        else dlabel+=("  ${UI_MUTED}${UI_CHK_OFF}${UI_OFF} $repo ${UI_MUTED}— $(_claude_t "mkt_desc:$repo")${UI_OFF}"); fi
       done
-      dkind+=(marketplace_add); did+=(marketplace_add); dlabel+=("  ${UI_ACCENT}+${UI_OFF} add marketplace…")
+      dkind+=(marketplace_add); did+=(marketplace_add); dlabel+=("  ${UI_ACCENT}+${UI_OFF} $(_claude_t add_mkt)")
       # installed plugins
       local -a installed_plugins=()
       if [[ -n "$plug_state" ]]; then
@@ -645,8 +825,8 @@ ui() {
           [[ -n "$nm" ]] || continue
           installed_plugins+=("${nm%@*}")
           dkind+=(plugin); did+=("$nm")
-          if [[ "$en" == "1" ]]; then dlabel+=("  ${UI_OK}${UI_DOT_ON}${UI_OFF} $nm ${UI_MUTED}(enabled)${UI_OFF}")
-          else dlabel+=("  ${UI_MUTED}${UI_DOT_OFF} $nm (disabled)${UI_OFF}"); fi
+          if [[ "$en" == "1" ]]; then dlabel+=("  ${UI_OK}${UI_DOT_ON}${UI_OFF} $nm ${UI_MUTED}($(_claude_t tag_enabled))${UI_OFF}")
+          else dlabel+=("  ${UI_MUTED}${UI_DOT_OFF} $nm ($(_claude_t tag_disabled))${UI_OFF}"); fi
         done <<<"$plug_state"
       fi
       # curated plugins not already installed
@@ -654,38 +834,40 @@ ui() {
         local palready=0 p
         for p in "${installed_plugins[@]}"; do [[ "$p" == "$key" ]] && { palready=1; break; }; done
         (( palready )) && continue
-        def="$(_claude_plugin_curated "$key")"; IFS=$'\t' read -r _ _ desc <<<"$def"
+        desc="$(_claude_t "plugin_desc:$key")"
         dkind+=(plugin_curated); did+=("$key")
         dlabel+=("  ${UI_MUTED}${UI_CHK_OFF}${UI_OFF} $key ${UI_MUTED}— $desc${UI_OFF}")
       done
-      dkind+=(plugin_add); did+=(plugin_add); dlabel+=("  ${UI_ACCENT}+${UI_OFF} install plugin…")
+      dkind+=(plugin_add); did+=(plugin_add); dlabel+=("  ${UI_ACCENT}+${UI_OFF} $(_claude_t add_plugin)")
 
       # ---- Skills ----
       dkind+=(spacer); did+=(""); dlabel+=("")
-      dkind+=(header); did+=(""); dlabel+=("Skills")
+      dkind+=(header); did+=(""); dlabel+=("$(_claude_t skills)")
       local -a installed_skills=()
       if [[ -n "$skill_list" ]]; then
+        # Installed skills show the description reported by the skill itself (from its own
+        # SKILL.md front-matter) — that is user content, not a kit string, so it is shown as-is.
         while IFS=$'\t' read -r nm desc; do
           [[ -n "$nm" ]] || continue
           installed_skills+=("$nm")
           dkind+=(skill); did+=("$nm")
           if _claude_skill_protected "$nm"; then
-            dlabel+=("  ${UI_OK}${UI_CHK_ON}${UI_OFF} $nm ${UI_MUTED}(kit)${UI_OFF}")
+            dlabel+=("  ${UI_OK}${UI_CHK_ON}${UI_OFF} $nm ${UI_MUTED}($(_claude_t tag_kit))${UI_OFF}")
           else
             dlabel+=("  ${UI_OK}${UI_CHK_ON}${UI_OFF} $nm ${UI_MUTED}${desc:+— $desc}${UI_OFF}")
           fi
         done <<<"$skill_list"
       fi
-      # curated skills not already installed
+      # curated skills not already installed (gloss localized from the i18n table)
       for key in $_CLAUDE_SKILL_CURATED_KEYS; do
         local already=0 s
         for s in "${installed_skills[@]}"; do [[ "$s" == "$key" ]] && { already=1; break; }; done
         (( already )) && continue
-        def="$(_claude_skill_curated "$key")"; IFS=$'\t' read -r _ _ desc <<<"$def"
+        desc="$(_claude_t "skill_desc:$key")"
         dkind+=(skill_curated); did+=("$key")
         dlabel+=("  ${UI_MUTED}${UI_CHK_OFF}${UI_OFF} $key ${UI_MUTED}— $desc${UI_OFF}")
       done
-      dkind+=(skill_add); did+=(skill_add); dlabel+=("  ${UI_ACCENT}+${UI_OFF} add skill from git…")
+      dkind+=(skill_add); did+=(skill_add); dlabel+=("  ${UI_ACCENT}+${UI_OFF} $(_claude_t add_skill)")
 
       # ---- danger zone ----
       dkind+=(spacer); did+=(""); dlabel+=("")
@@ -714,7 +896,7 @@ ui() {
       (( row++ ))
     done
     if (( installed )); then ui_footer "$(_claude_ui_footer "${dkind[$sel]}")"
-    else ui_footer "↑↓ move   ↵/space install   esc/q close"; fi
+    else ui_footer "$(_claude_t foot_install)"; fi
 
     # ---- input ----
     ui_read_key
@@ -723,20 +905,21 @@ ui() {
       down|j) for (( g=0; g<n; g++ )); do sel=$(( (sel+1)%n ));   case "${dkind[$sel]}" in spacer|header) ;; *) break ;; esac; done ;;
       x|X)
         if [[ "${dkind[$sel]}" == plugin ]]; then
-          ui_confirm "Uninstall plugin '${did[$sel]}'?" n \
+          ui_confirm "$(_claude_tx confirm_remove_plugin X "${did[$sel]}")" n \
             && { ui_run "plugin-remove ${did[$sel]} · claude" -- "$0" plugin-remove "${did[$sel]}"; refresh=1; }
         fi ;;
       enter|space)
         case "${dkind[$sel]}" in
           install)
-            if ui_pick "Claude Code CLI — install method" "" "" -- \
-                 native "native (official installer, no Node)" \
-                 npm    "npm (needs Node >= ${_CLAUDE_MIN_NODE_MAJOR})" \
+            local _npm_label; _npm_label="$(_claude_t method_npm)"; _npm_label="${_npm_label//\{N\}/${_CLAUDE_MIN_NODE_MAJOR}}"
+            if ui_pick "$(_claude_t pick_method)" "" "" -- \
+                 native "$(_claude_t method_native)" \
+                 npm    "$_npm_label" \
                && [[ -n "$UI_PICK" ]]; then
               ui_run "$(ui_t install) Claude Code" -- "$0" install --method "$UI_PICK"; refresh=1
             fi ;;
           remove)
-            ui_confirm "Uninstall the Claude Code CLI?" n \
+            ui_confirm "$(_claude_t confirm_remove_cli)" n \
               && { ui_run "$(ui_t remove) Claude Code" -- "$0" remove; refresh=1; } ;;
           mcp_curated)
             local mk="${did[$sel]}"
@@ -747,16 +930,16 @@ ui() {
             fi
             refresh=1 ;;
           mcp_user)
-            ui_confirm "Remove MCP server '${did[$sel]}'?" n \
+            ui_confirm "$(_claude_tx confirm_remove_mcp X "${did[$sel]}")" n \
               && { ui_run "mcp-remove ${did[$sel]} · claude" -- "$0" mcp-remove "${did[$sel]}"; refresh=1; } ;;
           mcp_add)
-            if ui_input "MCP server name" ""; then
+            if ui_input "$(_claude_t prompt_mcp_name)" ""; then
               local mname="$UI_INPUT"
               if [[ -n "$mname" ]]; then
-                ui_pick "Transport for '$mname'" "" "" -- stdio "stdio (local command)" http "http (remote URL)" sse "sse (remote URL)"
+                ui_pick "$(_claude_tx pick_transport X "$mname")" "" "" -- stdio "$(_claude_t tr_stdio)" http "$(_claude_t tr_http)" sse "$(_claude_t tr_sse)"
                 if [[ -n "$UI_PICK" ]]; then
                   local mtr="$UI_PICK" prompt2
-                  [[ "$mtr" == stdio ]] && prompt2="command (e.g. npx -y some-mcp)" || prompt2="server URL"
+                  [[ "$mtr" == stdio ]] && prompt2="$(_claude_t prompt_cmd)" || prompt2="$(_claude_t prompt_url)"
                   if ui_input "$prompt2" ""; then
                     local -a specarr; read -r -a specarr <<<"$UI_INPUT"
                     (( ${#specarr[@]} )) && { ui_run "mcp-add $mname · claude" -- "$0" mcp-add "$mname" -t "$mtr" -- "${specarr[@]}"; refresh=1; }
@@ -768,13 +951,13 @@ ui() {
             local mr="${did[$sel]}"
             if _claude_marketplace_present "$mr"; then
               local mname2; mname2="$(_claude_marketplace_name_for "$mr")"; [[ -n "$mname2" ]] || mname2="$mr"
-              ui_confirm "Remove marketplace '$mname2'?" n \
+              ui_confirm "$(_claude_tx confirm_remove_mkt X "$mname2")" n \
                 && { ui_run "marketplace-remove $mname2 · claude" -- "$0" marketplace-remove "$mname2"; refresh=1; }
             else
               ui_run "marketplace-add $mr · claude" -- "$0" marketplace-add "$mr"; refresh=1
             fi ;;
           marketplace_add)
-            if ui_input "marketplace (owner/repo, git URL, or path)" "" && [[ -n "$UI_INPUT" ]]; then
+            if ui_input "$(_claude_t prompt_mkt)" "" && [[ -n "$UI_INPUT" ]]; then
               ui_run "marketplace-add $UI_INPUT · claude" -- "$0" marketplace-add "$UI_INPUT"; refresh=1
             fi ;;
           plugin)
@@ -786,24 +969,24 @@ ui() {
           plugin_curated)
             ui_run "plugin-install ${did[$sel]} · claude" -- "$0" plugin-install "${did[$sel]}"; refresh=1 ;;
           plugin_add)
-            if ui_input "plugin (name@marketplace)" "" && [[ -n "$UI_INPUT" ]]; then
+            if ui_input "$(_claude_t prompt_plugin)" "" && [[ -n "$UI_INPUT" ]]; then
               ui_run "plugin-install $UI_INPUT · claude" -- "$0" plugin-install "$UI_INPUT"; refresh=1
             fi ;;
           skill)
             local skn="${did[$sel]}"
             if _claude_skill_protected "$skn"; then
-              ui_notify "Skill '$skn'" "This skill is deployed by the ubuntu-setup kit and is protected here."
+              ui_notify "$(_claude_tx skill_title X "$skn")" "$(_claude_t skill_protected)"
             else
-              ui_confirm "Remove skill '$skn'? (a backup is saved first)" n \
+              ui_confirm "$(_claude_tx confirm_remove_skill X "$skn")" n \
                 && { ui_run "skill-remove $skn · claude" -- "$0" skill-remove "$skn"; refresh=1; }
             fi ;;
           skill_curated)
             ui_run "skill-install ${did[$sel]} · claude" -- "$0" skill-install "${did[$sel]}"; refresh=1 ;;
           skill_add)
-            if ui_input "skill git URL" "" && [[ -n "$UI_INPUT" ]]; then
+            if ui_input "$(_claude_t prompt_skill_url)" "" && [[ -n "$UI_INPUT" ]]; then
               local surl="$UI_INPUT" sname ssub
-              ui_input "name (blank = derive)" "" || true; sname="$UI_INPUT"
-              ui_input "subdir (blank = repo root)" "" || true; ssub="$UI_INPUT"
+              ui_input "$(_claude_t prompt_skill_name)" "" || true; sname="$UI_INPUT"
+              ui_input "$(_claude_t prompt_skill_subdir)" "" || true; ssub="$UI_INPUT"
               ui_run "skill-install · claude" -- "$0" skill-install "$surl" "$sname" "$ssub"; refresh=1
             fi ;;
         esac ;;

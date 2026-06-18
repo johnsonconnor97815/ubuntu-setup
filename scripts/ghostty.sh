@@ -43,6 +43,135 @@ source "$_kit_here/lib/common.sh"
 readonly GHOSTTY_DEB_REPO="mkasberg/ghostty-ubuntu"
 readonly GHOSTTY_DEB_RELEASES="24.04 25.10 26.04"
 
+# --- i18n (software-specific strings) ------------------------------------------
+# Same shape as lib/ui.sh's UI_MSG/ui_t, kept local so the generic UI library stays free of
+# Ghostty-specific text. Proper nouns stay UNtranslated (the software name "Ghostty", theme
+# names like "Catppuccin Mocha", font families like "MesloLGS NF", cursor values block/bar/
+# underline, config keys) — only the descriptive/operational wording is localized. Resolve a
+# row with _ghostty_t KEY; falls back en -> the key itself, just like ui_t.
+declare -gA GHOSTTY_I18N
+# UI rows / headers / hints
+GHOSTTY_I18N[en:note]="Settings are written to a managed drop-in; your own ~/.config/ghostty/config is preserved."
+GHOSTTY_I18N[en:appearance]="Appearance"
+GHOSTTY_I18N[en:behavior]="Behavior"
+GHOSTTY_I18N[en:theme]="Theme"
+GHOSTTY_I18N[en:font]="Font"
+GHOSTTY_I18N[en:font_size]="Font size"
+GHOSTTY_I18N[en:opacity]="Opacity"
+GHOSTTY_I18N[en:cursor_style]="Cursor style"
+GHOSTTY_I18N[en:window_padding]="Window padding"
+GHOSTTY_I18N[en:window_size]="Window size"
+GHOSTTY_I18N[en:copy_on_select]="Copy on select"
+GHOSTTY_I18N[en:hide_mouse]="Hide mouse on type"
+GHOSTTY_I18N[en:confirm_close]="Confirm close"
+GHOSTTY_I18N[en:cursor_blink]="Cursor blink"
+GHOSTTY_I18N[en:apply_now]="Write config now (apply settings)"
+GHOSTTY_I18N[en:set_default]="Set Ghostty as default terminal"
+GHOSTTY_I18N[en:is_default]="Default terminal: Ghostty"
+GHOSTTY_I18N[en:to_revert]="↵ to revert"
+GHOSTTY_I18N[en:default_val]="default"
+GHOSTTY_I18N[en:current]="current:"
+GHOSTTY_I18N[en:foot_main]="↑↓ move   ↵/space edit·toggle   esc/q close"
+# Pickers / prompts
+GHOSTTY_I18N[en:pick_theme]="Ghostty — theme"
+GHOSTTY_I18N[en:theme_auto]="Catppuccin (auto light/dark)"
+GHOSTTY_I18N[en:theme_latte]="Catppuccin Latte (light)"
+GHOSTTY_I18N[en:type_theme]="Type a theme name…"
+GHOSTTY_I18N[en:prompt_theme]="theme name (see: ghostty +list-themes)"
+GHOSTTY_I18N[en:pick_font]="Ghostty — font family"
+GHOSTTY_I18N[en:font_p10k]="MesloLGS NF (Powerlevel10k / Starship)"
+GHOSTTY_I18N[en:font_system]="System / Ghostty default"
+GHOSTTY_I18N[en:type_font]="Type a font family…"
+GHOSTTY_I18N[en:prompt_font]="font family"
+GHOSTTY_I18N[en:prompt_size]="font size (6-48)"
+GHOSTTY_I18N[en:prompt_opacity]="background opacity (0-1)"
+GHOSTTY_I18N[en:pick_cursor]="Ghostty — cursor style"
+GHOSTTY_I18N[en:prompt_padding]="window padding (px)"
+GHOSTTY_I18N[en:prompt_wsize]="window size COLSxROWS, e.g. 120x36 (blank = default)"
+GHOSTTY_I18N[en:confirm_remove]="Uninstall Ghostty? (your ~/.config/ghostty is kept)"
+
+GHOSTTY_I18N[zh:note]="设置写入受管 drop-in;你自己的 ~/.config/ghostty/config 不受影响。"
+GHOSTTY_I18N[zh:appearance]="外观"
+GHOSTTY_I18N[zh:behavior]="行为"
+GHOSTTY_I18N[zh:theme]="主题"
+GHOSTTY_I18N[zh:font]="字体"
+GHOSTTY_I18N[zh:font_size]="字号"
+GHOSTTY_I18N[zh:opacity]="不透明度"
+GHOSTTY_I18N[zh:cursor_style]="光标样式"
+GHOSTTY_I18N[zh:window_padding]="窗口内边距"
+GHOSTTY_I18N[zh:window_size]="窗口尺寸"
+GHOSTTY_I18N[zh:copy_on_select]="选中即复制"
+GHOSTTY_I18N[zh:hide_mouse]="输入时隐藏鼠标"
+GHOSTTY_I18N[zh:confirm_close]="关闭前确认"
+GHOSTTY_I18N[zh:cursor_blink]="光标闪烁"
+GHOSTTY_I18N[zh:apply_now]="立即写入配置(应用设置)"
+GHOSTTY_I18N[zh:set_default]="将 Ghostty 设为默认终端"
+GHOSTTY_I18N[zh:is_default]="默认终端:Ghostty"
+GHOSTTY_I18N[zh:to_revert]="↵ 还原"
+GHOSTTY_I18N[zh:default_val]="默认"
+GHOSTTY_I18N[zh:current]="当前:"
+GHOSTTY_I18N[zh:foot_main]="↑↓ 移动   ↵/space 编辑·切换   esc/q 关闭"
+GHOSTTY_I18N[zh:pick_theme]="Ghostty — 主题"
+GHOSTTY_I18N[zh:theme_auto]="Catppuccin(自动明暗)"
+GHOSTTY_I18N[zh:theme_latte]="Catppuccin Latte(浅色)"
+GHOSTTY_I18N[zh:type_theme]="输入主题名…"
+GHOSTTY_I18N[zh:prompt_theme]="主题名(见:ghostty +list-themes)"
+GHOSTTY_I18N[zh:pick_font]="Ghostty — 字体"
+GHOSTTY_I18N[zh:font_p10k]="MesloLGS NF(Powerlevel10k / Starship)"
+GHOSTTY_I18N[zh:font_system]="系统 / Ghostty 默认"
+GHOSTTY_I18N[zh:type_font]="输入字体名…"
+GHOSTTY_I18N[zh:prompt_font]="字体名"
+GHOSTTY_I18N[zh:prompt_size]="字号(6-48)"
+GHOSTTY_I18N[zh:prompt_opacity]="背景不透明度(0-1)"
+GHOSTTY_I18N[zh:pick_cursor]="Ghostty — 光标样式"
+GHOSTTY_I18N[zh:prompt_padding]="窗口内边距(px)"
+GHOSTTY_I18N[zh:prompt_wsize]="窗口尺寸 列x行,如 120x36(留空=默认)"
+GHOSTTY_I18N[zh:confirm_remove]="卸载 Ghostty?(保留你的 ~/.config/ghostty)"
+
+GHOSTTY_I18N[ja:note]="設定は管理対象の drop-in に書き込まれます。あなた自身の ~/.config/ghostty/config はそのまま保持されます。"
+GHOSTTY_I18N[ja:appearance]="外観"
+GHOSTTY_I18N[ja:behavior]="挙動"
+GHOSTTY_I18N[ja:theme]="テーマ"
+GHOSTTY_I18N[ja:font]="フォント"
+GHOSTTY_I18N[ja:font_size]="フォントサイズ"
+GHOSTTY_I18N[ja:opacity]="不透明度"
+GHOSTTY_I18N[ja:cursor_style]="カーソルスタイル"
+GHOSTTY_I18N[ja:window_padding]="ウィンドウの余白"
+GHOSTTY_I18N[ja:window_size]="ウィンドウサイズ"
+GHOSTTY_I18N[ja:copy_on_select]="選択でコピー"
+GHOSTTY_I18N[ja:hide_mouse]="入力中はマウスを隠す"
+GHOSTTY_I18N[ja:confirm_close]="閉じる前に確認"
+GHOSTTY_I18N[ja:cursor_blink]="カーソルの点滅"
+GHOSTTY_I18N[ja:apply_now]="今すぐ設定を書き込む(適用)"
+GHOSTTY_I18N[ja:set_default]="Ghostty を既定の端末にする"
+GHOSTTY_I18N[ja:is_default]="既定の端末: Ghostty"
+GHOSTTY_I18N[ja:to_revert]="↵ で元に戻す"
+GHOSTTY_I18N[ja:default_val]="デフォルト"
+GHOSTTY_I18N[ja:current]="現在:"
+GHOSTTY_I18N[ja:foot_main]="↑↓ 移動   ↵/space 編集·切替   esc/q 閉じる"
+GHOSTTY_I18N[ja:pick_theme]="Ghostty — テーマ"
+GHOSTTY_I18N[ja:theme_auto]="Catppuccin(自動で明暗切替)"
+GHOSTTY_I18N[ja:theme_latte]="Catppuccin Latte(ライト)"
+GHOSTTY_I18N[ja:type_theme]="テーマ名を入力…"
+GHOSTTY_I18N[ja:prompt_theme]="テーマ名(参照: ghostty +list-themes)"
+GHOSTTY_I18N[ja:pick_font]="Ghostty — フォントファミリー"
+GHOSTTY_I18N[ja:font_p10k]="MesloLGS NF(Powerlevel10k / Starship)"
+GHOSTTY_I18N[ja:font_system]="システム / Ghostty デフォルト"
+GHOSTTY_I18N[ja:type_font]="フォントファミリーを入力…"
+GHOSTTY_I18N[ja:prompt_font]="フォントファミリー"
+GHOSTTY_I18N[ja:prompt_size]="フォントサイズ(6-48)"
+GHOSTTY_I18N[ja:prompt_opacity]="背景の不透明度(0-1)"
+GHOSTTY_I18N[ja:pick_cursor]="Ghostty — カーソルスタイル"
+GHOSTTY_I18N[ja:prompt_padding]="ウィンドウの余白(px)"
+GHOSTTY_I18N[ja:prompt_wsize]="ウィンドウサイズ 列x行 例 120x36(空=デフォルト)"
+GHOSTTY_I18N[ja:confirm_remove]="Ghostty をアンインストールしますか?(~/.config/ghostty は保持)"
+
+# _ghostty_t KEY — localized Ghostty string for $UI_LANG (en/zh/ja), fallback en -> key.
+_ghostty_t() {
+  local lang; lang="$(ui_lang)"
+  printf '%s' "${GHOSTTY_I18N[$lang:$1]:-${GHOSTTY_I18N[en:$1]:-$1}}"
+}
+
 meta() {
   cat <<'META'
 key=ghostty
@@ -750,42 +879,42 @@ ui() {
     local installed=0 ver="" is_def=0
     if status >/dev/null 2>&1; then installed=1; ver="$(_ghostty_version)"; fi
     if (( installed )) && _ghostty_is_default 2>/dev/null; then is_def=1; fi
-    local font_disp="${FONT:-${UI_MUTED}default${UI_OFF}}"
+    local font_disp="${FONT:-${UI_MUTED}$(_ghostty_t default_val)${UI_OFF}}"
     local wsize_disp
     if [[ -n "$WINDOW_WIDTH" && -n "$WINDOW_HEIGHT" ]]; then
       wsize_disp="${WINDOW_WIDTH}×${WINDOW_HEIGHT}"
     else
-      wsize_disp="${UI_MUTED}default${UI_OFF}"
+      wsize_disp="${UI_MUTED}$(_ghostty_t default_val)${UI_OFF}"
     fi
 
     # ---- build display rows (parallel arrays: kind / id / label) ----
     local -a dkind=() did=() dlabel=()
-    dkind+=(note); did+=(""); dlabel+=("Settings are written to a managed drop-in; your own ~/.config/ghostty/config is preserved.")
+    dkind+=(note); did+=(""); dlabel+=("$(_ghostty_t note)")
     dkind+=(spacer); did+=(""); dlabel+=("")
-    dkind+=(header); did+=(""); dlabel+=("Appearance")
-    dkind+=(theme);  did+=(theme);  dlabel+=("$(printf '%-16s %s%s%s  %s' 'Theme'  "$UI_INFO" "$THEME" "$UI_OFF" "$UI_ARROW")")
-    dkind+=(font);   did+=(font);   dlabel+=("$(printf '%-16s %s  %s' 'Font'   "$font_disp" "$UI_ARROW")")
-    dkind+=(size);   did+=(size);   dlabel+=("$(printf '%-16s %spt  %s' 'Font size' "$FONT_SIZE" "$UI_ARROW")")
-    dkind+=(opacity);did+=(opacity);dlabel+=("$(printf '%-16s %s  %s' 'Opacity' "$OPACITY" "$UI_ARROW")")
-    dkind+=(cursor); did+=(cursor); dlabel+=("$(printf '%-16s %s  %s' 'Cursor style' "$CURSOR_STYLE" "$UI_ARROW")")
-    dkind+=(padding);did+=(padding);dlabel+=("$(printf '%-16s %s  %s' 'Window padding' "$PADDING" "$UI_ARROW")")
-    dkind+=(wsize);  did+=(wsize);  dlabel+=("$(printf '%-16s %s  %s' 'Window size' "$wsize_disp" "$UI_ARROW")")
+    dkind+=(header); did+=(""); dlabel+=("$(_ghostty_t appearance)")
+    dkind+=(theme);  did+=(theme);  dlabel+=("$(printf '%-16s %s%s%s  %s' "$(_ghostty_t theme)"  "$UI_INFO" "$THEME" "$UI_OFF" "$UI_ARROW")")
+    dkind+=(font);   did+=(font);   dlabel+=("$(printf '%-16s %s  %s' "$(_ghostty_t font)"   "$font_disp" "$UI_ARROW")")
+    dkind+=(size);   did+=(size);   dlabel+=("$(printf '%-16s %spt  %s' "$(_ghostty_t font_size)" "$FONT_SIZE" "$UI_ARROW")")
+    dkind+=(opacity);did+=(opacity);dlabel+=("$(printf '%-16s %s  %s' "$(_ghostty_t opacity)" "$OPACITY" "$UI_ARROW")")
+    dkind+=(cursor); did+=(cursor); dlabel+=("$(printf '%-16s %s  %s' "$(_ghostty_t cursor_style)" "$CURSOR_STYLE" "$UI_ARROW")")
+    dkind+=(padding);did+=(padding);dlabel+=("$(printf '%-16s %s  %s' "$(_ghostty_t window_padding)" "$PADDING" "$UI_ARROW")")
+    dkind+=(wsize);  did+=(wsize);  dlabel+=("$(printf '%-16s %s  %s' "$(_ghostty_t window_size)" "$wsize_disp" "$UI_ARROW")")
     dkind+=(spacer); did+=(""); dlabel+=("")
-    dkind+=(header); did+=(""); dlabel+=("Behavior")
-    dkind+=(toggle-copy);    did+=(copy);    dlabel+=("$(_ghostty_toggle_label 'Copy on select'       "$COPY_ON_SELECT")")
-    dkind+=(toggle-mouse);   did+=(mouse);   dlabel+=("$(_ghostty_toggle_label 'Hide mouse on type'   "$MOUSE_HIDE")")
-    dkind+=(toggle-confirm); did+=(confirm); dlabel+=("$(_ghostty_toggle_label 'Confirm close'        "$CONFIRM_CLOSE")")
-    dkind+=(toggle-blink);   did+=(blink);   dlabel+=("$(_ghostty_toggle_label 'Cursor blink'         "$CURSOR_BLINK")")
+    dkind+=(header); did+=(""); dlabel+=("$(_ghostty_t behavior)")
+    dkind+=(toggle-copy);    did+=(copy);    dlabel+=("$(_ghostty_toggle_label "$(_ghostty_t copy_on_select)" "$COPY_ON_SELECT")")
+    dkind+=(toggle-mouse);   did+=(mouse);   dlabel+=("$(_ghostty_toggle_label "$(_ghostty_t hide_mouse)"     "$MOUSE_HIDE")")
+    dkind+=(toggle-confirm); did+=(confirm); dlabel+=("$(_ghostty_toggle_label "$(_ghostty_t confirm_close)"  "$CONFIRM_CLOSE")")
+    dkind+=(toggle-blink);   did+=(blink);   dlabel+=("$(_ghostty_toggle_label "$(_ghostty_t cursor_blink)"   "$CURSOR_BLINK")")
     dkind+=(spacer); did+=(""); dlabel+=("")
-    dkind+=(apply);  did+=(apply);  dlabel+=("$(ui_badge check) Write config now (apply settings)")
+    dkind+=(apply);  did+=(apply);  dlabel+=("$(ui_badge check) $(_ghostty_t apply_now)")
     dkind+=(spacer); did+=(""); dlabel+=("")
     if (( ! installed )); then
       dkind+=(install); did+=(install); dlabel+=("$(ui_badge missing) $(ui_t install) Ghostty")
     else
       if (( is_def )); then
-        dkind+=(defterm); did+=(unset); dlabel+=("$(ui_badge on) Default terminal: Ghostty  ${UI_MUTED}(↵ to revert)${UI_OFF}")
+        dkind+=(defterm); did+=(unset); dlabel+=("$(ui_badge on) $(_ghostty_t is_default)  ${UI_MUTED}($(_ghostty_t to_revert))${UI_OFF}")
       else
-        dkind+=(defterm); did+=(set);   dlabel+=("$(ui_badge off) Set Ghostty as default terminal")
+        dkind+=(defterm); did+=(set);   dlabel+=("$(ui_badge off) $(_ghostty_t set_default)")
       fi
       dkind+=(spacer); did+=(""); dlabel+=("")
       dkind+=(remove);  did+=(remove);  dlabel+=("${UI_ERR}${UI_CROSS}${UI_OFF} $(ui_t remove) Ghostty")
@@ -811,7 +940,7 @@ ui() {
       esac
       (( row++ ))
     done
-    ui_footer "↑↓ move   ↵/space edit·toggle   esc/q close"
+    ui_footer "$(_ghostty_t foot_main)"
 
     # ---- input ----
     ui_read_key
@@ -821,60 +950,60 @@ ui() {
       enter|space)
         case "${dkind[$sel]}" in
           theme)
-            ui_pick "Ghostty — theme" "current: $THEME" "" -- \
-              "dark:Catppuccin Mocha,light:Catppuccin Latte" "Catppuccin (auto light/dark)" \
+            ui_pick "$(_ghostty_t pick_theme)" "$(_ghostty_t current) $THEME" "" -- \
+              "dark:Catppuccin Mocha,light:Catppuccin Latte" "$(_ghostty_t theme_auto)" \
               "Catppuccin Mocha" "Catppuccin Mocha" \
               "Catppuccin Macchiato" "Catppuccin Macchiato" \
               "Catppuccin Frappe" "Catppuccin Frappe" \
-              "Catppuccin Latte" "Catppuccin Latte (light)" \
+              "Catppuccin Latte" "$(_ghostty_t theme_latte)" \
               "Dracula" "Dracula" "Nord" "Nord" \
               "Solarized Dark" "Solarized Dark" "Solarized Light" "Solarized Light" \
               "Tokyo Night" "Tokyo Night" \
-              "__custom__" "Type a theme name…"
+              "__custom__" "$(_ghostty_t type_theme)"
             if [[ -n "$UI_PICK" ]]; then
               if [[ "$UI_PICK" == "__custom__" ]]; then
-                ui_input "theme name (see: ghostty +list-themes)" "$THEME" && \
+                ui_input "$(_ghostty_t prompt_theme)" "$THEME" && \
                   [[ -n "$UI_INPUT" ]] && ui_run "configure theme · ghostty" -- "$0" configure --theme "$UI_INPUT"
               else
                 ui_run "configure theme · ghostty" -- "$0" configure --theme "$UI_PICK"
               fi
             fi ;;
           font)
-            ui_pick "Ghostty — font family" "current: ${FONT:-default}" "" -- \
-              "MesloLGS NF" "MesloLGS NF (Powerlevel10k / Starship)" \
+            ui_pick "$(_ghostty_t pick_font)" "$(_ghostty_t current) ${FONT:-$(_ghostty_t default_val)}" "" -- \
+              "MesloLGS NF" "$(_ghostty_t font_p10k)" \
               "JetBrainsMono Nerd Font" "JetBrainsMono Nerd Font" \
               "FiraCode Nerd Font" "FiraCode Nerd Font" \
               "Hack Nerd Font" "Hack Nerd Font" \
-              "none" "System / Ghostty default" \
-              "__custom__" "Type a font family…"
+              "none" "$(_ghostty_t font_system)" \
+              "__custom__" "$(_ghostty_t type_font)"
             if [[ -n "$UI_PICK" ]]; then
               if [[ "$UI_PICK" == "__custom__" ]]; then
-                ui_input "font family" "$FONT" && \
+                ui_input "$(_ghostty_t prompt_font)" "$FONT" && \
                   ui_run "configure font · ghostty" -- "$0" configure --font "${UI_INPUT:-none}"
               else
                 ui_run "configure font · ghostty" -- "$0" configure --font "$UI_PICK"
               fi
             fi ;;
           size)
-            if ui_input "font size (6-48)" "$FONT_SIZE"; then
+            if ui_input "$(_ghostty_t prompt_size)" "$FONT_SIZE"; then
               [[ -n "$UI_INPUT" ]] && ui_run "configure size · ghostty" -- "$0" configure --size "$UI_INPUT"
             fi ;;
           opacity)
-            if ui_input "background opacity (0-1)" "$OPACITY"; then
+            if ui_input "$(_ghostty_t prompt_opacity)" "$OPACITY"; then
               [[ -n "$UI_INPUT" ]] && ui_run "configure opacity · ghostty" -- "$0" configure --opacity "$UI_INPUT"
             fi ;;
           cursor)
-            ui_pick "Ghostty — cursor style" "current: $CURSOR_STYLE" "" -- \
+            ui_pick "$(_ghostty_t pick_cursor)" "$(_ghostty_t current) $CURSOR_STYLE" "" -- \
               block "block" bar "bar" underline "underline"
             [[ -n "$UI_PICK" ]] && ui_run "configure cursor · ghostty" -- "$0" configure --cursor "$UI_PICK" ;;
           padding)
-            if ui_input "window padding (px)" "$PADDING"; then
+            if ui_input "$(_ghostty_t prompt_padding)" "$PADDING"; then
               [[ -n "$UI_INPUT" ]] && ui_run "configure padding · ghostty" -- "$0" configure --padding "$UI_INPUT"
             fi ;;
           wsize)
             local cur=""
             [[ -n "$WINDOW_WIDTH" && -n "$WINDOW_HEIGHT" ]] && cur="${WINDOW_WIDTH}x${WINDOW_HEIGHT}"
-            if ui_input "window size COLSxROWS, e.g. 120x36 (blank = default)" "$cur"; then
+            if ui_input "$(_ghostty_t prompt_wsize)" "$cur"; then
               ui_run "configure window size · ghostty" -- "$0" configure --window-size "${UI_INPUT:-auto}"
             fi ;;
           toggle-copy)    ui_run "toggle copy-on-select · ghostty" -- "$0" configure --copy-on-select "$(_ghostty_flip "$COPY_ON_SELECT")" ;;
@@ -889,7 +1018,7 @@ ui() {
               ui_run "set default terminal · ghostty" -- "$0" default-terminal
             fi ;;
           install) ui_run "$(ui_t install) Ghostty" -- "$0" install ;;
-          remove)  ui_confirm "Uninstall Ghostty? (your ~/.config/ghostty is kept)" n && ui_run "$(ui_t remove) Ghostty" -- "$0" remove ;;
+          remove)  ui_confirm "$(_ghostty_t confirm_remove)" n && ui_run "$(ui_t remove) Ghostty" -- "$0" remove ;;
         esac ;;
       q|Q|esc|backspace) break ;;
     esac

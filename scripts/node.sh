@@ -12,6 +12,26 @@ _kit_here="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # shellcheck source=../lib/common.sh
 source "$_kit_here/lib/common.sh"
 
+# --- i18n (software-specific strings) ------------------------------------------
+# Same shape as lib/ui.sh's UI_MSG/ui_t, kept local. The command names node/npm stay
+# UNtranslated; only descriptive wording is localized. Resolve with _node_t KEY.
+declare -gA NODE_I18N
+NODE_I18N[en:confirm_remove]="Uninstall Node.js + npm?"
+NODE_I18N[en:foot_install]="↑↓ move   ↵/space install   esc/q close"
+NODE_I18N[en:foot_remove]="↑↓ move   ↵/space uninstall   esc/q close"
+NODE_I18N[zh:confirm_remove]="卸载 Node.js + npm?"
+NODE_I18N[zh:foot_install]="↑↓ 移动   ↵/space 安装   esc/q 关闭"
+NODE_I18N[zh:foot_remove]="↑↓ 移动   ↵/space 卸载   esc/q 关闭"
+NODE_I18N[ja:confirm_remove]="Node.js + npm をアンインストールしますか?"
+NODE_I18N[ja:foot_install]="↑↓ 移動   ↵/space インストール   esc/q 閉じる"
+NODE_I18N[ja:foot_remove]="↑↓ 移動   ↵/space アンインストール   esc/q 閉じる"
+
+# _node_t KEY — localized Node string for $UI_LANG (en/zh/ja), fallback en -> key.
+_node_t() {
+  local lang; lang="$(ui_lang)"
+  printf '%s' "${NODE_I18N[$lang:$1]:-${NODE_I18N[en:$1]:-$1}}"
+}
+
 meta() {
   cat <<'META'
 key=node
@@ -96,8 +116,8 @@ ui() {
       esac
       (( row++ ))
     done
-    if (( installed )); then ui_footer "↑↓ move   ↵/space uninstall   esc/q close"
-    else ui_footer "↑↓ move   ↵/space install   esc/q close"; fi
+    if (( installed )); then ui_footer "$(_node_t foot_remove)"
+    else ui_footer "$(_node_t foot_install)"; fi
 
     # ---- input ----
     ui_read_key
@@ -107,7 +127,7 @@ ui() {
       enter|space)
         case "${dkind[$sel]}" in
           install) ui_run "$(ui_t install) Node.js + npm" -- "$0" install ;;
-          remove)  ui_confirm "Uninstall Node.js + npm?" n && ui_run "$(ui_t remove) Node.js + npm" -- "$0" remove ;;
+          remove)  ui_confirm "$(_node_t confirm_remove)" n && ui_run "$(ui_t remove) Node.js + npm" -- "$0" remove ;;
         esac ;;
       q|Q|esc|backspace) break ;;
     esac

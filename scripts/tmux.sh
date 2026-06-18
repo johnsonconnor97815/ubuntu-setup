@@ -362,6 +362,65 @@ TMUX_I18N[ja:theme:dracula]="鮮やかなアクセントの暗色テーマ"
 TMUX_I18N[ja:theme:themepack]="powerline 風テーマパック"
 TMUX_I18N[ja:theme:gruvbox]="レトロで温かみのある配色"
 TMUX_I18N[ja:theme:tokyo-night]="モダンな青系ナイトテーマ"
+# -- ui chrome: footer / picker titles / input prompts / confirms (English) --
+# Software name "tmux", config values (top/bottom, vi/emacs, flavor names), key names and
+# examples (C-a, 'default', '\ |') are never translated — only the descriptive prose is.
+TMUX_I18N[en:foot_installed]="↑↓ move   ↵/space toggle·edit   a add-plugin   esc/q close"
+TMUX_I18N[en:foot_uninstalled]="↑↓ move   ↵/space install   esc/q close"
+TMUX_I18N[en:current]="current:"
+TMUX_I18N[en:flavor]="flavor"
+TMUX_I18N[en:pick_theme]="tmux — theme"
+TMUX_I18N[en:pick_status_pos]="tmux — status bar position"
+TMUX_I18N[en:pick_copymode]="tmux — copy mode keys"
+TMUX_I18N[en:confirm_remove]="Uninstall tmux? (apt remove — your ~/.tmux.conf and plugins are kept)"
+TMUX_I18N[en:confirm_remove_tpm]="Remove TPM? (disables managed plugins; clones are kept)"
+TMUX_I18N[en:in_plugin]="owner/repo or git URL"
+TMUX_I18N[en:in_status_interval]="status bar refresh (seconds)"
+TMUX_I18N[en:in_prefix]="prefix key (e.g. C-a; 'default' = C-b)"
+TMUX_I18N[en:in_copymode_key]="copy-mode key — chord e.g. C-Space (direct), plain key e.g. v (prefix+key), 'default' = ["
+TMUX_I18N[en:in_tree_key]="window-tree key — chord e.g. C-Enter (direct), plain key e.g. w (prefix+key), 'default' = w"
+TMUX_I18N[en:in_split_h]="horizontal-split key(s) (-h, side by side; space-separated, e.g. '\\ |'; ergonomic keys must be on)"
+TMUX_I18N[en:in_split_v]="vertical-split key(s) (-v, stacked; space-separated, e.g. '- _'; ergonomic keys must be on)"
+TMUX_I18N[en:in_history]="scrollback lines"
+TMUX_I18N[en:in_escape_time]="escape-time ms (10 is good for vim/neovim)"
+# -- ui chrome (简体中文) --
+TMUX_I18N[zh:foot_installed]="↑↓ 移动   ↵/space 切换·编辑   a 加插件   esc/q 关闭"
+TMUX_I18N[zh:foot_uninstalled]="↑↓ 移动   ↵/space 安装   esc/q 关闭"
+TMUX_I18N[zh:current]="当前:"
+TMUX_I18N[zh:flavor]="配色"
+TMUX_I18N[zh:pick_theme]="tmux — 主题"
+TMUX_I18N[zh:pick_status_pos]="tmux — 状态栏位置"
+TMUX_I18N[zh:pick_copymode]="tmux — 复制模式键位"
+TMUX_I18N[zh:confirm_remove]="卸载 tmux?(apt remove — 保留你的 ~/.tmux.conf 和插件)"
+TMUX_I18N[zh:confirm_remove_tpm]="移除 TPM?(停用受管插件;保留已克隆的插件)"
+TMUX_I18N[zh:in_plugin]="owner/repo 或 git URL"
+TMUX_I18N[zh:in_status_interval]="状态栏刷新间隔(秒)"
+TMUX_I18N[zh:in_prefix]="prefix 键(例: C-a;'default' = C-b)"
+TMUX_I18N[zh:in_copymode_key]="复制模式键 — 组合键如 C-Space(直达),普通键如 v(prefix+键),'default' = ["
+TMUX_I18N[zh:in_tree_key]="窗口树键 — 组合键如 C-Enter(直达),普通键如 w(prefix+键),'default' = w"
+TMUX_I18N[zh:in_split_h]="水平分屏键(-h,左右并排;空格分隔,如 '\\ |';需先开启人体工学键位)"
+TMUX_I18N[zh:in_split_v]="垂直分屏键(-v,上下堆叠;空格分隔,如 '- _';需先开启人体工学键位)"
+TMUX_I18N[zh:in_history]="回滚行数"
+TMUX_I18N[zh:in_escape_time]="escape-time 毫秒(vim/neovim 建议 10)"
+# -- ui chrome (日本語) --
+TMUX_I18N[ja:foot_installed]="↑↓ 移動   ↵/space 切替·編集   a プラグイン追加   esc/q 閉じる"
+TMUX_I18N[ja:foot_uninstalled]="↑↓ 移動   ↵/space インストール   esc/q 閉じる"
+TMUX_I18N[ja:current]="現在:"
+TMUX_I18N[ja:flavor]="フレーバー"
+TMUX_I18N[ja:pick_theme]="tmux — テーマ"
+TMUX_I18N[ja:pick_status_pos]="tmux — ステータスバー位置"
+TMUX_I18N[ja:pick_copymode]="tmux — コピーモードのキー"
+TMUX_I18N[ja:confirm_remove]="tmux をアンインストールしますか?(apt remove — ~/.tmux.conf とプラグインは保持)"
+TMUX_I18N[ja:confirm_remove_tpm]="TPM を削除しますか?(管理対象プラグインを無効化;クローンは保持)"
+TMUX_I18N[ja:in_plugin]="owner/repo または git URL"
+TMUX_I18N[ja:in_status_interval]="ステータスバーの更新間隔(秒)"
+TMUX_I18N[ja:in_prefix]="prefix キー(例: C-a;'default' = C-b)"
+TMUX_I18N[ja:in_copymode_key]="コピーモードのキー — 和音キー例 C-Space(直接)、通常キー例 v(prefix+キー)、'default' = ["
+TMUX_I18N[ja:in_tree_key]="ウィンドウツリーのキー — 和音キー例 C-Enter(直接)、通常キー例 w(prefix+キー)、'default' = w"
+TMUX_I18N[ja:in_split_h]="水平分割キー(-h、左右に並ぶ;スペース区切り、例 '\\ |';エルゴノミクスキーを先に有効化)"
+TMUX_I18N[ja:in_split_v]="垂直分割キー(-v、上下に重なる;スペース区切り、例 '- _';エルゴノミクスキーを先に有効化)"
+TMUX_I18N[ja:in_history]="スクロールバックの行数"
+TMUX_I18N[ja:in_escape_time]="escape-time ミリ秒(vim/neovim には 10 が良い)"
 
 # Resolve the localized language code (en/zh/ja) for the I18N lookups; unknown -> en.
 _tmux_lang() { local l="${UI_LANG:-en}"; case "$l" in en|zh|ja) printf '%s' "$l" ;; *) printf 'en' ;; esac; }
@@ -376,6 +435,14 @@ _tmux_known_desc() {
 _tmux_theme_desc() {
   local lang; lang="$(_tmux_lang)"
   printf '%s' "${TMUX_I18N[$lang:theme:$1]:-${TMUX_I18N[en:theme:$1]:-}}"
+}
+
+# A localized ui-chrome string (footer / picker title / input prompt / confirm). Mirrors
+# _ghostty_t / ui_t: falls back to English then to the key itself (never empty, unlike the
+# desc helpers above), so a missing translation degrades to readable English.
+_tmux_t() {
+  local lang; lang="$(_tmux_lang)"
+  printf '%s' "${TMUX_I18N[$lang:$1]:-${TMUX_I18N[en:$1]:-$1}}"
 }
 
 # Resolve a plugin key to the spec TPM understands (curated -> owner/repo; else the key is
@@ -1174,8 +1241,8 @@ ui() {
     local more=""
     (( top > 0 )) && more="↑ "
     (( top + avail < n )) && more="${more}↓ "
-    if (( installed )); then ui_footer "${more}↑↓ move   ↵/space toggle·edit   a add-plugin   esc/q close"
-    else ui_footer "↑↓ move   ↵/space install   esc/q close"; fi
+    if (( installed )); then ui_footer "${more}$(_tmux_t foot_installed)"
+    else ui_footer "$(_tmux_t foot_uninstalled)"; fi
 
     # ---- input ----
     ui_read_key
@@ -1183,21 +1250,21 @@ ui() {
       up|k)   for (( g=0; g<n; g++ )); do sel=$(( (sel-1+n)%n )); case "${dkind[$sel]}" in note|spacer|header) ;; *) break ;; esac; done ;;
       down|j) for (( g=0; g<n; g++ )); do sel=$(( (sel+1)%n ));   case "${dkind[$sel]}" in note|spacer|header) ;; *) break ;; esac; done ;;
       a|A)
-        if (( installed )) && ui_input "owner/repo or git URL" ""; then
+        if (( installed )) && ui_input "$(_tmux_t in_plugin)" ""; then
           [[ -n "$UI_INPUT" ]] && ui_run "add-plugin · tmux" -- "$0" add-plugin "$UI_INPUT"
         fi ;;
       enter|space)
         case "${dkind[$sel]}" in
           install) ui_run "$(ui_t install) tmux" -- "$0" install ;;
-          remove)  ui_confirm "Uninstall tmux? (apt remove — your ~/.tmux.conf and plugins are kept)" n && ui_run "$(ui_t remove) tmux" -- "$0" remove ;;
+          remove)  ui_confirm "$(_tmux_t confirm_remove)" n && ui_run "$(ui_t remove) tmux" -- "$0" remove ;;
           tpm)
             if (( tpm )); then
-              ui_confirm "Remove TPM? (disables managed plugins; clones are kept)" n && ui_run "uninstall-tpm · tmux" -- "$0" uninstall-tpm
+              ui_confirm "$(_tmux_t confirm_remove_tpm)" n && ui_run "uninstall-tpm · tmux" -- "$0" uninstall-tpm
             else
               ui_run "install-tpm · tmux" -- "$0" install-tpm
             fi ;;
           theme)
-            ui_pick "tmux — theme" "current: $THEME" "" -- \
+            ui_pick "$(_tmux_t pick_theme)" "$(_tmux_t current) $THEME" "" -- \
               none "$(_tmux_theme_desc none)" \
               catppuccin "Catppuccin — $(_tmux_theme_desc catppuccin)" \
               dracula "Dracula — $(_tmux_theme_desc dracula)" \
@@ -1207,15 +1274,15 @@ ui() {
             if [[ -n "$UI_PICK" ]]; then
               case "$UI_PICK" in
                 catppuccin)
-                  ui_pick "Catppuccin flavor" "current: $THEME_FLAVOR" "" -- \
+                  ui_pick "Catppuccin $(_tmux_t flavor)" "$(_tmux_t current) $THEME_FLAVOR" "" -- \
                     mocha "Mocha (dark)" macchiato "Macchiato" frappe "Frappe" latte "Latte (light)"
                   [[ -n "$UI_PICK" ]] && ui_run "theme catppuccin $UI_PICK · tmux" -- "$0" theme catppuccin "$UI_PICK" ;;
                 gruvbox)
-                  ui_pick "Gruvbox flavor" "current: $THEME_FLAVOR" "" -- \
+                  ui_pick "Gruvbox $(_tmux_t flavor)" "$(_tmux_t current) $THEME_FLAVOR" "" -- \
                     dark "Dark (16-color)" dark256 "Dark (256)" light "Light (16-color)" light256 "Light (256)"
                   [[ -n "$UI_PICK" ]] && ui_run "theme gruvbox $UI_PICK · tmux" -- "$0" theme gruvbox "$UI_PICK" ;;
                 tokyo-night)
-                  ui_pick "Tokyo Night flavor" "current: $THEME_FLAVOR" "" -- \
+                  ui_pick "Tokyo Night $(_tmux_t flavor)" "$(_tmux_t current) $THEME_FLAVOR" "" -- \
                     night "Night (default)" storm "Storm" day "Day (light)"
                   [[ -n "$UI_PICK" ]] && ui_run "theme tokyo-night $UI_PICK · tmux" -- "$0" theme tokyo-night "$UI_PICK" ;;
                 *)
@@ -1223,41 +1290,41 @@ ui() {
               esac
             fi ;;
           statuspos)
-            ui_pick "tmux — status bar position" "current: $STATUS_POSITION" "" -- top "top" bottom "bottom"
+            ui_pick "$(_tmux_t pick_status_pos)" "$(_tmux_t current) $STATUS_POSITION" "" -- top "top" bottom "bottom"
             [[ -n "$UI_PICK" ]] && ui_run "status-position $UI_PICK · tmux" -- "$0" configure --status-position "$UI_PICK" ;;
           statusint)
-            if ui_input "status bar refresh (seconds)" "$STATUS_INTERVAL"; then
+            if ui_input "$(_tmux_t in_status_interval)" "$STATUS_INTERVAL"; then
               [[ -n "$UI_INPUT" ]] && ui_run "status-interval · tmux" -- "$0" configure --status-interval "$UI_INPUT"
             fi ;;
           keymode)
-            ui_pick "tmux — copy mode keys" "current: $KEYMODE" "" -- vi "vi" emacs "emacs"
+            ui_pick "$(_tmux_t pick_copymode)" "$(_tmux_t current) $KEYMODE" "" -- vi "vi" emacs "emacs"
             [[ -n "$UI_PICK" ]] && ui_run "keymode $UI_PICK · tmux" -- "$0" configure --keymode "$UI_PICK" ;;
           prefix)
-            if ui_input "prefix key (e.g. C-a; 'default' = C-b)" "$PREFIX"; then
+            if ui_input "$(_tmux_t in_prefix)" "$PREFIX"; then
               [[ -n "$UI_INPUT" ]] && ui_run "prefix $UI_INPUT · tmux" -- "$0" configure --prefix "$UI_INPUT"
             fi ;;
           copymodekey)
-            if ui_input "copy-mode key — chord e.g. C-Space (direct), plain key e.g. v (prefix+key), 'default' = [" "$COPY_MODE_KEY"; then
+            if ui_input "$(_tmux_t in_copymode_key)" "$COPY_MODE_KEY"; then
               [[ -n "$UI_INPUT" ]] && ui_run "copy-mode key · tmux" -- "$0" configure --copy-mode-key "$UI_INPUT"
             fi ;;
           treekey)
-            if ui_input "window-tree key — chord e.g. C-Enter (direct), plain key e.g. w (prefix+key), 'default' = w" "$TREE_KEY"; then
+            if ui_input "$(_tmux_t in_tree_key)" "$TREE_KEY"; then
               [[ -n "$UI_INPUT" ]] && ui_run "window-tree key · tmux" -- "$0" configure --tree-key "$UI_INPUT"
             fi ;;
           splith)
-            if ui_input "horizontal-split key(s) (-h, side by side; space-separated, e.g. '\\ |'; ergonomic keys must be on)" "$SPLIT_H_KEY"; then
+            if ui_input "$(_tmux_t in_split_h)" "$SPLIT_H_KEY"; then
               [[ -n "$UI_INPUT" ]] && ui_run "split-h key · tmux" -- "$0" configure --split-h "$UI_INPUT"
             fi ;;
           splitv)
-            if ui_input "vertical-split key(s) (-v, stacked; space-separated, e.g. '- _'; ergonomic keys must be on)" "$SPLIT_V_KEY"; then
+            if ui_input "$(_tmux_t in_split_v)" "$SPLIT_V_KEY"; then
               [[ -n "$UI_INPUT" ]] && ui_run "split-v key · tmux" -- "$0" configure --split-v "$UI_INPUT"
             fi ;;
           history)
-            if ui_input "scrollback lines" "$HISTORY"; then
+            if ui_input "$(_tmux_t in_history)" "$HISTORY"; then
               [[ -n "$UI_INPUT" ]] && ui_run "history-limit · tmux" -- "$0" configure --history "$UI_INPUT"
             fi ;;
           escape)
-            if ui_input "escape-time ms (10 is good for vim/neovim)" "$ESCAPE_TIME"; then
+            if ui_input "$(_tmux_t in_escape_time)" "$ESCAPE_TIME"; then
               [[ -n "$UI_INPUT" ]] && ui_run "escape-time · tmux" -- "$0" configure --escape-time "$UI_INPUT"
             fi ;;
           toggle)
@@ -1271,7 +1338,7 @@ ui() {
             if _tmux_list_has "$pn" "$PLUGINS"; then ui_run "remove-plugin $pn · tmux" -- "$0" remove-plugin "$pn"
             else ui_run "add-plugin $pn · tmux" -- "$0" add-plugin "$pn"; fi ;;
           plugin_add)
-            if ui_input "owner/repo or git URL" ""; then
+            if ui_input "$(_tmux_t in_plugin)" ""; then
               [[ -n "$UI_INPUT" ]] && ui_run "add-plugin · tmux" -- "$0" add-plugin "$UI_INPUT"
             fi ;;
           apply)  ui_run "apply config · tmux" -- "$0" configure ;;

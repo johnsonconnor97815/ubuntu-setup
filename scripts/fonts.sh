@@ -40,6 +40,75 @@ readonly FONTS_DEFAULT_NAME="meslolgs"
 readonly FONTS_DEFAULT_SIZE="12"
 readonly FONTS_DEFAULT_TARGET="auto"
 
+# --- i18n (software-specific strings) ------------------------------------------
+# Same shape as lib/ui.sh's UI_MSG/ui_t, kept local. Proper nouns stay UNtranslated: font
+# family names (MesloLGS NF, …), terminal names (Ptyxis / GNOME Terminal), target KEYS
+# (auto/ptyxis/…). Only descriptive/operational wording is localized — including the apply
+# target *labels* (target:*), which ui()/configure render from here. Resolve with _fonts_t KEY.
+declare -gA FONTS_I18N
+# Rows / headers / status tags / hints
+FONTS_I18N[en:note]="Apply writes user-level local terminal settings; over SSH, configure the client terminal too."
+FONTS_I18N[en:selected]="Selected"
+FONTS_I18N[en:size]="Size"
+FONTS_I18N[en:apply_to]="Apply to"
+FONTS_I18N[en:apply_selected]="Apply selected font"
+FONTS_I18N[en:installed_fonts]="Installed fonts"
+FONTS_I18N[en:tag_selected]="selected"
+FONTS_I18N[en:foot_main]="↑↓ move   ↵/space edit·toggle   a apply   esc/q close"
+# Prompts / pickers / confirms
+FONTS_I18N[en:current]="current:"
+FONTS_I18N[en:pick_font]="Nerd Fonts — selected font"
+FONTS_I18N[en:prompt_size]="font size (6-48)"
+FONTS_I18N[en:pick_target]="Nerd Fonts — apply target"
+FONTS_I18N[en:confirm_remove]="Remove {X}?"
+# Apply-target labels
+FONTS_I18N[en:target:auto]="auto (detected local terminals)"
+FONTS_I18N[en:target:auto_long]="auto (Ptyxis / GNOME Terminal / GNOME desktop if detected)"
+FONTS_I18N[en:target:gnome-desktop]="GNOME desktop monospace"
+FONTS_I18N[en:target:instructions]="instructions only"
+
+FONTS_I18N[zh:note]="应用会写入用户级的本地终端设置;SSH 时也要在客户端终端配置。"
+FONTS_I18N[zh:selected]="已选字体"
+FONTS_I18N[zh:size]="字号"
+FONTS_I18N[zh:apply_to]="应用到"
+FONTS_I18N[zh:apply_selected]="应用所选字体"
+FONTS_I18N[zh:installed_fonts]="已安装字体"
+FONTS_I18N[zh:tag_selected]="已选"
+FONTS_I18N[zh:foot_main]="↑↓ 移动   ↵/space 编辑·切换   a 应用   esc/q 关闭"
+FONTS_I18N[zh:current]="当前:"
+FONTS_I18N[zh:pick_font]="Nerd Fonts — 选择字体"
+FONTS_I18N[zh:prompt_size]="字号(6-48)"
+FONTS_I18N[zh:pick_target]="Nerd Fonts — 应用目标"
+FONTS_I18N[zh:confirm_remove]="移除 {X}?"
+FONTS_I18N[zh:target:auto]="auto(检测到的本地终端)"
+FONTS_I18N[zh:target:auto_long]="auto(若检测到 Ptyxis / GNOME Terminal / GNOME 桌面)"
+FONTS_I18N[zh:target:gnome-desktop]="GNOME 桌面等宽字体"
+FONTS_I18N[zh:target:instructions]="仅显示指引"
+
+FONTS_I18N[ja:note]="適用はユーザーレベルのローカル端末設定を書き込みます。SSH 経由ではクライアント端末も設定してください。"
+FONTS_I18N[ja:selected]="選択中"
+FONTS_I18N[ja:size]="サイズ"
+FONTS_I18N[ja:apply_to]="適用先"
+FONTS_I18N[ja:apply_selected]="選択したフォントを適用"
+FONTS_I18N[ja:installed_fonts]="インストール済みフォント"
+FONTS_I18N[ja:tag_selected]="選択中"
+FONTS_I18N[ja:foot_main]="↑↓ 移動   ↵/space 編集·切替   a 適用   esc/q 閉じる"
+FONTS_I18N[ja:current]="現在:"
+FONTS_I18N[ja:pick_font]="Nerd Fonts — フォントを選択"
+FONTS_I18N[ja:prompt_size]="フォントサイズ(6-48)"
+FONTS_I18N[ja:pick_target]="Nerd Fonts — 適用先"
+FONTS_I18N[ja:confirm_remove]="{X} を削除しますか?"
+FONTS_I18N[ja:target:auto]="auto(検出されたローカル端末)"
+FONTS_I18N[ja:target:auto_long]="auto(Ptyxis / GNOME Terminal / GNOME デスクトップを検出した場合)"
+FONTS_I18N[ja:target:gnome-desktop]="GNOME デスクトップの等幅"
+FONTS_I18N[ja:target:instructions]="指示のみ"
+
+# _fonts_t KEY — localized fonts string for $UI_LANG (en/zh/ja), fallback en -> key.
+_fonts_t() {
+  local lang; lang="$(ui_lang)"
+  printf '%s' "${FONTS_I18N[$lang:$1]:-${FONTS_I18N[en:$1]:-$1}}"
+}
+
 meta() {
   cat <<'META'
 key=fonts
@@ -90,11 +159,11 @@ _font_target_known() { local t; for t in $FONTS_TARGETS; do [[ "$t" == "$1" ]] &
 
 _font_target_label() {
   case "$1" in
-    auto)           printf 'auto (detected local terminals)' ;;
+    auto)           _fonts_t target:auto ;;
     ptyxis)         printf 'Ptyxis' ;;
     gnome-terminal) printf 'GNOME Terminal' ;;
-    gnome-desktop)  printf 'GNOME desktop monospace' ;;
-    instructions)   printf 'instructions only' ;;
+    gnome-desktop)  _fonts_t target:gnome-desktop ;;
+    instructions)   _fonts_t target:instructions ;;
     *)              printf '%s' "$1" ;;
   esac
 }
@@ -495,24 +564,24 @@ ui() {
     local -a dkind=() did=() dlabel=()
     local selected="$FONT_SELECTED" size="$FONT_SIZE" target="$FONT_TARGET" selected_state
     if _font_installed "$selected" 2>/dev/null; then selected_state="$(ui_badge installed)"; else selected_state="$(ui_badge missing)"; fi
-    dkind+=(note);   did+=(""); dlabel+=("Apply writes user-level local terminal settings; over SSH, configure the client terminal too.")
+    dkind+=(note);   did+=(""); dlabel+=("$(_fonts_t note)")
     dkind+=(spacer); did+=(""); dlabel+=("")
     dkind+=(select-font); did+=(select-font)
-    dlabel+=("$(printf '%-13s %s %s%s%s  %s' 'Selected' "$selected_state" "$UI_INFO" "$(_font_family "$selected")" "$UI_OFF" "$UI_ARROW")")
+    dlabel+=("$(printf '%-13s %s %s%s%s  %s' "$(_fonts_t selected)" "$selected_state" "$UI_INFO" "$(_font_family "$selected")" "$UI_OFF" "$UI_ARROW")")
     dkind+=(size); did+=(size)
-    dlabel+=("$(printf '%-13s %spt  %s' 'Size' "$size" "$UI_ARROW")")
+    dlabel+=("$(printf '%-13s %spt  %s' "$(_fonts_t size)" "$size" "$UI_ARROW")")
     dkind+=(target); did+=(target)
-    dlabel+=("$(printf '%-13s %s  %s' 'Apply to' "$(_font_target_label "$target")" "$UI_ARROW")")
+    dlabel+=("$(printf '%-13s %s  %s' "$(_fonts_t apply_to)" "$(_font_target_label "$target")" "$UI_ARROW")")
     dkind+=(apply); did+=(apply)
-    dlabel+=("$(ui_badge check) Apply selected font")
+    dlabel+=("$(ui_badge check) $(_fonts_t apply_selected)")
     dkind+=(spacer); did+=(""); dlabel+=("")
-    dkind+=(header); did+=(""); dlabel+=("Installed fonts")
+    dkind+=(header); did+=(""); dlabel+=("$(_fonts_t installed_fonts)")
     local f fam on
     for f in "${known[@]}"; do
       local mark=""
       fam="$(_font_family "$f")"
       on=0; _font_installed "$f" 2>/dev/null && on=1
-      [[ "$f" == "$selected" ]] && mark=" ${UI_INFO}(selected)${UI_OFF}"
+      [[ "$f" == "$selected" ]] && mark=" ${UI_INFO}($(_fonts_t tag_selected))${UI_OFF}"
       dkind+=(font); did+=("$f")
       if (( on )); then dlabel+=("  ${UI_OK}${UI_CHK_ON}${UI_OFF} $fam$mark")
       else dlabel+=("  ${UI_MUTED}${UI_CHK_OFF}${UI_OFF} $fam$mark"); fi
@@ -536,7 +605,7 @@ ui() {
       esac
       (( row++ ))
     done
-    ui_footer "↑↓ move   ↵/space edit·toggle   a apply   esc/q close"
+    ui_footer "$(_fonts_t foot_main)"
 
     # ---- input ----
     ui_read_key
@@ -547,26 +616,27 @@ ui() {
       enter|space)
         case "${dkind[$sel]}" in
           select-font)
-            ui_pick "Nerd Fonts — selected font" "current: $(_font_family "$selected")" "" -- \
+            ui_pick "$(_fonts_t pick_font)" "$(_fonts_t current) $(_font_family "$selected")" "" -- \
               meslolgs "MesloLGS NF" jetbrains-mono "JetBrainsMono Nerd Font" \
               firacode "FiraCode Nerd Font" hack "Hack Nerd Font"
             [[ -n "$UI_PICK" ]] && ui_run "configure font $UI_PICK · fonts" -- "$0" configure --font "$UI_PICK" --no-apply ;;
           size)
-            if ui_input "font size (6-48)" "$size"; then
+            if ui_input "$(_fonts_t prompt_size)" "$size"; then
               [[ -n "$UI_INPUT" ]] && ui_run "configure size $UI_INPUT · fonts" -- "$0" configure --size "$UI_INPUT" --no-apply
             fi ;;
           target)
-            ui_pick "Nerd Fonts — apply target" "current: $(_font_target_label "$target")" "" -- \
-              auto "auto (Ptyxis / GNOME Terminal / GNOME desktop if detected)" \
+            ui_pick "$(_fonts_t pick_target)" "$(_fonts_t current) $(_font_target_label "$target")" "" -- \
+              auto "$(_fonts_t target:auto_long)" \
               ptyxis "Ptyxis" gnome-terminal "GNOME Terminal" \
-              gnome-desktop "GNOME desktop monospace" instructions "instructions only"
+              gnome-desktop "$(_fonts_t target:gnome-desktop)" instructions "$(_fonts_t target:instructions)"
             [[ -n "$UI_PICK" ]] && ui_run "configure target $UI_PICK · fonts" -- "$0" configure --target "$UI_PICK" --no-apply ;;
           apply)
             ui_run "apply $selected · fonts" -- "$0" apply "$selected" "$size" "$target" ;;
           font)
             local fk="${did[$sel]}"
             if _font_installed "$fk" 2>/dev/null; then
-              ui_confirm "Remove $(_font_family "$fk")?" n && ui_run "remove $fk · fonts" -- "$0" remove "$fk"
+              local _rm_q; _rm_q="$(_fonts_t confirm_remove)"; _rm_q="${_rm_q//\{X\}/$(_font_family "$fk")}"
+              ui_confirm "$_rm_q" n && ui_run "remove $fk · fonts" -- "$0" remove "$fk"
             else
               ui_run "install $fk · fonts" -- "$0" install "$fk"
             fi ;;

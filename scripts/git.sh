@@ -12,6 +12,33 @@ _kit_here="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # shellcheck source=../lib/common.sh
 source "$_kit_here/lib/common.sh"
 
+# --- i18n (software-specific strings) ------------------------------------------
+# Same shape as lib/ui.sh's UI_MSG/ui_t, kept local. The git config keys (user.name /
+# user.email) are literals and stay UNtranslated; only descriptive wording is localized.
+# Resolve with _git_t KEY (fallback en -> key, like ui_t).
+declare -gA GIT_I18N
+GIT_I18N[en:identity]="Identity"
+GIT_I18N[en:set_identity]="Set identity (name + email)"
+GIT_I18N[en:unset]="<unset>"
+GIT_I18N[en:confirm_remove]="Uninstall git? (apt remove — your config is kept)"
+GIT_I18N[en:foot_main]="↑↓ move   ↵/space select   esc/q close"
+GIT_I18N[zh:identity]="身份"
+GIT_I18N[zh:set_identity]="设置身份(姓名 + 邮箱)"
+GIT_I18N[zh:unset]="<未设置>"
+GIT_I18N[zh:confirm_remove]="卸载 git?(apt remove — 保留你的配置)"
+GIT_I18N[zh:foot_main]="↑↓ 移动   ↵/space 选择   esc/q 关闭"
+GIT_I18N[ja:identity]="ID 情報"
+GIT_I18N[ja:set_identity]="ID を設定(名前 + メール)"
+GIT_I18N[ja:unset]="<未設定>"
+GIT_I18N[ja:confirm_remove]="git をアンインストールしますか?(apt remove — 設定は保持)"
+GIT_I18N[ja:foot_main]="↑↓ 移動   ↵/space 選択   esc/q 閉じる"
+
+# _git_t KEY — localized git string for $UI_LANG (en/zh/ja), fallback en -> key.
+_git_t() {
+  local lang; lang="$(ui_lang)"
+  printf '%s' "${GIT_I18N[$lang:$1]:-${GIT_I18N[en:$1]:-$1}}"
+}
+
 meta() {
   cat <<'META'
 key=git
@@ -112,11 +139,11 @@ ui() {
     if (( ! installed )); then
       dkind+=(install); did+=(install); dlabel+=("$(ui_badge missing) $(ui_t install) git")
     else
-      dkind+=(header);  did+=("");       dlabel+=("Identity")
-      dkind+=(status);  did+=("");       dlabel+=("$(printf '%-13s %s' 'user.name'  "${UI_INFO}${cur_name:-<unset>}${UI_OFF}")")
-      dkind+=(status);  did+=("");       dlabel+=("$(printf '%-13s %s' 'user.email' "${UI_INFO}${cur_email:-<unset>}${UI_OFF}")")
+      dkind+=(header);  did+=("");       dlabel+=("$(_git_t identity)")
+      dkind+=(status);  did+=("");       dlabel+=("$(printf '%-13s %s' 'user.name'  "${UI_INFO}${cur_name:-$(_git_t unset)}${UI_OFF}")")
+      dkind+=(status);  did+=("");       dlabel+=("$(printf '%-13s %s' 'user.email' "${UI_INFO}${cur_email:-$(_git_t unset)}${UI_OFF}")")
       dkind+=(spacer);  did+=("");       dlabel+=("")
-      dkind+=(identity); did+=(identity); dlabel+=("$(ui_badge check) Set identity (name + email)  $UI_ARROW")
+      dkind+=(identity); did+=(identity); dlabel+=("$(ui_badge check) $(_git_t set_identity)  $UI_ARROW")
       dkind+=(spacer);  did+=("");       dlabel+=("")
       dkind+=(remove);  did+=(remove);   dlabel+=("${UI_ERR}${UI_CROSS}${UI_OFF} $(ui_t remove) git")
     fi
@@ -140,7 +167,7 @@ ui() {
       esac
       (( row++ ))
     done
-    ui_footer "↑↓ move   ↵/space select   esc/q close"
+    ui_footer "$(_git_t foot_main)"
 
     # ---- input ----
     ui_read_key
@@ -150,7 +177,7 @@ ui() {
       enter|space)
         case "${dkind[$sel]}" in
           install) ui_run "$(ui_t install) git" -- "$0" install ;;
-          remove)  ui_confirm "Uninstall git? (apt remove — your config is kept)" n && ui_run "$(ui_t remove) git" -- "$0" remove ;;
+          remove)  ui_confirm "$(_git_t confirm_remove)" n && ui_run "$(ui_t remove) git" -- "$0" remove ;;
           identity)
             local new_name="" new_email=""
             ui_input "user.name"  "$cur_name"  && new_name="$UI_INPUT"

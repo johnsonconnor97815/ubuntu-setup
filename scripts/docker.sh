@@ -11,6 +11,42 @@ _kit_here="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # shellcheck source=../lib/common.sh
 source "$_kit_here/lib/common.sh"
 
+# --- i18n (software-specific strings) ------------------------------------------
+# Same shape as lib/ui.sh's UI_MSG/ui_t, kept local. Proper nouns stay UNtranslated
+# ("Docker", the literal "docker" group name, "systemctl"); only descriptive wording is
+# localized. Resolve with _docker_t KEY (fallback en -> key, like ui_t).
+declare -gA DOCKER_I18N
+DOCKER_I18N[en:runtime_suffix]="Docker — container runtime"
+DOCKER_I18N[en:status]="Status"
+DOCKER_I18N[en:docker_group]="docker group"
+DOCKER_I18N[en:service]="service"
+DOCKER_I18N[en:no_systemctl]="(no systemctl)"
+DOCKER_I18N[en:configure_row]="add you to the docker group + enable/start service"
+DOCKER_I18N[en:confirm_remove]="Uninstall Docker? (apt remove docker.io — keeps your data)"
+DOCKER_I18N[en:foot_main]="↑↓ move   ↵/space select   esc/q close"
+DOCKER_I18N[zh:runtime_suffix]="Docker — 容器运行时"
+DOCKER_I18N[zh:status]="状态"
+DOCKER_I18N[zh:docker_group]="docker 组"
+DOCKER_I18N[zh:service]="服务"
+DOCKER_I18N[zh:no_systemctl]="(无 systemctl)"
+DOCKER_I18N[zh:configure_row]="把你加入 docker 组 + 启用/启动服务"
+DOCKER_I18N[zh:confirm_remove]="卸载 Docker?(apt remove docker.io — 保留你的数据)"
+DOCKER_I18N[zh:foot_main]="↑↓ 移动   ↵/space 选择   esc/q 关闭"
+DOCKER_I18N[ja:runtime_suffix]="Docker — コンテナランタイム"
+DOCKER_I18N[ja:status]="状態"
+DOCKER_I18N[ja:docker_group]="docker グループ"
+DOCKER_I18N[ja:service]="サービス"
+DOCKER_I18N[ja:no_systemctl]="(systemctl なし)"
+DOCKER_I18N[ja:configure_row]="あなたを docker グループに追加 + サービスを有効化/起動"
+DOCKER_I18N[ja:confirm_remove]="Docker をアンインストールしますか?(apt remove docker.io — データは保持)"
+DOCKER_I18N[ja:foot_main]="↑↓ 移動   ↵/space 選択   esc/q 閉じる"
+
+# _docker_t KEY — localized Docker string for $UI_LANG (en/zh/ja), fallback en -> key.
+_docker_t() {
+  local lang; lang="$(ui_lang)"
+  printf '%s' "${DOCKER_I18N[$lang:$1]:-${DOCKER_I18N[en:$1]:-$1}}"
+}
+
 meta() {
   cat <<'META'
 key=docker
@@ -95,21 +131,21 @@ ui() {
     # ---- build display rows (parallel arrays: kind / id / label) ----
     local -a dkind=() did=() dlabel=()
     if (( ! installed )); then
-      dkind+=(install); did+=(install); dlabel+=("$(ui_badge missing) $(ui_t install) Docker — container runtime")
+      dkind+=(install); did+=(install); dlabel+=("$(ui_badge missing) $(ui_t install) $(_docker_t runtime_suffix)")
     else
       # Status panel (non-selectable info rows).
-      dkind+=(header); did+=(""); dlabel+=("Status")
+      dkind+=(header); did+=(""); dlabel+=("$(_docker_t status)")
       local grp_badge svc_badge
       if (( in_group )); then grp_badge="$(ui_badge active)"; else grp_badge="$(ui_badge inactive)"; fi
-      dkind+=(info); did+=(""); dlabel+=("$(printf '  %-13s %s %s' "docker group" "$grp_badge" "${UI_MUTED}$user${UI_OFF}")")
+      dkind+=(info); did+=(""); dlabel+=("$(printf '  %-13s %s %s' "$(_docker_t docker_group)" "$grp_badge" "${UI_MUTED}$user${UI_OFF}")")
       if (( svc_known )); then
         if (( svc_active )); then svc_badge="$(ui_badge active)"; else svc_badge="$(ui_badge inactive)"; fi
       else
-        svc_badge="$(ui_badge inactive) ${UI_MUTED}(no systemctl)${UI_OFF}"
+        svc_badge="$(ui_badge inactive) ${UI_MUTED}$(_docker_t no_systemctl)${UI_OFF}"
       fi
-      dkind+=(info); did+=(""); dlabel+=("$(printf '  %-13s %s' "service" "$svc_badge")")
+      dkind+=(info); did+=(""); dlabel+=("$(printf '  %-13s %s' "$(_docker_t service)" "$svc_badge")")
       dkind+=(spacer); did+=(""); dlabel+=("")
-      dkind+=(configure); did+=(configure); dlabel+=("$(ui_t configure) — add '$user' to docker group + enable/start service")
+      dkind+=(configure); did+=(configure); dlabel+=("$(ui_t configure) — $(_docker_t configure_row)")
       dkind+=(spacer); did+=(""); dlabel+=("")
       dkind+=(remove); did+=(remove); dlabel+=("${UI_ERR}${UI_CROSS}${UI_OFF} $(ui_t remove) Docker")
     fi
@@ -133,7 +169,7 @@ ui() {
       esac
       (( row++ ))
     done
-    ui_footer "↑↓ move   ↵/space select   esc/q close"
+    ui_footer "$(_docker_t foot_main)"
 
     # ---- input ----
     ui_read_key
@@ -144,7 +180,7 @@ ui() {
         case "${dkind[$sel]}" in
           install)   ui_run "$(ui_t install) Docker" -- "$0" install ;;
           configure) ui_run "configure · docker" -- "$0" configure ;;
-          remove)    ui_confirm "Uninstall Docker? (apt remove docker.io — keeps your data)" n \
+          remove)    ui_confirm "$(_docker_t confirm_remove)" n \
                        && ui_run "$(ui_t remove) Docker" -- "$0" remove ;;
         esac ;;
       q|Q|esc|backspace) break ;;

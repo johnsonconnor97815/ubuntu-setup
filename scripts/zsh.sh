@@ -47,6 +47,125 @@ readonly ZSH_KNOWN_PLUGINS="autosuggestions syntax-highlighting completions hist
 # last), so listing them here too would double-load them.
 readonly ZSH_OMZ_KNOWN_PLUGINS="git sudo extract colored-man-pages command-not-found docker docker-compose kubectl z"
 
+# --- i18n (software-specific strings) ------------------------------------------
+# Same shape as lib/ui.sh's UI_MSG/ui_t, kept local so the generic UI library stays free of
+# zsh-specific text. Proper nouns stay UNtranslated: "zsh", "Oh My Zsh", prompt names
+# (Starship/Powerlevel10k/Pure), plugin names, setting keys, date-stamp formats. Only the
+# descriptive/operational wording is localized. Resolve with _zsh_t KEY (fallback en -> key).
+declare -gA ZSH_I18N
+# Rows / headers / status tags / hints
+ZSH_I18N[en:zsh_suffix]="zsh — Z shell"
+ZSH_I18N[en:framework]="Framework"
+ZSH_I18N[en:prompt]="Prompt"
+ZSH_I18N[en:login_shell]="Login shell"
+ZSH_I18N[en:plugins]="Plugins"
+ZSH_I18N[en:tag_git]="git"
+ZSH_I18N[en:tag_custom]="custom"
+ZSH_I18N[en:omz_plugins]="Oh My Zsh plugins"
+ZSH_I18N[en:omz_settings]="Oh My Zsh settings"
+ZSH_I18N[en:add_omz_plugin]="add Oh My Zsh plugin…"
+ZSH_I18N[en:set_update]="Auto-update"
+ZSH_I18N[en:set_magic]="Magic paste"
+ZSH_I18N[en:set_untracked]="Untracked dirty"
+ZSH_I18N[en:set_correction]="Correction"
+ZSH_I18N[en:set_wait_dots]="Waiting dots"
+ZSH_I18N[en:set_hist_stamps]="History stamps"
+ZSH_I18N[en:foot_main]="↑↓ move   ↵/space toggle   a add-plugin   esc/q close"
+ZSH_I18N[en:foot_install]="↑↓ move   ↵/space install   esc/q close"
+# Prompts / pickers / confirms
+ZSH_I18N[en:prompt_add_plugin]="git URL or plugin name"
+ZSH_I18N[en:prompt_omz_plugin]="Oh My Zsh plugin name"
+ZSH_I18N[en:confirm_remove]="Uninstall zsh? (refused if it is your login shell)"
+ZSH_I18N[en:current]="current:"
+ZSH_I18N[en:pick_prompt]="zsh — prompt"
+ZSH_I18N[en:pr_git]="git (ASCII branch)"
+ZSH_I18N[en:pr_plain]="plain"
+ZSH_I18N[en:pr_starship]="Starship (Nerd Font)"
+ZSH_I18N[en:pr_p10k]="Powerlevel10k (Nerd Font)"
+ZSH_I18N[en:pr_pure]="Pure"
+ZSH_I18N[en:pick_update]="OMZ auto-update"
+ZSH_I18N[en:up_disabled]="disabled (kit manages updates via git)"
+ZSH_I18N[en:up_auto]="auto"
+ZSH_I18N[en:up_reminder]="reminder"
+ZSH_I18N[en:pick_hist]="OMZ history stamps"
+ZSH_I18N[en:hs_none]="none (off)"
+
+ZSH_I18N[zh:zsh_suffix]="zsh — Z shell"
+ZSH_I18N[zh:framework]="框架"
+ZSH_I18N[zh:prompt]="提示符"
+ZSH_I18N[zh:login_shell]="登录 shell"
+ZSH_I18N[zh:plugins]="插件"
+ZSH_I18N[zh:tag_git]="git"
+ZSH_I18N[zh:tag_custom]="自定义"
+ZSH_I18N[zh:omz_plugins]="Oh My Zsh 插件"
+ZSH_I18N[zh:omz_settings]="Oh My Zsh 设置"
+ZSH_I18N[zh:add_omz_plugin]="添加 Oh My Zsh 插件…"
+ZSH_I18N[zh:set_update]="自动更新"
+ZSH_I18N[zh:set_magic]="魔术粘贴"
+ZSH_I18N[zh:set_untracked]="未跟踪即视为脏"
+ZSH_I18N[zh:set_correction]="命令纠错"
+ZSH_I18N[zh:set_wait_dots]="等待点提示"
+ZSH_I18N[zh:set_hist_stamps]="历史时间戳"
+ZSH_I18N[zh:foot_main]="↑↓ 移动   ↵/space 切换   a 加插件   esc/q 关闭"
+ZSH_I18N[zh:foot_install]="↑↓ 移动   ↵/space 安装   esc/q 关闭"
+ZSH_I18N[zh:prompt_add_plugin]="git URL 或插件名"
+ZSH_I18N[zh:prompt_omz_plugin]="Oh My Zsh 插件名"
+ZSH_I18N[zh:confirm_remove]="卸载 zsh?(若它是你的登录 shell 则拒绝)"
+ZSH_I18N[zh:current]="当前:"
+ZSH_I18N[zh:pick_prompt]="zsh — 提示符"
+ZSH_I18N[zh:pr_git]="git(ASCII 分支)"
+ZSH_I18N[zh:pr_plain]="plain(纯文本)"
+ZSH_I18N[zh:pr_starship]="Starship(需 Nerd Font)"
+ZSH_I18N[zh:pr_p10k]="Powerlevel10k(需 Nerd Font)"
+ZSH_I18N[zh:pr_pure]="Pure"
+ZSH_I18N[zh:pick_update]="OMZ 自动更新"
+ZSH_I18N[zh:up_disabled]="disabled(由 kit 经 git 管理更新)"
+ZSH_I18N[zh:up_auto]="auto(自动)"
+ZSH_I18N[zh:up_reminder]="reminder(提醒)"
+ZSH_I18N[zh:pick_hist]="OMZ 历史时间戳"
+ZSH_I18N[zh:hs_none]="none(关闭)"
+
+ZSH_I18N[ja:zsh_suffix]="zsh — Z shell"
+ZSH_I18N[ja:framework]="フレームワーク"
+ZSH_I18N[ja:prompt]="プロンプト"
+ZSH_I18N[ja:login_shell]="ログインシェル"
+ZSH_I18N[ja:plugins]="プラグイン"
+ZSH_I18N[ja:tag_git]="git"
+ZSH_I18N[ja:tag_custom]="カスタム"
+ZSH_I18N[ja:omz_plugins]="Oh My Zsh プラグイン"
+ZSH_I18N[ja:omz_settings]="Oh My Zsh 設定"
+ZSH_I18N[ja:add_omz_plugin]="Oh My Zsh プラグインを追加…"
+ZSH_I18N[ja:set_update]="自動更新"
+ZSH_I18N[ja:set_magic]="マジックペースト"
+ZSH_I18N[ja:set_untracked]="未追跡を dirty 扱い"
+ZSH_I18N[ja:set_correction]="コマンド訂正"
+ZSH_I18N[ja:set_wait_dots]="待機ドット表示"
+ZSH_I18N[ja:set_hist_stamps]="履歴タイムスタンプ"
+ZSH_I18N[ja:foot_main]="↑↓ 移動   ↵/space 切替   a プラグイン追加   esc/q 閉じる"
+ZSH_I18N[ja:foot_install]="↑↓ 移動   ↵/space インストール   esc/q 閉じる"
+ZSH_I18N[ja:prompt_add_plugin]="git URL またはプラグイン名"
+ZSH_I18N[ja:prompt_omz_plugin]="Oh My Zsh プラグイン名"
+ZSH_I18N[ja:confirm_remove]="zsh をアンインストールしますか?(ログインシェルの場合は拒否)"
+ZSH_I18N[ja:current]="現在:"
+ZSH_I18N[ja:pick_prompt]="zsh — プロンプト"
+ZSH_I18N[ja:pr_git]="git(ASCII ブランチ)"
+ZSH_I18N[ja:pr_plain]="plain(プレーン)"
+ZSH_I18N[ja:pr_starship]="Starship(Nerd Font 必要)"
+ZSH_I18N[ja:pr_p10k]="Powerlevel10k(Nerd Font 必要)"
+ZSH_I18N[ja:pr_pure]="Pure"
+ZSH_I18N[ja:pick_update]="OMZ 自動更新"
+ZSH_I18N[ja:up_disabled]="disabled(kit が git で更新を管理)"
+ZSH_I18N[ja:up_auto]="auto(自動)"
+ZSH_I18N[ja:up_reminder]="reminder(リマインド)"
+ZSH_I18N[ja:pick_hist]="OMZ 履歴タイムスタンプ"
+ZSH_I18N[ja:hs_none]="none(オフ)"
+
+# _zsh_t KEY — localized zsh string for $UI_LANG (en/zh/ja), fallback en -> key.
+_zsh_t() {
+  local lang; lang="$(ui_lang)"
+  printf '%s' "${ZSH_I18N[$lang:$1]:-${ZSH_I18N[en:$1]:-$1}}"
+}
+
 meta() {
   cat <<'META'
 key=zsh
@@ -879,14 +998,14 @@ ui() {
     # ---- build display rows (parallel arrays: kind / id / label) ----
     local -a dkind=() did=() dlabel=()
     if (( ! installed )); then
-      dkind+=(install); did+=(install); dlabel+=("$(ui_badge missing) $(ui_t install) zsh — Z shell")
+      dkind+=(install); did+=(install); dlabel+=("$(ui_badge missing) $(ui_t install) $(_zsh_t zsh_suffix)")
     else
       local fw_badge
       if [[ "${FRAMEWORK:-none}" == "oh-my-zsh" ]]; then fw_badge="${UI_OK}[on]${UI_OFF}"; else fw_badge="${UI_MUTED}[off]${UI_OFF}"; fi
-      dkind+=(framework); did+=(framework); dlabel+=("$(printf '%-13s %s' 'Framework' "Oh My Zsh  $fw_badge")")
-      dkind+=(prompt);    did+=(prompt);    dlabel+=("$(printf '%-13s %s%s%s  %s' 'Prompt' "$UI_INFO" "${PROMPT:-git}" "$UI_OFF" "$UI_ARROW")")
+      dkind+=(framework); did+=(framework); dlabel+=("$(printf '%-13s %s' "$(_zsh_t framework)" "Oh My Zsh  $fw_badge")")
+      dkind+=(prompt);    did+=(prompt);    dlabel+=("$(printf '%-13s %s%s%s  %s' "$(_zsh_t prompt)" "$UI_INFO" "${PROMPT:-git}" "$UI_OFF" "$UI_ARROW")")
       dkind+=(spacer);    did+=("");        dlabel+=("")
-      dkind+=(header);    did+=("");        dlabel+=("Plugins")
+      dkind+=(header);    did+=("");        dlabel+=("$(_zsh_t plugins)")
       local -a known=(autosuggestions syntax-highlighting completions history-substring-search fzf zoxide)
       local p on
       for p in "${known[@]}"; do
@@ -896,14 +1015,14 @@ ui() {
       done
       for p in $PLUGINS; do
         _zsh_plugin_in "$p" "${known[*]}" && continue
-        dkind+=(plugin); did+=("$p"); dlabel+=("  ${UI_OK}${UI_CHK_ON}${UI_OFF} $p ${UI_MUTED}(git)${UI_OFF}")
+        dkind+=(plugin); did+=("$p"); dlabel+=("  ${UI_OK}${UI_CHK_ON}${UI_OFF} $p ${UI_MUTED}($(_zsh_t tag_git))${UI_OFF}")
       done
 
       # ---- Oh My Zsh native plugins + settings (only when the framework is on) ----
       if [[ "${FRAMEWORK:-none}" == "oh-my-zsh" ]]; then
         local op oon
         dkind+=(spacer); did+=(""); dlabel+=("")
-        dkind+=(header); did+=(""); dlabel+=("Oh My Zsh plugins")
+        dkind+=(header); did+=(""); dlabel+=("$(_zsh_t omz_plugins)")
         for op in $ZSH_OMZ_KNOWN_PLUGINS; do
           oon=0; _zsh_plugin_in "$op" "$OMZ_PLUGINS" && oon=1
           dkind+=(omzplugin); did+=("$op")
@@ -911,23 +1030,23 @@ ui() {
         done
         for op in $OMZ_PLUGINS; do
           _zsh_plugin_in "$op" "$ZSH_OMZ_KNOWN_PLUGINS" && continue
-          dkind+=(omzplugin); did+=("$op"); dlabel+=("  ${UI_OK}${UI_CHK_ON}${UI_OFF} $op ${UI_MUTED}(custom)${UI_OFF}")
+          dkind+=(omzplugin); did+=("$op"); dlabel+=("  ${UI_OK}${UI_CHK_ON}${UI_OFF} $op ${UI_MUTED}($(_zsh_t tag_custom))${UI_OFF}")
         done
-        dkind+=(omzplugin_add); did+=(omzplugin_add); dlabel+=("  ${UI_ACCENT}+${UI_OFF} add Oh My Zsh plugin…")
+        dkind+=(omzplugin_add); did+=(omzplugin_add); dlabel+=("  ${UI_ACCENT}+${UI_OFF} $(_zsh_t add_omz_plugin)")
         dkind+=(spacer); did+=(""); dlabel+=("")
-        dkind+=(header); did+=(""); dlabel+=("Oh My Zsh settings")
-        dkind+=(omzsetting); did+=(update);          dlabel+=("$(_zsh_omz_setting_row 'Auto-update'     "$OMZ_UPDATE")")
-        dkind+=(omzsetting); did+=(magic);           dlabel+=("$(_zsh_omz_setting_row 'Magic paste'     "$(_zsh_onoff "$OMZ_MAGIC")")")
-        dkind+=(omzsetting); did+=(untracked-dirty); dlabel+=("$(_zsh_omz_setting_row 'Untracked dirty' "$(_zsh_onoff "$OMZ_UNTRACKED_DIRTY")")")
-        dkind+=(omzsetting); did+=(correction);      dlabel+=("$(_zsh_omz_setting_row 'Correction'      "$(_zsh_onoff "$OMZ_CORRECTION")")")
-        dkind+=(omzsetting); did+=(wait-dots);       dlabel+=("$(_zsh_omz_setting_row 'Waiting dots'    "$(_zsh_onoff "$OMZ_WAIT_DOTS")")")
-        dkind+=(omzsetting); did+=(hist-stamps);     dlabel+=("$(_zsh_omz_setting_row 'History stamps'  "$OMZ_HIST_STAMPS")")
+        dkind+=(header); did+=(""); dlabel+=("$(_zsh_t omz_settings)")
+        dkind+=(omzsetting); did+=(update);          dlabel+=("$(_zsh_omz_setting_row "$(_zsh_t set_update)"      "$OMZ_UPDATE")")
+        dkind+=(omzsetting); did+=(magic);           dlabel+=("$(_zsh_omz_setting_row "$(_zsh_t set_magic)"       "$(_zsh_onoff "$OMZ_MAGIC")")")
+        dkind+=(omzsetting); did+=(untracked-dirty); dlabel+=("$(_zsh_omz_setting_row "$(_zsh_t set_untracked)"   "$(_zsh_onoff "$OMZ_UNTRACKED_DIRTY")")")
+        dkind+=(omzsetting); did+=(correction);      dlabel+=("$(_zsh_omz_setting_row "$(_zsh_t set_correction)"  "$(_zsh_onoff "$OMZ_CORRECTION")")")
+        dkind+=(omzsetting); did+=(wait-dots);       dlabel+=("$(_zsh_omz_setting_row "$(_zsh_t set_wait_dots)"   "$(_zsh_onoff "$OMZ_WAIT_DOTS")")")
+        dkind+=(omzsetting); did+=(hist-stamps);     dlabel+=("$(_zsh_omz_setting_row "$(_zsh_t set_hist_stamps)" "$OMZ_HIST_STAMPS")")
       fi
 
       dkind+=(spacer);   did+=("");        dlabel+=("")
       dkind+=(defshell); did+=(defshell)
-      if (( is_default )); then dlabel+=("$(printf '%-13s %s' 'Login shell' "zsh ${UI_OK}${UI_CHECK}${UI_OFF}")")
-      else dlabel+=("$(printf '%-13s %s' 'Login shell' "${UI_MUTED}${cur_shell}${UI_OFF}  ${UI_ARROW} zsh")"); fi
+      if (( is_default )); then dlabel+=("$(printf '%-13s %s' "$(_zsh_t login_shell)" "zsh ${UI_OK}${UI_CHECK}${UI_OFF}")")
+      else dlabel+=("$(printf '%-13s %s' "$(_zsh_t login_shell)" "${UI_MUTED}${cur_shell}${UI_OFF}  ${UI_ARROW} zsh")"); fi
       dkind+=(spacer);   did+=("");        dlabel+=("")
       dkind+=(remove);   did+=(remove);    dlabel+=("${UI_ERR}${UI_CROSS}${UI_OFF} $(ui_t remove) zsh")
     fi
@@ -950,8 +1069,8 @@ ui() {
       esac
       (( row++ ))
     done
-    if (( installed )); then ui_footer "↑↓ move   ↵/space toggle   a add-plugin   esc/q close"
-    else ui_footer "↑↓ move   ↵/space install   esc/q close"; fi
+    if (( installed )); then ui_footer "$(_zsh_t foot_main)"
+    else ui_footer "$(_zsh_t foot_install)"; fi
 
     # ---- input ----
     ui_read_key
@@ -959,20 +1078,20 @@ ui() {
       up|k)   for (( g=0; g<n; g++ )); do sel=$(( (sel-1+n)%n )); case "${dkind[$sel]}" in spacer|header) ;; *) break ;; esac; done ;;
       down|j) for (( g=0; g<n; g++ )); do sel=$(( (sel+1)%n ));   case "${dkind[$sel]}" in spacer|header) ;; *) break ;; esac; done ;;
       a|A)
-        if (( installed )) && ui_input "git URL or plugin name" ""; then
+        if (( installed )) && ui_input "$(_zsh_t prompt_add_plugin)" ""; then
           ui_run "add-plugin · zsh" -- "$0" add-plugin "$UI_INPUT"
         fi ;;
       enter|space)
         case "${dkind[$sel]}" in
           install) ui_run "$(ui_t install) zsh" -- "$0" install ;;
-          remove)  ui_confirm "Uninstall zsh? (refused if it is your login shell)" n && ui_run "$(ui_t remove) zsh" -- "$0" remove ;;
+          remove)  ui_confirm "$(_zsh_t confirm_remove)" n && ui_run "$(ui_t remove) zsh" -- "$0" remove ;;
           framework)
             if [[ "${FRAMEWORK:-none}" == "oh-my-zsh" ]]; then ui_run "uninstall-omz · zsh" -- "$0" uninstall-omz
             else ui_run "install-omz · zsh" -- "$0" install-omz; fi ;;
           prompt)
-            ui_pick "zsh — prompt" "current: ${PROMPT:-git}" "" -- \
-              git "git (ASCII branch)" plain "plain" starship "Starship (Nerd Font)" \
-              powerlevel10k "Powerlevel10k (Nerd Font)" pure "Pure"
+            ui_pick "$(_zsh_t pick_prompt)" "$(_zsh_t current) ${PROMPT:-git}" "" -- \
+              git "$(_zsh_t pr_git)" plain "$(_zsh_t pr_plain)" starship "$(_zsh_t pr_starship)" \
+              powerlevel10k "$(_zsh_t pr_p10k)" pure "$(_zsh_t pr_pure)"
             [[ -n "$UI_PICK" ]] && ui_run "prompt $UI_PICK · zsh" -- "$0" prompt "$UI_PICK" ;;
           plugin)
             local pn="${did[$sel]}"
@@ -983,19 +1102,19 @@ ui() {
             if _zsh_plugin_in "$opn" "$OMZ_PLUGINS"; then ui_run "remove-omz-plugin $opn · zsh" -- "$0" remove-omz-plugin "$opn"
             else ui_run "add-omz-plugin $opn · zsh" -- "$0" add-omz-plugin "$opn"; fi ;;
           omzplugin_add)
-            if ui_input "Oh My Zsh plugin name" ""; then
+            if ui_input "$(_zsh_t prompt_omz_plugin)" ""; then
               ui_run "add-omz-plugin · zsh" -- "$0" add-omz-plugin "$UI_INPUT"
             fi ;;
           omzsetting)
             local sk="${did[$sel]}"
             case "$sk" in
               update)
-                ui_pick "OMZ auto-update" "current: $OMZ_UPDATE" "" -- \
-                  disabled "disabled (kit manages updates via git)" auto "auto" reminder "reminder"
+                ui_pick "$(_zsh_t pick_update)" "$(_zsh_t current) $OMZ_UPDATE" "" -- \
+                  disabled "$(_zsh_t up_disabled)" auto "$(_zsh_t up_auto)" reminder "$(_zsh_t up_reminder)"
                 [[ -n "$UI_PICK" ]] && ui_run "omz-setting update $UI_PICK · zsh" -- "$0" omz-setting update "$UI_PICK" ;;
               hist-stamps)
-                ui_pick "OMZ history stamps" "current: $OMZ_HIST_STAMPS" "" -- \
-                  yyyy-mm-dd "yyyy-mm-dd" mm/dd/yyyy "mm/dd/yyyy" dd.mm.yyyy "dd.mm.yyyy" none "none (off)"
+                ui_pick "$(_zsh_t pick_hist)" "$(_zsh_t current) $OMZ_HIST_STAMPS" "" -- \
+                  yyyy-mm-dd "yyyy-mm-dd" mm/dd/yyyy "mm/dd/yyyy" dd.mm.yyyy "dd.mm.yyyy" none "$(_zsh_t hs_none)"
                 [[ -n "$UI_PICK" ]] && ui_run "omz-setting hist-stamps $UI_PICK · zsh" -- "$0" omz-setting hist-stamps "$UI_PICK" ;;
               magic)           ui_run "omz-setting magic · zsh"           -- "$0" omz-setting magic           "$(_zsh_toggle_onoff "$OMZ_MAGIC")" ;;
               untracked-dirty) ui_run "omz-setting untracked-dirty · zsh" -- "$0" omz-setting untracked-dirty "$(_zsh_toggle_onoff "$OMZ_UNTRACKED_DIRTY")" ;;

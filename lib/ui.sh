@@ -133,10 +133,17 @@ UI_MSG[zh:nav_catalog]="↑↓ 移动   ↵/→ 管理   esc 返回   q 退出" 
 UI_MSG[en:yn_hint]="←→/y/n choose   ↵ confirm   esc cancel" \
 UI_MSG[zh:yn_hint]="←→/y/n 选择   ↵ 确认   esc 取消" UI_MSG[ja:yn_hint]="←→/y/n 選択   ↵ 確定   esc 取消"
 
+# ui_lang — the normalized UI language code (en|zh|ja); unknown/unset -> en. Shared by ui_t
+# and by each script's own software-specific i18n table accessor (so the en/zh/ja resolution
+# lives in exactly one place instead of being re-implemented per script).
+ui_lang() {
+  local lang="${UI_LANG:-en}"
+  case "$lang" in en|zh|ja) printf '%s' "$lang" ;; *) printf 'en' ;; esac
+}
+
 # ui_t KEY — translate a chrome key for $UI_LANG (default en), falling back to English then key.
 ui_t() {
-  local lang="${UI_LANG:-en}" key="$1"
-  case "$lang" in en|zh|ja) ;; *) lang="en" ;; esac
+  local lang key="$1"; lang="$(ui_lang)"
   printf '%s' "${UI_MSG[$lang:$key]:-${UI_MSG[en:$key]:-$key}}"
 }
 

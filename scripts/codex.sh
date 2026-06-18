@@ -14,6 +14,41 @@ source "$_kit_here/lib/common.sh"
 # Minimum Node major version the npm channel supports.
 readonly CODEX_NODE_MIN_MAJOR=18
 
+# --- i18n (software-specific strings) ------------------------------------------
+# Same shape as lib/ui.sh's UI_MSG/ui_t, kept local. Proper nouns stay UNtranslated
+# ("Codex CLI", "@openai/codex", "Node", "native"/"npm" channel names, "codex"); only
+# descriptive wording is localized. The {N} token in method_npm is replaced with the minimum
+# Node major via parameter expansion (kept out of printf to stay SC2059-clean). Resolve with
+# _codex_t KEY.
+declare -gA CODEX_I18N
+CODEX_I18N[en:pick_method]="Choose an installation method"
+CODEX_I18N[en:method_native]="native (official installer, no Node)"
+CODEX_I18N[en:method_npm]="npm (@openai/codex, needs Node >= {N})"
+CODEX_I18N[en:installed_title]="Codex CLI installed"
+CODEX_I18N[en:installed_body]="Open a new shell (or 'source ~/.profile'), then run 'codex' to sign in."
+CODEX_I18N[en:confirm_remove]="Uninstall the Codex CLI?"
+CODEX_I18N[en:foot_main]="↑↓ move   ↵/space select   esc/q close"
+CODEX_I18N[zh:pick_method]="选择安装方式"
+CODEX_I18N[zh:method_native]="native(官方安装器,无需 Node)"
+CODEX_I18N[zh:method_npm]="npm(@openai/codex,需 Node >= {N})"
+CODEX_I18N[zh:installed_title]="Codex CLI 已安装"
+CODEX_I18N[zh:installed_body]="打开新 shell(或执行 'source ~/.profile'),然后运行 'codex' 登录。"
+CODEX_I18N[zh:confirm_remove]="卸载 Codex CLI?"
+CODEX_I18N[zh:foot_main]="↑↓ 移动   ↵/space 选择   esc/q 关闭"
+CODEX_I18N[ja:pick_method]="インストール方法を選択"
+CODEX_I18N[ja:method_native]="native(公式インストーラー、Node 不要)"
+CODEX_I18N[ja:method_npm]="npm(@openai/codex、Node >= {N} が必要)"
+CODEX_I18N[ja:installed_title]="Codex CLI をインストールしました"
+CODEX_I18N[ja:installed_body]="新しいシェルを開く(または 'source ~/.profile')、その後 'codex' を実行してサインイン。"
+CODEX_I18N[ja:confirm_remove]="Codex CLI をアンインストールしますか?"
+CODEX_I18N[ja:foot_main]="↑↓ 移動   ↵/space 選択   esc/q 閉じる"
+
+# _codex_t KEY — localized Codex string for $UI_LANG (en/zh/ja), fallback en -> key.
+_codex_t() {
+  local lang; lang="$(ui_lang)"
+  printf '%s' "${CODEX_I18N[$lang:$1]:-${CODEX_I18N[en:$1]:-$1}}"
+}
+
 meta() {
   cat <<'META'
 key=codex
@@ -145,7 +180,7 @@ ui() {
       ui_row "$row" "$i" "$sel" "${dlabel[$i]}"
       (( row++ ))
     done
-    ui_footer "↑↓ move   ↵/space select   esc/q close"
+    ui_footer "$(_codex_t foot_main)"
 
     # ---- input ----
     ui_read_key
@@ -155,18 +190,19 @@ ui() {
       enter|space)
         case "${dkind[$sel]}" in
           install)
-            ui_pick "Codex CLI — $(ui_t install)" "Choose an installation method" "" -- \
-              native "native (official installer, no Node)" \
-              npm    "npm (@openai/codex, needs Node >= ${CODEX_NODE_MIN_MAJOR})"
+            local _npm_label; _npm_label="$(_codex_t method_npm)"; _npm_label="${_npm_label//\{N\}/${CODEX_NODE_MIN_MAJOR}}"
+            ui_pick "Codex CLI — $(ui_t install)" "$(_codex_t pick_method)" "" -- \
+              native "$(_codex_t method_native)" \
+              npm    "$_npm_label"
             if [[ -n "$UI_PICK" ]]; then
               ui_run "$(ui_t install) Codex CLI ($UI_PICK)" -- "$0" install --method "$UI_PICK"
               if [[ "${UI_RUN_RC:-1}" == 0 ]] && status >/dev/null 2>&1; then
-                ui_notify "Codex CLI installed" \
-                  "Open a new shell (or 'source ~/.profile'), then run 'codex' to sign in."
+                ui_notify "$(_codex_t installed_title)" \
+                  "$(_codex_t installed_body)"
               fi
             fi ;;
           remove)
-            ui_confirm "Uninstall the Codex CLI?" n && \
+            ui_confirm "$(_codex_t confirm_remove)" n && \
               ui_run "$(ui_t remove) Codex CLI" -- "$0" remove ;;
         esac ;;
       q|Q|esc|backspace) break ;;
