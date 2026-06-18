@@ -92,7 +92,8 @@ do_install() {
     return 0
   fi
   _codegraph_require_node || return 1
-  npm_global_writable || return 1
+  # Establish a user-writable npm global prefix if needed (no sudo) — npm is our only channel.
+  npm_ensure_user_prefix || return 1
 
   log_info "Installing CodeGraph via npm ($CODEGRAPH_PKG)."
   npm install -g "$CODEGRAPH_PKG"

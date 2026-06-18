@@ -112,8 +112,8 @@ _codex_install_npm() {
     return 1
   fi
 
-  # Refuse a global install into a root-owned prefix (the lib helper points at ~/.local).
-  npm_global_writable || return 1
+  # Establish a user-writable npm global prefix if needed (no sudo); refuse a custom unwritable one.
+  npm_ensure_user_prefix || return 1
 
   log_info "Installing Codex CLI via npm (@openai/codex)."
   npm install -g @openai/codex

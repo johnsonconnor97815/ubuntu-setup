@@ -280,7 +280,8 @@ _claude_install_native() {
 }
 
 # Optional npm path — only for users who already run a recent Node. We refuse to touch
-# Node ourselves, and we never `sudo npm` (npm_global_writable gates on a writable prefix).
+# Node ourselves, and we never `sudo npm` (npm_ensure_user_prefix establishes a user-writable
+# prefix in ~/.local — no sudo — or refuses a custom unwritable one).
 _claude_install_npm() {
   local node_major
   if ! have_cmd node || ! have_cmd npm; then
@@ -298,7 +299,7 @@ _claude_install_npm() {
     log_err "yourself; this script will not auto-install Node."
     return 1
   fi
-  npm_global_writable || return 1
+  npm_ensure_user_prefix || return 1
   log_info "Installing $_CLAUDE_NPM_PKG via npm (user-space global)..."
   npm install -g "$_CLAUDE_NPM_PKG"
   ensure_local_bin_on_path

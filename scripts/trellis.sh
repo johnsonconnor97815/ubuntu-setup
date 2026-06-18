@@ -137,7 +137,8 @@ do_install() {
   fi
   _trellis_require_node || return 1
   _trellis_check_python
-  npm_global_writable || return 1
+  # Establish a user-writable npm global prefix if needed (no sudo) — npm is our only channel.
+  npm_ensure_user_prefix || return 1
 
   log_info "Installing Trellis via npm (${TRELLIS_PKG}@latest)."
   npm install -g "${TRELLIS_PKG}@latest"

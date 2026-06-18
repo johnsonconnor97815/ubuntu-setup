@@ -221,6 +221,52 @@ npm_global_writable() {
   return 0
 }
 
+# Make `npm install -g` work AS THE USER (never sudo) for scripts whose only install channel
+# is npm. If the global prefix is already user-writable, do nothing. If it is a system DEFAULT
+# (/usr or /usr/local) — i.e. the user never chose a custom prefix — redirect npm's *user*
+# config to ~/.local (writes ~/.npmrc, no sudo; npm's own recommended sudo-less setup) and
+# re-verify. A CUSTOM but unwritable prefix is left untouched (respect the user's deliberate
+# choice) and we refuse with the standard guidance. Returns 0 only once global installs will
+# land somewhere writable. This is the automated form of npm_global_writable's printed advice:
+# the safe path becomes the default instead of a manual step. Revert with: npm config delete prefix.
+npm_ensure_user_prefix() {
+  have_cmd npm || { log_err "npm not found."; return 1; }
+  # npm global installs must run AS THE USER, never root. Under a sudo wrapper the real user
+  # is SUDO_USER, yet npm would read root's $HOME/config and write root-owned files — so we
+  # refuse and tell them to run as themselves. (Genuine root with no SUDO_USER is fine: $HOME
+  # is /root and it installs for root; that is not the forbidden `sudo npm`.)
+  if [[ $EUID -eq 0 && -n "${SUDO_USER:-}" && "$SUDO_USER" != root ]]; then
+    log_err "Run this as your normal user, not via sudo — npm global installs must not run as root."
+    log_err "    (re-run as '$SUDO_USER' without sudo)"
+    return 1
+  fi
+  npm_global_writable 2>/dev/null && return 0
+
+  local prefix; prefix="$(npm config get prefix 2>/dev/null)"
+  case "$prefix" in
+    /usr|/usr/ | /usr/local|/usr/local/)
+      local target="$HOME/.local"
+      log_info "npm's global prefix ($prefix) is not user-writable; configuring a user-space prefix ($target) — no sudo."
+      log_info "(Reverts with: npm config delete prefix)"
+      npm config set prefix "$target" || { log_err "Could not set the npm prefix."; return 1; }
+      mkdir -p "$target/lib/node_modules" "$target/bin"
+      ;;
+    *)
+      # A custom prefix we cannot write — do not clobber it; print the standard guidance.
+      npm_global_writable
+      return 1
+      ;;
+  esac
+
+  if ! npm_global_writable 2>/dev/null; then
+    log_err "npm's global prefix is still not writable after configuring $HOME/.local."
+    return 1
+  fi
+  # NOTE: callers run ensure_local_bin_on_path right after `npm install -g`; we deliberately
+  # don't here (avoids a redundant, $HOME-touching call inside this prefix-only helper).
+  return 0
+}
+
 # --- Script skeleton -----------------------------------------------------------
 
 # Print one "KEY=VALUE" metadata line (a convenience for meta functions).

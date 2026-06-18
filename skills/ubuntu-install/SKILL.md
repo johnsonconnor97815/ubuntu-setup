@@ -35,7 +35,7 @@ If **no script covers** the request, or an existing one is **broken/stale** (the
 ## 4. The non-negotiables (the contract every script you run satisfies; `lib/common.sh` enforces them)
 
 - **① Idempotent live-system checks** — `status` observes reality; install/remove gate on it and converge.
-- **② Per-command sudo, never whole-root** — escalate only the single command that needs root, via `sudo_run`. **Never `sudo npm install -g`** (use a user-writable prefix: `npm config set prefix ~/.local`; `npm_global_writable` guards this). **Never `apt-key`** (use `add_apt_keyring` / `add_apt_source`). **Never write a NOPASSWD rule yourself.**
+- **② Per-command sudo, never whole-root** — escalate only the single command that needs root, via `sudo_run`. **Never `sudo npm install -g`** — `npm_global_writable` is the predicate, and npm-only installers call `npm_ensure_user_prefix`, which (no sudo) sets a user-writable prefix in `~/.local` (writes `~/.npmrc`) when the prefix is a system default, or refuses a custom unwritable one. **Never `apt-key`** (use `add_apt_keyring` / `add_apt_source`). **Never write a NOPASSWD rule yourself.**
 - **③ Non-interactive apt** — `apt_install` / `apt_remove` already run `DEBIAN_FRONTEND=noninteractive apt-get … -y --no-install-recommends` and use `remove` (not `purge`). Never trigger a debconf prompt on a headless server.
 - **④ Fail-fast, resumable, no rollback** — `set -Eeuo pipefail`; stop at the first failure and report which step; back up before editing; re-run to recover.
 

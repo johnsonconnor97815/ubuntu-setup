@@ -18,7 +18,7 @@
 
 ## 不可妥协项(两脚本共同遵守)
 
-- **绝不自动装 Node、绝不 `sudo npm`**:`install` 前用 `have_cmd node`/`have_cmd npm` 校验,缺失则 `log_err` 指向 `swkit node install` 并返回非 0;`npm install -g` 前过 `npm_global_writable` 守门(prefix 不可写则提示 `npm config set prefix ~/.local`,绝不伸手 sudo)。
+- **绝不自动装 Node、绝不 `sudo npm`**:`install` 前用 `have_cmd node`/`have_cmd npm` 校验,缺失则 `log_err` 指向 `swkit node install` 并返回非 0;`npm install -g` 前过 `npm_ensure_user_prefix`:prefix 为系统默认(`/usr`、`/usr/local`)时以用户态把前缀设到 `~/.local`(写 `~/.npmrc`,无 sudo、可 `npm config delete prefix` 还原)再装,自定义且不可写的前缀则退回报错;`npm_global_writable` 仍是底层判定,绝不伸手 sudo。
 - **幂等查活系统**:`do_install`/`do_remove`/`do_configure` 先跑 `status`(探测真实系统:`have_cmd <cmd>`),已装跳过、未装提示。
 - **fail-fast、不回滚**:`set -Eeuo pipefail`,重跑即补救。
 - **i18n**:UI 描述性文案经本地 `*_I18N` 表(en/zh/ja,结构同 `ui_t`),专有名词(CodeGraph/Trellis/包名/`node`/`npm` 等)不译。
@@ -31,7 +31,7 @@
 `desc=Local code knowledge graph (MCP server) for AI coding agents`
 
 - **`status`**:`have_cmd codegraph` 为准(返回 0 当且仅当已装);版本 best-effort(`codegraph --version` 取首行,失败回退 `codegraph (installed)`)。
-- **`do_install`**:校验 `node`+`npm`(缺则指向 `swkit node install`)→ `npm_global_writable` → `npm install -g @colbymchenry/codegraph` → `ensure_local_bin_on_path`。
+- **`do_install`**:校验 `node`+`npm`(缺则指向 `swkit node install`)→ `npm_ensure_user_prefix`(无 sudo 建用户态 `~/.local` 前缀)→ `npm install -g @colbymchenry/codegraph` → `ensure_local_bin_on_path`。
 - **`do_configure`**(codegraph 真正的"配置"):`codegraph install --yes`(自动探测并把 MCP server 接入 Claude Code/Codex 等 agent)。可选 `--target=claude,codex,...` 透传指定 agent。先 `status` 闸门(未装则提示先 install)。stdin 喂 `</dev/null` 防挂起。
 - **`do_remove`**:best-effort `codegraph uninstall`(反注册 agent 配置;`--yes` + `</dev/null` 防挂起、失败仅 warn)→ `npm uninstall -g @colbymchenry/codegraph` → `rm -f ~/.local/bin/codegraph`;仍在 PATH 则 warn。提示项目内 `.codegraph/` 用户数据保留。
 - **per-repo `codegraph init -i` 不做成 op**:它是用户在各自 repo 内建索引的用法动作,装/配后经 `ui_notify` 与 `help` 告知,脚本本身聚焦机器级安装 + agent 接入(YAGNI)。
@@ -43,7 +43,7 @@
 `desc=AI coding engineering framework (specs/tasks/memory in your repo)`
 
 - **`status`**:`have_cmd trellis` 为准;版本 best-effort(同上回退 `trellis (installed)`)。
-- **`do_install`**:校验 `node`+`npm` 且 Node 主版本 ≥ 18(硬性,文档要求);**软**校验 `python3` ≥ 3.9(缺/旧仅 `log_warn`——npm 装包不需 Python,Python 是运行时部分功能所需,不阻断安装)→ `npm_global_writable` → `npm install -g @mindfoldhq/trellis@latest` → `ensure_local_bin_on_path`。
+- **`do_install`**:校验 `node`+`npm` 且 Node 主版本 ≥ 18(硬性,文档要求);**软**校验 `python3` ≥ 3.9(缺/旧仅 `log_warn`——npm 装包不需 Python,Python 是运行时部分功能所需,不阻断安装)→ `npm_ensure_user_prefix`(无 sudo 建用户态 `~/.local` 前缀)→ `npm install -g @mindfoldhq/trellis@latest` → `ensure_local_bin_on_path`。
 - **`do_configure`**(trellis 唯一有意义的配置 = 每仓库 init):在**当前 git 仓库**跑 `trellis init -u <name>`。
   - 守门:`git rev-parse --is-inside-work-tree` 失败则 `log_err` 指引「先 `cd` 进你的项目 repo」并返回非 0(避免在任意目录写出 `.trellis/`)。
   - 默认 `<name>`:`git config user.name` → 回退 `id -un`;为空则报错。
