@@ -754,6 +754,23 @@ _tmux_ensure_theme_font() {
 # Whether the config should carry a plugin manager + plugins at all.
 _tmux_want_plugins() { [[ -n "$PLUGINS" || "$THEME" != "none" ]]; }
 
+# Make the change take effect immediately: if a tmux server is already running, re-source the
+# config we own so every existing session picks up the new options/keys/plugins with no manual
+# step. The server is user-owned and _tmux_resolve_paths already refused a sudo-wrapped run, so
+# this `tmux` runs as the right user. Fail-safe: a failed source-file only warns (re-running, or
+# `prefix r`, is the recovery) and never aborts. With no server we just say how to start one.
+_tmux_reload_running() {
+  if have_cmd tmux && tmux info >/dev/null 2>&1; then
+    if tmux source-file "$_TCONF" >/dev/null 2>&1; then
+      log_info "Reloaded the running tmux server — changes are live in your existing sessions."
+    else
+      log_warn "Could not auto-reload the running tmux (re-run, or press 'prefix r' / 'tmux source-file $_TCONF')."
+    fi
+  else
+    log_info "No tmux server is running — changes apply when you start tmux."
+  fi
+}
+
 # Resolve everything enabled, (re)generate the block, install declared plugins.
 _tmux_apply() {
   _tmux_imply_resurrect
@@ -768,7 +785,7 @@ _tmux_apply() {
     log_info "Target config is $_TCONF — tmux loads this XDG file LAST, so the kit's keys/options win"
     log_info "(a block in ~/.tmux.conf would be overridden by it). Your own content there is preserved + backed up."
   fi
-  log_info "Reload a running tmux with:  tmux source-file $_TCONF   (or just start a new tmux)."
+  _tmux_reload_running
 }
 
 # --- configure -----------------------------------------------------------------
@@ -912,7 +929,7 @@ do_uninstall_tpm() {
   _tmux_write_block || return 1
   _tmux_save_state
   log_info "Cloned plugins remain under $_TPLUGDIR (remove them by hand if you want)."
-  log_info "Reload a running tmux with:  tmux source-file $_TCONF"
+  _tmux_reload_running
 }
 
 do_update_plugins() {
@@ -1349,8 +1366,9 @@ A bare 'configure' writes a tasteful best-practice baseline (mouse on, vi copy m
 color, 50k scrollback, 10ms escape-time, 1-based indexing) but NO plugins/theme and NO key
 remaps — safe and headless. Opt into the popular bundle with 'configure --recommended' (or
 the UI's "Apply recommended setup"). The interactive manager ('swkit tmux') exposes every
-setting as a quick toggle/picker/input. Plugins load on the next tmux start, or immediately
-after 'tmux source-file ~/.tmux.conf'. tmux runs headless / over SSH — settings apply here.
+setting as a quick toggle/picker/input. Every change auto-reloads a running tmux server
+(source-file) so it takes effect immediately — no manual step. tmux runs headless / over SSH
+— settings apply here.
 EOF
 }
 

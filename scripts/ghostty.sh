@@ -598,6 +598,51 @@ _ghostty_where_note() {
   fi
 }
 
+# True iff we are in an SSH/headless session (no local Ghostty to signal).
+_ghostty_in_ssh() { [[ -n "${SSH_CONNECTION:-}${SSH_TTY:-}${SSH_CLIENT:-}" ]]; }
+
+# Make config changes take effect immediately in any running Ghostty, with no manual key press.
+# Ghostty reloads its config on SIGUSR2 (the same as pressing ctrl+shift+, / the reload_config
+# action). IMPORTANT: only SIGUSR2 is safe — Ghostty crashes on any other signal — so we target
+# ONLY processes whose command name is exactly `ghostty` (pgrep -x, matching comm, NEVER -f which
+# would also match this very script's command line). Mechanism, best-effort, highest-value first:
+#   1. the upstream systemd user service (type=notify-reload on apt/.deb installs): a clean
+#      `systemctl reload --user com.mitchellh.ghostty.service` — preferred when that unit exists.
+#   2. otherwise send SIGUSR2 to each exact-match `ghostty` PID (covers snap + any non-systemd run).
+# Honest no-op over SSH/headless (there is no local Ghostty — _ghostty_where_note already says so)
+# and when Ghostty isn't installed or isn't running. Fail-safe: any problem only warns, never aborts.
+_ghostty_reload_running() {
+  _ghostty_in_ssh && return 0
+  status >/dev/null 2>&1 || return 0
+
+  if have_cmd systemctl; then
+    local unit
+    for unit in com.mitchellh.ghostty.service app-com.mitchellh.ghostty.service; do
+      if systemctl --user --quiet is-active "$unit" 2>/dev/null; then
+        if systemctl --user reload "$unit" >/dev/null 2>&1; then
+          log_info "Reloaded the running Ghostty (systemd user service) — changes are live."
+          return 0
+        fi
+        break   # the unit exists but reload failed; fall through to the signal path
+      fi
+    done
+  fi
+
+  have_cmd pgrep || { log_info "Reload a running Ghostty with ctrl+shift+, to pick up the changes."; return 0; }
+  local -a pids=()
+  mapfile -t pids < <(pgrep -x ghostty 2>/dev/null || true)
+  if (( ${#pids[@]} == 0 )); then
+    log_info "No running Ghostty found — changes apply next time you open Ghostty."
+    return 0
+  fi
+  # kill accepts all PIDs at once; -USR2 is the ONLY signal Ghostty handles for reload.
+  if kill -USR2 "${pids[@]}" 2>/dev/null; then
+    log_info "Reloaded the running Ghostty (SIGUSR2) — changes are live."
+  else
+    log_warn "Could not signal the running Ghostty — reload it with ctrl+shift+, to apply the changes."
+  fi
+}
+
 _ghostty_post_install() {
   log_info "Installed Ghostty ($(_ghostty_version 2>/dev/null | head -n1 || echo 'version unknown'))."
   log_info "Set the theme, font and defaults with:  swkit ghostty configure   (or open: swkit ghostty)"
@@ -685,7 +730,7 @@ do_configure() {
   _ghostty_ensure_include || { log_err "Failed to update $_G_CONFIG."; return 1; }
 
   have_cmd ghostty || log_warn "Ghostty isn't installed yet; this config is staged and applies once you install it."
-  log_info "Reload a running Ghostty with ctrl+shift+, (or restart it) to pick up the changes."
+  _ghostty_reload_running
   _ghostty_where_note
 }
 
