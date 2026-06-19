@@ -2,11 +2,14 @@
 #
 # scripts/claude.sh — install / manage the Claude Code CLI on Ubuntu, as a COMPONENT MANAGER.
 #
-# Beyond installing the CLI, this script manages Claude Code's three extension systems —
-# MCP servers, plugins/marketplaces, and skills — each independently, by shelling out to the
-# official `claude` CLI (MCP, plugins) or managing files under ~/.claude/skills (skills). The
-# native CLI is the authoritative interface: it handles scopes and storage paths and survives
-# format changes, so we prefer it over hand-editing ~/.claude.json / settings.json.
+# Beyond installing the CLI, this script manages Claude Code's extension systems — MCP servers,
+# plugins/marketplaces, and skills — each independently, by shelling out to the official
+# `claude` CLI (MCP, plugins) or managing files under ~/.claude/skills (skills). The native CLI
+# is the authoritative interface: it handles scopes and storage paths and survives format
+# changes, so we prefer it over hand-editing ~/.claude.json / settings.json. It also manages
+# Claude's default external editor (Ctrl+G): since Claude reads the standard $EDITOR/$VISUAL
+# and exposes no editor setting of its own, that one axis writes env.EDITOR/env.VISUAL into
+# ~/.claude/settings.json (Claude-scoped, via jq, with a backup) rather than the global shell.
 #
 # install / remove / status manage the CLI binary itself (official native installer by default,
 # no Node required; an optional --method npm path for users who already run Node >= 18). This
@@ -22,6 +25,7 @@
 #   plugin-install <name@marketplace|curated-name>  ·  plugin-remove <name>
 #   plugin-enable <name>         ·  plugin-disable <name>        (toggle without uninstalling)
 #   skill-install <git-url|curated-name> [name] [subdir]  ·  skill-remove <name>
+#   set-editor <curated-name|command>  ·  clear-editor    (Claude's Ctrl+G editor; settings.json)
 #
 # All extension files live under the user's HOME and are written AS THE USER, never via sudo;
 # extension actions refuse a sudo-wrapped run so ~/.claude stays user-owned.
@@ -49,6 +53,12 @@ readonly _CLAUDE_PLUGIN_CURATED_KEYS="andrej-karpathy-skills"
 readonly _CLAUDE_SKILL_CURATED_KEYS="pdf docx pptx frontend-design mcp-builder"
 # Skills the kit itself deploys to ~/.claude/skills — never let this manager delete them.
 readonly _CLAUDE_SKILL_PROTECTED="ubuntu-install zsh-setup claude-extensions"
+# Curated editors for the "default editor" axis. Claude Code's external editor (Ctrl+G)
+# reads the standard $EDITOR/$VISUAL; this axis writes them into ~/.claude/settings.json's
+# `env` block (Claude-scoped, not the global shell). GUI editors (code/cursor) carry --wait
+# and emacs uses -nw so the editor BLOCKS until the edit is done — Claude waits on the
+# process before reading the prompt back. Arbitrary commands are always allowed too.
+readonly _CLAUDE_EDITOR_CURATED_KEYS="code cursor nvim vim nano micro emacs helix"
 
 # --- i18n (software-specific strings) ------------------------------------------
 # Same shape as lib/ui.sh's UI_MSG/ui_t, kept local so the generic UI library stays free of
@@ -113,6 +123,26 @@ CLAUDE_I18N[en:skill_desc:docx]="Create and edit Word documents"
 CLAUDE_I18N[en:skill_desc:pptx]="Create and edit PowerPoint decks"
 CLAUDE_I18N[en:skill_desc:frontend-design]="Produce polished web UIs"
 CLAUDE_I18N[en:skill_desc:mcp-builder]="Scaffold new MCP servers"
+# Default editor axis
+CLAUDE_I18N[en:editor_section]="Default editor"
+CLAUDE_I18N[en:editor_set_custom]="set custom editor…"
+CLAUDE_I18N[en:editor_use_default]="clear (use shell \$EDITOR)"
+CLAUDE_I18N[en:prompt_editor]="editor command (e.g. vim, nano, code --wait)"
+CLAUDE_I18N[en:tag_not_installed]="not installed"
+CLAUDE_I18N[en:editor_from_settings]="current: {X} (Claude settings)"
+CLAUDE_I18N[en:editor_from_env]="current: {X} (shell \$EDITOR)"
+CLAUDE_I18N[en:editor_unset]="not set (Claude falls back to your shell / system default)"
+CLAUDE_I18N[en:confirm_clear_editor]="Clear Claude's default editor (fall back to your shell \$EDITOR)?"
+CLAUDE_I18N[en:editor_need_install_t]="Editor '{X}' is not installed"
+CLAUDE_I18N[en:editor_need_install]="Install '{X}' first (e.g. via apt or swkit), then set it here."
+CLAUDE_I18N[en:editor_desc:code]="VS Code (waits for the tab to close)"
+CLAUDE_I18N[en:editor_desc:cursor]="Cursor (waits for the tab to close)"
+CLAUDE_I18N[en:editor_desc:nvim]="Neovim"
+CLAUDE_I18N[en:editor_desc:vim]="Vi-compatible modal editor"
+CLAUDE_I18N[en:editor_desc:nano]="Simple, always-available editor"
+CLAUDE_I18N[en:editor_desc:micro]="Modern, easy terminal editor"
+CLAUDE_I18N[en:editor_desc:emacs]="Emacs in the terminal"
+CLAUDE_I18N[en:editor_desc:helix]="Helix (hx)"
 
 CLAUDE_I18N[zh:mcp_servers]="MCP 服务器"
 CLAUDE_I18N[zh:plugins_mkts]="插件与市场"
@@ -164,6 +194,26 @@ CLAUDE_I18N[zh:skill_desc:docx]="创建与编辑 Word 文档"
 CLAUDE_I18N[zh:skill_desc:pptx]="创建与编辑 PowerPoint 演示文稿"
 CLAUDE_I18N[zh:skill_desc:frontend-design]="制作精致的网页 UI"
 CLAUDE_I18N[zh:skill_desc:mcp-builder]="脚手架式生成新的 MCP 服务器"
+# Default editor axis
+CLAUDE_I18N[zh:editor_section]="默认编辑器"
+CLAUDE_I18N[zh:editor_set_custom]="设置自定义编辑器…"
+CLAUDE_I18N[zh:editor_use_default]="清除(用 shell \$EDITOR)"
+CLAUDE_I18N[zh:prompt_editor]="编辑器命令(如 vim、nano、code --wait)"
+CLAUDE_I18N[zh:tag_not_installed]="未安装"
+CLAUDE_I18N[zh:editor_from_settings]="当前:{X}(Claude 设置)"
+CLAUDE_I18N[zh:editor_from_env]="当前:{X}(shell \$EDITOR)"
+CLAUDE_I18N[zh:editor_unset]="未设置(Claude 回退到 shell / 系统默认)"
+CLAUDE_I18N[zh:confirm_clear_editor]="清除 Claude 的默认编辑器(回退到 shell \$EDITOR)?"
+CLAUDE_I18N[zh:editor_need_install_t]="编辑器 '{X}' 未安装"
+CLAUDE_I18N[zh:editor_need_install]="请先安装 '{X}'(如经 apt 或 swkit),再在此设置。"
+CLAUDE_I18N[zh:editor_desc:code]="VS Code(等待标签页关闭)"
+CLAUDE_I18N[zh:editor_desc:cursor]="Cursor(等待标签页关闭)"
+CLAUDE_I18N[zh:editor_desc:nvim]="Neovim"
+CLAUDE_I18N[zh:editor_desc:vim]="Vi 兼容的模式编辑器"
+CLAUDE_I18N[zh:editor_desc:nano]="简单、几乎总是可用"
+CLAUDE_I18N[zh:editor_desc:micro]="现代、易用的终端编辑器"
+CLAUDE_I18N[zh:editor_desc:emacs]="终端里的 Emacs"
+CLAUDE_I18N[zh:editor_desc:helix]="Helix(hx)"
 
 CLAUDE_I18N[ja:mcp_servers]="MCP サーバー"
 CLAUDE_I18N[ja:plugins_mkts]="プラグインとマーケットプレイス"
@@ -215,6 +265,26 @@ CLAUDE_I18N[ja:skill_desc:docx]="Word 文書の作成と編集"
 CLAUDE_I18N[ja:skill_desc:pptx]="PowerPoint の作成と編集"
 CLAUDE_I18N[ja:skill_desc:frontend-design]="洗練された Web UI を作成"
 CLAUDE_I18N[ja:skill_desc:mcp-builder]="新しい MCP サーバーを scaffold"
+# Default editor axis
+CLAUDE_I18N[ja:editor_section]="デフォルトエディタ"
+CLAUDE_I18N[ja:editor_set_custom]="カスタムエディタを設定…"
+CLAUDE_I18N[ja:editor_use_default]="クリア(shell の \$EDITOR を使用)"
+CLAUDE_I18N[ja:prompt_editor]="エディタコマンド(例: vim, nano, code --wait)"
+CLAUDE_I18N[ja:tag_not_installed]="未インストール"
+CLAUDE_I18N[ja:editor_from_settings]="現在: {X}(Claude 設定)"
+CLAUDE_I18N[ja:editor_from_env]="現在: {X}(shell の \$EDITOR)"
+CLAUDE_I18N[ja:editor_unset]="未設定(Claude は shell / システム既定にフォールバック)"
+CLAUDE_I18N[ja:confirm_clear_editor]="Claude のデフォルトエディタをクリアしますか(shell の \$EDITOR にフォールバック)?"
+CLAUDE_I18N[ja:editor_need_install_t]="エディタ '{X}' は未インストール"
+CLAUDE_I18N[ja:editor_need_install]="先に '{X}' をインストール(apt や swkit など)してから設定してください。"
+CLAUDE_I18N[ja:editor_desc:code]="VS Code(タブが閉じるまで待機)"
+CLAUDE_I18N[ja:editor_desc:cursor]="Cursor(タブが閉じるまで待機)"
+CLAUDE_I18N[ja:editor_desc:nvim]="Neovim"
+CLAUDE_I18N[ja:editor_desc:vim]="Vi 互換のモーダルエディタ"
+CLAUDE_I18N[ja:editor_desc:nano]="シンプルでほぼ常に利用可能"
+CLAUDE_I18N[ja:editor_desc:micro]="モダンで使いやすい端末エディタ"
+CLAUDE_I18N[ja:editor_desc:emacs]="端末内の Emacs"
+CLAUDE_I18N[ja:editor_desc:helix]="Helix(hx)"
 
 # _claude_t KEY — localized Claude string for $UI_LANG (en/zh/ja), fallback en -> key.
 _claude_t() {
@@ -735,6 +805,138 @@ do_skill_remove() {
 }
 
 # ===============================================================================
+# Axis 4 — Default editor (~/.claude/settings.json env EDITOR/VISUAL)
+# ===============================================================================
+# Claude Code's external editor (Ctrl+G) reads the standard $EDITOR/$VISUAL. We set those
+# Claude-scoped, by writing them into ~/.claude/settings.json's `env` block (not the global
+# shell). All JSON edits go through jq (apt-installed if missing) with a backup first.
+
+# Curated editor: key -> "probe-cmd<TAB>EDITOR-value<TAB>description". The probe-cmd decides
+# whether it is installed; the EDITOR-value carries the blocking flag for GUI editors so the
+# editor stays in the foreground until the user finishes. Returns non-zero for unknown keys.
+_claude_editor_curated() {
+  case "$1" in
+    code)   printf 'code\tcode --wait\tVS Code (waits for the tab to close)' ;;
+    cursor) printf 'cursor\tcursor --wait\tCursor (waits for the tab to close)' ;;
+    nvim)   printf 'nvim\tnvim\tNeovim' ;;
+    vim)    printf 'vim\tvim\tVi-compatible modal editor' ;;
+    nano)   printf 'nano\tnano\tSimple, always-available editor' ;;
+    micro)  printf 'micro\tmicro\tModern, easy terminal editor' ;;
+    emacs)  printf 'emacs\temacs -nw\tEmacs in the terminal' ;;
+    helix)  printf 'hx\thx\tHelix (hx)' ;;
+    *) return 1 ;;
+  esac
+}
+
+# Absolute path to the user's Claude settings file (_CHOME comes from _claude_user_paths).
+_claude_settings_path() { printf '%s' "${_CHOME:-$HOME}/.claude/settings.json"; }
+
+# Echo the EDITOR value currently set by this kit in settings.json's env (empty if none).
+# Prefers jq; falls back to a best-effort grep purely for the display line.
+_claude_editor_current() {
+  local settings; settings="$(_claude_settings_path)"
+  [[ -f "$settings" ]] || return 0
+  if have_cmd jq; then
+    jq -r '.env.EDITOR // empty' "$settings" 2>/dev/null
+  else
+    sed -n 's/.*"EDITOR"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$settings" 2>/dev/null | head -1
+  fi
+}
+
+# Ensure jq is available (apt-installed if missing). Returns non-zero if it still isn't.
+_claude_editor_need_jq() {
+  have_cmd jq && return 0
+  log_info "jq is needed to edit ~/.claude/settings.json safely — installing it…"
+  apt_install jq || true
+  have_cmd jq && return 0
+  log_err "jq is required to edit ~/.claude/settings.json but could not be installed."
+  return 1
+}
+
+# Write EDITOR=VISUAL=VALUE into settings.json's env (idempotent). Needs jq; backs up first;
+# refuses to touch a file that is not valid JSON (the backup is the only undo).
+_claude_editor_write() {
+  local val="$1" settings tmp
+  settings="$(_claude_settings_path)"
+  _claude_editor_need_jq || return 1
+  mkdir -p "$(dirname "$settings")"
+  [[ -f "$settings" ]] || printf '{}\n' >"$settings"
+  if ! jq -e . "$settings" >/dev/null 2>&1; then
+    log_err "$settings is not valid JSON — fix or remove it first (then re-run)."
+    return 1
+  fi
+  backup_file "$settings"
+  tmp="$(mktemp)"
+  if jq --arg e "$val" '.env = (.env // {}) | .env.EDITOR = $e | .env.VISUAL = $e' "$settings" >"$tmp"; then
+    mv "$tmp" "$settings"
+  else
+    rm -f "$tmp"; log_err "Failed to update $settings via jq."; return 1
+  fi
+}
+
+# Remove EDITOR/VISUAL from settings.json's env; drop env entirely if it becomes empty.
+_claude_editor_clear() {
+  local settings tmp
+  settings="$(_claude_settings_path)"
+  if [[ ! -f "$settings" ]]; then
+    log_info "No ~/.claude/settings.json — Claude's default editor is not set; nothing to clear."
+    return 0
+  fi
+  _claude_editor_need_jq || return 1
+  if ! jq -e . "$settings" >/dev/null 2>&1; then
+    log_err "$settings is not valid JSON — fix or remove it first (then re-run)."
+    return 1
+  fi
+  if [[ -z "$(_claude_editor_current)" ]]; then
+    log_info "Claude's default editor is not set in settings.json — nothing to clear."
+    return 0
+  fi
+  backup_file "$settings"
+  tmp="$(mktemp)"
+  if jq 'if has("env") then .env |= (del(.EDITOR) | del(.VISUAL)) else . end
+         | if (.env? | length) == 0 then del(.env) else . end' "$settings" >"$tmp"; then
+    mv "$tmp" "$settings"
+  else
+    rm -f "$tmp"; log_err "Failed to update $settings via jq."; return 1
+  fi
+}
+
+# set-editor <curated-key|command>: set Claude's external editor (Ctrl+G). A curated key is
+# resolved to its proper command (with --wait/-nw); anything else is written verbatim. An
+# editor that is not on PATH is set anyway (so you can configure before installing), with a
+# warning. Runs as the user (refuses a sudo-wrapped run) so ~/.claude stays user-owned.
+do_set_editor() {
+  _claude_gate || return 0
+  _claude_user_paths || return 1
+  local arg="${1:-}"
+  if [[ -z "$arg" ]]; then
+    log_err "Usage: claude set-editor <name|command>"
+    log_err "Curated editors: $_CLAUDE_EDITOR_CURATED_KEYS"
+    return 2
+  fi
+  local def val probe first
+  if def="$(_claude_editor_curated "$arg")"; then
+    IFS=$'\t' read -r probe val _ <<<"$def"
+    have_cmd "$probe" || log_warn "'$arg' ($probe) is not on PATH — setting it anyway; install it for Ctrl+G to work."
+  else
+    val="$arg"
+    first="${arg%% *}"
+    [[ -z "$first" ]] || have_cmd "$first" || log_warn "'$first' is not on PATH — setting it anyway; install it for Ctrl+G to work."
+  fi
+  log_info "Setting Claude's default editor (EDITOR/VISUAL) to '$val' in $(_claude_settings_path)…"
+  _claude_editor_write "$val" || return 1
+  log_info "Done — Claude Code (Ctrl+G) will use '$val'. Restart any running session to pick it up."
+}
+
+# clear-editor: remove the kit-set editor from settings.json (fall back to your shell $EDITOR).
+do_clear_editor() {
+  _claude_gate || return 0
+  _claude_user_paths || return 1
+  log_info "Clearing Claude's default editor from $(_claude_settings_path)…"
+  _claude_editor_clear || return 1
+}
+
+# ===============================================================================
 # Interactive management screen (the script's own UI) — consolidated extension manager
 # ===============================================================================
 # A bespoke full-screen panel: install state at top, then three sections — MCP servers,
@@ -758,6 +960,7 @@ ui() {
   local sel=0 g refresh=1
   local installed=0 ver=""
   local mcp_names="" plug_state="" skill_list="" mkt_list=""
+  local editor_current="" editor_shell=""
   while true; do
     [[ "${_UI_WINCH:-0}" == 1 ]] && { _UI_WINCH=0; ui_size; }
 
@@ -775,6 +978,10 @@ ui() {
         # per-keypress render below matches against this cache instead of re-shelling out
         # to `claude plugin marketplace list` every frame (that was the navigation lag).
         mkt_list="$(claude plugin marketplace list 2>/dev/null || true)"
+        # Default editor: the value we set in settings.json (if any), and the shell's own
+        # $EDITOR/$VISUAL for the honest "where the current editor comes from" line.
+        editor_current="$(_claude_editor_current 2>/dev/null || true)"
+        editor_shell="${VISUAL:-${EDITOR:-}}"
       fi
       refresh=0
     fi
@@ -869,6 +1076,31 @@ ui() {
         dlabel+=("  ${UI_MUTED}${UI_CHK_OFF}${UI_OFF} $key ${UI_MUTED}— $desc${UI_OFF}")
       done
       dkind+=(skill_add); did+=(skill_add); dlabel+=("  ${UI_ACCENT}+${UI_OFF} $(_claude_t add_skill)")
+
+      # ---- Default editor (Ctrl+G external editor; ~/.claude/settings.json env) ----
+      dkind+=(spacer); did+=(""); dlabel+=("")
+      local einfo ekey eprobe evalue einst
+      if [[ -n "$editor_current" ]]; then einfo="$(_claude_tx editor_from_settings X "$editor_current")"
+      elif [[ -n "$editor_shell" ]]; then einfo="$(_claude_tx editor_from_env X "$editor_shell")"
+      else einfo="$(_claude_t editor_unset)"; fi
+      dkind+=(header); did+=(""); dlabel+=("$(_claude_t editor_section) ${UI_MUTED}— $einfo${UI_OFF}")
+      for ekey in $_CLAUDE_EDITOR_CURATED_KEYS; do
+        def="$(_claude_editor_curated "$ekey")"; IFS=$'\t' read -r eprobe evalue _ <<<"$def"
+        einst=0; have_cmd "$eprobe" && einst=1
+        desc="$(_claude_t "editor_desc:$ekey")"
+        dkind+=(editor); did+=("$ekey")
+        if [[ -n "$editor_current" && "$editor_current" == "$evalue" ]]; then
+          dlabel+=("  ${UI_OK}${UI_CHK_ON}${UI_OFF} $ekey ${UI_MUTED}— $desc${UI_OFF}")
+        elif (( einst )); then
+          dlabel+=("  ${UI_MUTED}${UI_CHK_OFF}${UI_OFF} $ekey ${UI_MUTED}— $desc${UI_OFF}")
+        else
+          dlabel+=("  ${UI_MUTED}${UI_CHK_OFF} $ekey — $desc ($(_claude_t tag_not_installed))${UI_OFF}")
+        fi
+      done
+      dkind+=(editor_custom); did+=(editor_custom); dlabel+=("  ${UI_ACCENT}+${UI_OFF} $(_claude_t editor_set_custom)")
+      if [[ -n "$editor_current" ]]; then
+        dkind+=(editor_clear); did+=(editor_clear); dlabel+=("  ${UI_MUTED}↺ $(_claude_t editor_use_default)${UI_OFF}")
+      fi
 
       # ---- danger zone ----
       dkind+=(spacer); did+=(""); dlabel+=("")
@@ -990,6 +1222,21 @@ ui() {
               ui_input "$(_claude_t prompt_skill_subdir)" "" || true; ssub="$UI_INPUT"
               ui_run "skill-install · claude" -- "$0" skill-install "$surl" "$sname" "$ssub"; refresh=1
             fi ;;
+          editor)
+            local ek="${did[$sel]}" edef eprobe2
+            edef="$(_claude_editor_curated "$ek")"; IFS=$'\t' read -r eprobe2 _ <<<"$edef"
+            if have_cmd "$eprobe2"; then
+              ui_run "set-editor $ek · claude" -- "$0" set-editor "$ek"; refresh=1
+            else
+              ui_notify "$(_claude_tx editor_need_install_t X "$ek")" "$(_claude_tx editor_need_install X "$eprobe2")"
+            fi ;;
+          editor_custom)
+            if ui_input "$(_claude_t prompt_editor)" "" && [[ -n "$UI_INPUT" ]]; then
+              ui_run "set-editor · claude" -- "$0" set-editor "$UI_INPUT"; refresh=1
+            fi ;;
+          editor_clear)
+            ui_confirm "$(_claude_t confirm_clear_editor)" n \
+              && { ui_run "clear-editor · claude" -- "$0" clear-editor; refresh=1; } ;;
         esac ;;
       q|Q|esc|backspace) break ;;
     esac
@@ -1038,6 +1285,13 @@ Skills (~/.claude/skills/<name>/):
   skill-install <git-url> [name] [subdir]   Install any single-skill repo (or a subdir of a
                                   multi-skill repo). Kit-managed skills are protected.
   skill-remove <name>             Remove a skill (a tar backup is saved first).
+
+Default editor (~/.claude/settings.json env EDITOR/VISUAL — Claude's Ctrl+G editor):
+  set-editor <curated-name>       Set Claude's external editor. Curated:
+                                    $_CLAUDE_EDITOR_CURATED_KEYS
+  set-editor <command>            Set any command verbatim (e.g. "vim", "code --wait").
+                                  GUI editors need a wait flag so Claude blocks on the edit.
+  clear-editor                    Remove it (Claude falls back to your shell \$EDITOR).
 
 Other:
   ui                              Open the interactive extension manager (needs a terminal).
