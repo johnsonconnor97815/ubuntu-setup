@@ -79,7 +79,11 @@ status() {
 
 # True iff we are in an SSH/headless session (no local display to run Cursor).
 _cursor_in_ssh() { [[ -n "${SSH_CONNECTION:-}${SSH_TTY:-}${SSH_CLIENT:-}" ]]; }
-_cursor_where_note() { _cursor_in_ssh && log_warn "$(_cursor_t ssh_note)"; }
+# Emit the SSH caveat only when relevant. MUST end on a true status: this is the last command of
+# _cursor_post_install (and do_update), so a bare `_cursor_in_ssh && log_warn …` would leak the
+# false status up through do_install/do_update and make a fully successful install report exit 1
+# whenever NOT in SSH (i.e. the normal local-desktop case). The `if` form returns 0 when not SSH.
+_cursor_where_note() { if _cursor_in_ssh; then log_warn "$(_cursor_t ssh_note)"; fi; }
 
 # Map dpkg architecture -> Cursor download-API platform token. Non-zero on an unsupported arch.
 _cursor_platform() {
@@ -119,7 +123,17 @@ _cursor_install_deb() {
   local tmp deb rc=0
   tmp="$(mktemp -d)"
   deb="$tmp/cursor.deb"
-  if ! curl -fsSL --max-time 600 "$_CURSOR_URL" -o "$deb"; then
+  # Cursor's .deb is large (~200 MB) and downloads.cursor.com can be slow/throttled. Bound only
+  # the connect phase and a genuine STALL — NOT total elapsed time: a wall-clock cap (--max-time)
+  # aborts a slow-but-still-progressing transfer (this caused install failures when a healthy
+  # download simply ran longer than the cap). --speed-time/--speed-limit abort only when real
+  # throughput stays under 1 KB/s for 60s; --retry + -C - retry transient drops and resume the
+  # partial bytes already on disk (the server advertises Accept-Ranges: bytes). Do NOT add --max-time.
+  if ! curl -fsSL \
+        --connect-timeout 30 \
+        --speed-limit 1024 --speed-time 60 \
+        --retry 3 --retry-delay 5 --retry-all-errors \
+        -C - "$_CURSOR_URL" -o "$deb"; then
     rm -rf "$tmp"; log_err "Failed to download the Cursor .deb."; return 1
   fi
   apt_install "$deb" || rc=$?
