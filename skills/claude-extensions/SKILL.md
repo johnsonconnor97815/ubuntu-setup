@@ -1,20 +1,21 @@
 ---
 name: claude-extensions
-description: Use when the user wants to manage Claude Code CLI's extensions on Ubuntu/Debian — add/remove/enable/disable MCP servers (stdio/http/sse), install/uninstall/enable/disable plugins, add/remove plugin marketplaces, or install/remove skills (~/.claude/skills). Covers picking servers/plugins/skills with taste (token cost, runtimes, secrets, scope). Drives scripts/claude.sh in the ubuntu-setup kit (a Claude Code extension manager) and extends it when a capability is missing. Works on headless servers over SSH.
+description: Use when the user wants to manage Claude Code CLI's extensions on Ubuntu/Debian — add/remove/enable/disable MCP servers (stdio/http/sse), install/uninstall/enable/disable plugins, add/remove plugin marketplaces, install/remove skills (~/.claude/skills), or set Claude's default external editor (Ctrl+G; EDITOR/VISUAL in settings.json — vim/nvim/nano/code/cursor/…). Covers picking servers/plugins/skills/editor with taste (token cost, runtimes, secrets, scope). Drives scripts/claude.sh in the ubuntu-setup kit (a Claude Code extension manager) and extends it when a capability is missing. Works on headless servers over SSH.
 ---
 
 # Claude Code Extension Management
 
-The mechanics of installing the Claude Code CLI **and managing its three extension systems**
+The mechanics of installing the Claude Code CLI **and managing its four extension axes**
 live in one script — **`scripts/claude.sh`** in the ubuntu-setup kit, a **component manager**
 runnable as `swkit claude <action>` (or, for a human at a terminal, an interactive full-screen
 screen via `swkit claude` / the bootstrap catalog — see §5). That script, not this prose, is the
 single implementation: it sources `lib/common.sh` (idempotency probes, back-up-before-edit) and
 **shells out to the official `claude` CLI** for MCP and plugins (the authoritative interface —
-it owns scopes and storage and survives format changes), and manages **skills** as directories
-under `~/.claude/skills/`.
+it owns scopes and storage and survives format changes), manages **skills** as directories
+under `~/.claude/skills/`, and sets Claude's **default editor** by writing `EDITOR`/`VISUAL`
+into `~/.claude/settings.json`'s `env` (Claude reads the standard `$EDITOR`/`$VISUAL`).
 
-The three extension systems are independent:
+The four extension axes are independent:
 
 - **MCP servers** (`claude mcp …`) — stdio / http / sse servers, stored per **scope** (local /
   user / project). The kit defaults to **`--scope user`** (global, all your projects).
@@ -22,6 +23,8 @@ The three extension systems are independent:
   marketplaces; also user scope by default.
 - **Skills** (files) — a `SKILL.md` (+ assets) in `~/.claude/skills/<name>/`. No `claude` CLI for
   these; the kit clones single-skill git repos (or a subdir of a multi-skill repo) into place.
+- **Default editor** (`settings.json` `env`) — the `Ctrl+G` external editor; `EDITOR`/`VISUAL` in
+  `~/.claude/settings.json`. Claude-scoped (not the global shell), live-detected, single-valued.
 
 Your job:
 
@@ -78,6 +81,18 @@ add checks existence first, every remove checks first; re-running converges. `in
   first). **Kit-managed skills** (`ubuntu-install`, `zsh-setup`, `claude-extensions`) are protected
   and cannot be removed through this manager.
 
+**Default editor** (`~/.claude/settings.json` `env` `EDITOR`/`VISUAL`)
+- **`set-editor <curated-name>`** — set Claude's **external editor** (the `Ctrl+G` "edit the prompt"
+  handoff). Claude reads the standard `$EDITOR`/`$VISUAL` and has no editor setting of its own, so
+  this writes them into `~/.claude/settings.json`'s `env` block — **Claude-scoped, not the global
+  shell** (git/crontab keep their own editor). Curated: `code`, `cursor` (both get `--wait`), `nvim`,
+  `vim`, `nano`, `micro`, `emacs` (`-nw`), `helix`. Installed editors are detected live (`have_cmd`).
+- **`set-editor <command>`** — set any command verbatim, e.g. `set-editor "code --wait"` or
+  `set-editor vim`. **GUI editors need a wait flag** (`--wait`/`-w`) so Claude blocks until you finish
+  the edit; terminal editors (vim/nano/…) block on their own. A command not on PATH is set anyway
+  (so you can configure before installing) with a warning.
+- **`clear-editor`** — remove it; Claude falls back to your shell `$EDITOR`.
+
 ## 2. Helping the user choose
 
 You're on a stranger's machine — **don't impose taste.** Lay out choices, recommend conservative
@@ -103,6 +118,11 @@ Suggestions by axis (offer, don't impose):
   enable/disable as needed.
 - **Skills:** the document skills (`pdf`/`docx`/`pptx`) are broadly useful; `mcp-builder` /
   `frontend-design` for those tasks. Any single-skill git repo via `skill-install <git-url>`.
+- **Default editor:** pick what the user already knows — `vim`/`nvim`/`nano` for a terminal flow,
+  `code`/`cursor` (with `--wait`) when they live in VS Code / Cursor. Only offer editors that are
+  installed (the screen marks the rest "not installed"); for a missing one, point at the right
+  installer (`swkit vscode install`, `swkit cursor install`, or `apt install vim`) first. It's
+  Claude-only — say so if the user expected their global `$EDITOR` to change.
 
 **Scope:** default `user` (global) suits "set up my machine". Use `-s project` only when the user
 wants an MCP server committed to a specific repo's `.mcp.json`.
@@ -146,8 +166,8 @@ The how-to (follow the authoring contract in the repo's `CLAUDE.md`):
 ## 5. The interactive screen, and the boundary with bootstrap
 
 `scripts/claude.sh` defines its **own full-screen `ui()`** — a consolidated extension manager with
-three sections (MCP servers, Plugins & marketplaces, Skills), each a checklist of curated quick-adds
-+ currently configured items + an "add…" row. A human opens it with **`swkit claude`** (no action)
+four sections (MCP servers, Plugins & marketplaces, Skills, Default editor), each a checklist of
+curated quick-adds + currently configured items + an "add…"/"set…" row. A human opens it with **`swkit claude`** (no action)
 or by drilling into Claude Code from the bootstrap catalog. **Space** toggles the selected item
 (add/remove a server, add/remove a marketplace, install/remove a skill, enable/disable a plugin);
 **x** uninstalls a selected plugin; "add…" rows prompt for a name/command/URL. Every change shells
