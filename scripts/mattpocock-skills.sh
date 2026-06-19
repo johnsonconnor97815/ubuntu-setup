@@ -55,6 +55,7 @@ readonly _MPS_AGENT_KEYS="claude-code codex cursor opencode gemini-cli windsurf 
 # ===============================================================================
 declare -gA MPS_I18N
 MPS_I18N[en:agents_hdr]="Target agents"
+MPS_I18N[en:unit_agents]="agent(s)"
 MPS_I18N[en:skills_hdr]="Skills"
 MPS_I18N[en:actions_hdr]="Actions"
 MPS_I18N[en:eng_hdr]="engineering"
@@ -95,6 +96,7 @@ MPS_I18N[en:skill_desc:teach]="Teach a skill/concept within this workspace"
 MPS_I18N[en:skill_desc:writing-great-skills]="Reference for authoring great skills"
 
 MPS_I18N[zh:agents_hdr]="目标 agent"
+MPS_I18N[zh:unit_agents]="个 agent"
 MPS_I18N[zh:skills_hdr]="Skills"
 MPS_I18N[zh:actions_hdr]="操作"
 MPS_I18N[zh:eng_hdr]="engineering"
@@ -135,6 +137,7 @@ MPS_I18N[zh:skill_desc:teach]="在当前工作区教你一项技能/概念"
 MPS_I18N[zh:skill_desc:writing-great-skills]="撰写优秀 skill 的参考"
 
 MPS_I18N[ja:agents_hdr]="対象エージェント"
+MPS_I18N[ja:unit_agents]="エージェント"
 MPS_I18N[ja:skills_hdr]="Skills"
 MPS_I18N[ja:actions_hdr]="操作"
 MPS_I18N[ja:eng_hdr]="engineering"
@@ -614,7 +617,7 @@ ui() {
 
     # ---- render ----
     printf '\033[2J' >&"$_UI_FD"
-    ui_header "$(_mps_t title)" "${UI_MUTED}${total} agent(s)${UI_OFF}"
+    ui_header "$(_mps_t title)" "${UI_MUTED}${total} $(_mps_t unit_agents)${UI_OFF}"
     local i row=3 top=0 avail=$(( UI_ROWS - 3 - 1 ))
     (( avail < 1 )) && avail=1
     (( sel < top )) && top=$sel

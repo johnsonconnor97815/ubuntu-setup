@@ -186,7 +186,7 @@ ui() {
             [[ -n "$new_name" ]]  && cargs+=(--name "$new_name")
             [[ -n "$new_email" ]] && cargs+=(--email "$new_email")
             if (( ${#cargs[@]} > 0 )); then
-              ui_run "configure · git" -- "$0" configure "${cargs[@]}"
+              ui_run "$(ui_t configure) · git" -- "$0" configure "${cargs[@]}"
             fi ;;
         esac ;;
       q|Q|esc|backspace) break ;;

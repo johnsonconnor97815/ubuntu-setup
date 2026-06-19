@@ -429,6 +429,131 @@ TMUX_I18N[ja:in_history]="スクロールバックの行数"
 TMUX_I18N[ja:in_escape_time]="escape-time ミリ秒(vim/neovim には 10 が良い)"
 TMUX_I18N[ja:in_scroll_speed]="マウスホイールのスクロール速度 — 1 ノッチあたりの行数('default' = tmux 既定の 5)"
 
+# ui() chrome (ubuntu-setup): section headers, row labels, action rows.
+TMUX_I18N[en:tmux_suffix]="tmux — terminal multiplexer"
+TMUX_I18N[en:note_managed_block]="Settings write a managed block in your tmux config (~/.tmux.conf, or the XDG path if you have one); your own config is preserved."
+TMUX_I18N[en:hdr_plugin_manager]="Plugin manager"
+TMUX_I18N[en:hdr_appearance]="Appearance"
+TMUX_I18N[en:hdr_behavior]="Behavior"
+TMUX_I18N[en:hdr_keys]="Keys"
+TMUX_I18N[en:hdr_session]="Session"
+TMUX_I18N[en:hdr_history]="History"
+TMUX_I18N[en:hdr_plugins]="Plugins"
+TMUX_I18N[en:lbl_theme]="Theme"
+TMUX_I18N[en:lbl_status_bar]="Status bar"
+TMUX_I18N[en:lbl_status_refresh]="Status refresh"
+TMUX_I18N[en:lbl_mouse]="Mouse"
+TMUX_I18N[en:lbl_system_clipboard]="System clipboard"
+TMUX_I18N[en:lbl_focus_events]="Focus events"
+TMUX_I18N[en:lbl_aggressive_resize]="Aggressive resize"
+TMUX_I18N[en:lbl_renumber_windows]="Renumber windows"
+TMUX_I18N[en:lbl_base_index]="1-based index"
+TMUX_I18N[en:lbl_monitor_activity]="Monitor activity"
+TMUX_I18N[en:lbl_set_window_title]="Set window title"
+TMUX_I18N[en:lbl_mode_keys]="Mode keys"
+TMUX_I18N[en:lbl_prefix_key]="Prefix key"
+TMUX_I18N[en:lbl_ergonomic_keys]="Ergonomic keys"
+TMUX_I18N[en:lbl_window_switch_keys]="Window switch keys"
+TMUX_I18N[en:lbl_enter_copy_mode]="Enter copy-mode"
+TMUX_I18N[en:lbl_window_tree]="Window tree"
+TMUX_I18N[en:lbl_split_h]="Split -h (L/R)"
+TMUX_I18N[en:lbl_split_v]="Split -v (T/B)"
+TMUX_I18N[en:lbl_pane_mgmt_keys]="Pane mgmt keys"
+TMUX_I18N[en:lbl_alt_split]="Alt split (no prefix)"
+TMUX_I18N[en:lbl_save_vim_sessions]="Save vim/nvim sessions"
+TMUX_I18N[en:lbl_autostart_on_boot]="Auto-start on boot"
+TMUX_I18N[en:lbl_scrollback_lines]="Scrollback lines"
+TMUX_I18N[en:lbl_escape_time]="Escape time"
+TMUX_I18N[en:lbl_scroll_speed]="Scroll speed"
+TMUX_I18N[en:lbl_custom]="(custom)"
+TMUX_I18N[en:act_add_plugin]="add plugin (owner/repo or git URL)…"
+TMUX_I18N[en:act_apply_config]="Apply config now"
+TMUX_I18N[en:act_update_plugins]="Update plugins"
+TMUX_I18N[en:act_apply_recommended_keys]="Apply recommended keybindings (ergonomic split/nav/copy + window & pane keys)"
+TMUX_I18N[en:act_apply_recommended_setup]="Apply recommended setup (TPM + popular plugins + theme + ergonomic keys)"
+TMUX_I18N[zh:tmux_suffix]="tmux —— 终端复用器"
+TMUX_I18N[zh:note_managed_block]="设置会在你的 tmux 配置(~/.tmux.conf,若有 XDG 路径则用之)里写入一个受管块;你自己的配置会被保留。"
+TMUX_I18N[zh:hdr_plugin_manager]="插件管理器"
+TMUX_I18N[zh:hdr_appearance]="外观"
+TMUX_I18N[zh:hdr_behavior]="行为"
+TMUX_I18N[zh:hdr_keys]="键位"
+TMUX_I18N[zh:hdr_session]="会话"
+TMUX_I18N[zh:hdr_history]="历史"
+TMUX_I18N[zh:hdr_plugins]="插件"
+TMUX_I18N[zh:lbl_theme]="主题"
+TMUX_I18N[zh:lbl_status_bar]="状态栏"
+TMUX_I18N[zh:lbl_status_refresh]="状态栏刷新"
+TMUX_I18N[zh:lbl_mouse]="鼠标"
+TMUX_I18N[zh:lbl_system_clipboard]="系统剪贴板"
+TMUX_I18N[zh:lbl_focus_events]="焦点事件"
+TMUX_I18N[zh:lbl_aggressive_resize]="激进缩放"
+TMUX_I18N[zh:lbl_renumber_windows]="重新编号窗口"
+TMUX_I18N[zh:lbl_base_index]="从 1 开始编号"
+TMUX_I18N[zh:lbl_monitor_activity]="监视活动"
+TMUX_I18N[zh:lbl_set_window_title]="设置窗口标题"
+TMUX_I18N[zh:lbl_mode_keys]="模式键位"
+TMUX_I18N[zh:lbl_prefix_key]="prefix 键"
+TMUX_I18N[zh:lbl_ergonomic_keys]="人体工学键位"
+TMUX_I18N[zh:lbl_window_switch_keys]="窗口切换键"
+TMUX_I18N[zh:lbl_enter_copy_mode]="进入 copy-mode"
+TMUX_I18N[zh:lbl_window_tree]="窗口树"
+TMUX_I18N[zh:lbl_split_h]="分屏 -h(左右)"
+TMUX_I18N[zh:lbl_split_v]="分屏 -v(上下)"
+TMUX_I18N[zh:lbl_pane_mgmt_keys]="窗格管理键"
+TMUX_I18N[zh:lbl_alt_split]="Alt 分屏(无 prefix)"
+TMUX_I18N[zh:lbl_save_vim_sessions]="保存 vim/nvim 会话"
+TMUX_I18N[zh:lbl_autostart_on_boot]="开机自动启动"
+TMUX_I18N[zh:lbl_scrollback_lines]="回滚行数"
+TMUX_I18N[zh:lbl_escape_time]="Escape 时间"
+TMUX_I18N[zh:lbl_scroll_speed]="滚动速度"
+TMUX_I18N[zh:lbl_custom]="(自定义)"
+TMUX_I18N[zh:act_add_plugin]="添加插件(owner/repo 或 git URL)…"
+TMUX_I18N[zh:act_apply_config]="立即应用配置"
+TMUX_I18N[zh:act_update_plugins]="更新插件"
+TMUX_I18N[zh:act_apply_recommended_keys]="应用推荐键位(人体工学分屏/导航/复制 + 窗口与窗格键)"
+TMUX_I18N[zh:act_apply_recommended_setup]="应用推荐配置(TPM + 常用插件 + 主题 + 人体工学键位)"
+TMUX_I18N[ja:tmux_suffix]="tmux — ターミナルマルチプレクサ"
+TMUX_I18N[ja:note_managed_block]="設定は tmux 設定(~/.tmux.conf、XDG パスがあればそちら)に管理ブロックを書き込みます。あなた自身の設定は保持されます。"
+TMUX_I18N[ja:hdr_plugin_manager]="プラグインマネージャー"
+TMUX_I18N[ja:hdr_appearance]="外観"
+TMUX_I18N[ja:hdr_behavior]="動作"
+TMUX_I18N[ja:hdr_keys]="キー"
+TMUX_I18N[ja:hdr_session]="セッション"
+TMUX_I18N[ja:hdr_history]="履歴"
+TMUX_I18N[ja:hdr_plugins]="プラグイン"
+TMUX_I18N[ja:lbl_theme]="テーマ"
+TMUX_I18N[ja:lbl_status_bar]="ステータスバー"
+TMUX_I18N[ja:lbl_status_refresh]="ステータス更新間隔"
+TMUX_I18N[ja:lbl_mouse]="マウス"
+TMUX_I18N[ja:lbl_system_clipboard]="システムのクリップボード"
+TMUX_I18N[ja:lbl_focus_events]="フォーカスイベント"
+TMUX_I18N[ja:lbl_aggressive_resize]="アグレッシブリサイズ"
+TMUX_I18N[ja:lbl_renumber_windows]="ウィンドウ番号を振り直す"
+TMUX_I18N[ja:lbl_base_index]="1 始まりのインデックス"
+TMUX_I18N[ja:lbl_monitor_activity]="アクティビティを監視"
+TMUX_I18N[ja:lbl_set_window_title]="ウィンドウタイトルを設定"
+TMUX_I18N[ja:lbl_mode_keys]="モードキー"
+TMUX_I18N[ja:lbl_prefix_key]="prefix キー"
+TMUX_I18N[ja:lbl_ergonomic_keys]="エルゴノミクスキー"
+TMUX_I18N[ja:lbl_window_switch_keys]="ウィンドウ切替キー"
+TMUX_I18N[ja:lbl_enter_copy_mode]="copy-mode に入る"
+TMUX_I18N[ja:lbl_window_tree]="ウィンドウツリー"
+TMUX_I18N[ja:lbl_split_h]="分割 -h(左右)"
+TMUX_I18N[ja:lbl_split_v]="分割 -v(上下)"
+TMUX_I18N[ja:lbl_pane_mgmt_keys]="ペイン管理キー"
+TMUX_I18N[ja:lbl_alt_split]="Alt 分割(prefix なし)"
+TMUX_I18N[ja:lbl_save_vim_sessions]="vim/nvim セッションを保存"
+TMUX_I18N[ja:lbl_autostart_on_boot]="起動時に自動開始"
+TMUX_I18N[ja:lbl_scrollback_lines]="スクロールバック行数"
+TMUX_I18N[ja:lbl_escape_time]="Escape タイム"
+TMUX_I18N[ja:lbl_scroll_speed]="スクロール速度"
+TMUX_I18N[ja:lbl_custom]="(カスタム)"
+TMUX_I18N[ja:act_add_plugin]="プラグインを追加(owner/repo または git URL)…"
+TMUX_I18N[ja:act_apply_config]="今すぐ設定を適用"
+TMUX_I18N[ja:act_update_plugins]="プラグインを更新"
+TMUX_I18N[ja:act_apply_recommended_keys]="推奨キーバインドを適用(エルゴノミクスな分割/移動/コピー + ウィンドウ・ペインキー)"
+TMUX_I18N[ja:act_apply_recommended_setup]="推奨セットアップを適用(TPM + 人気プラグイン + テーマ + エルゴノミクスキー)"
+
 # Resolve the localized language code (en/zh/ja) for the I18N lookups; unknown -> en.
 _tmux_lang() { local l="${UI_LANG:-en}"; case "$l" in en|zh|ja) printf '%s' "$l" ;; *) printf 'en' ;; esac; }
 
@@ -1181,74 +1306,74 @@ ui() {
     # ---- build display rows (parallel arrays: kind / id / label) ----
     local -a dkind=() did=() dlabel=()
     if (( ! installed )); then
-      dkind+=(install); did+=(install); dlabel+=("$(ui_badge missing) $(ui_t install) tmux — terminal multiplexer")
+      dkind+=(install); did+=(install); dlabel+=("$(ui_badge missing) $(ui_t install) $(_tmux_t tmux_suffix)")
     else
-      dkind+=(note); did+=(""); dlabel+=("Settings write a managed block in your tmux config (~/.tmux.conf, or the XDG path if you have one); your own config is preserved.")
+      dkind+=(note); did+=(""); dlabel+=("$(_tmux_t note_managed_block)")
       dkind+=(spacer); did+=(""); dlabel+=("")
-      dkind+=(header); did+=(""); dlabel+=("Plugin manager")
+      dkind+=(header); did+=(""); dlabel+=("$(_tmux_t hdr_plugin_manager)")
       local tpm_badge
       if (( tpm )); then tpm_badge="${UI_OK}[on]${UI_OFF}"; else tpm_badge="${UI_MUTED}[off]${UI_OFF}"; fi
       dkind+=(tpm); did+=(tpm); dlabel+=("$(printf '%-18s %s' 'TPM' "$tpm_badge")")
 
       dkind+=(spacer); did+=(""); dlabel+=("")
-      dkind+=(header); did+=(""); dlabel+=("Appearance")
-      dkind+=(theme);   did+=(theme);   dlabel+=("$(_tmux_value_label 'Theme' "$THEME")")
-      dkind+=(statuspos); did+=(statuspos); dlabel+=("$(_tmux_value_label 'Status bar' "$STATUS_POSITION")")
-      dkind+=(statusint); did+=(statusint); dlabel+=("$(_tmux_value_label 'Status refresh' "${STATUS_INTERVAL}s")")
+      dkind+=(header); did+=(""); dlabel+=("$(_tmux_t hdr_appearance)")
+      dkind+=(theme);   did+=(theme);   dlabel+=("$(_tmux_value_label "$(_tmux_t lbl_theme)" "$THEME")")
+      dkind+=(statuspos); did+=(statuspos); dlabel+=("$(_tmux_value_label "$(_tmux_t lbl_status_bar)" "$STATUS_POSITION")")
+      dkind+=(statusint); did+=(statusint); dlabel+=("$(_tmux_value_label "$(_tmux_t lbl_status_refresh)" "${STATUS_INTERVAL}s")")
 
       dkind+=(spacer); did+=(""); dlabel+=("")
-      dkind+=(header); did+=(""); dlabel+=("Behavior")
+      dkind+=(header); did+=(""); dlabel+=("$(_tmux_t hdr_behavior)")
       local fl
       for fl in mouse clipboard focus-events aggressive-resize renumber base-index monitor-activity set-titles; do
         local nm
         case "$fl" in
-          mouse) nm="Mouse" ;; clipboard) nm="System clipboard" ;; focus-events) nm="Focus events" ;;
-          aggressive-resize) nm="Aggressive resize" ;; renumber) nm="Renumber windows" ;;
-          base-index) nm="1-based index" ;; monitor-activity) nm="Monitor activity" ;; set-titles) nm="Set window title" ;;
+          mouse) nm="$(_tmux_t lbl_mouse)" ;; clipboard) nm="$(_tmux_t lbl_system_clipboard)" ;; focus-events) nm="$(_tmux_t lbl_focus_events)" ;;
+          aggressive-resize) nm="$(_tmux_t lbl_aggressive_resize)" ;; renumber) nm="$(_tmux_t lbl_renumber_windows)" ;;
+          base-index) nm="$(_tmux_t lbl_base_index)" ;; monitor-activity) nm="$(_tmux_t lbl_monitor_activity)" ;; set-titles) nm="$(_tmux_t lbl_set_window_title)" ;;
         esac
         dkind+=(toggle); did+=("$fl"); dlabel+=("$(_tmux_onoff_label "$nm" "$(_tmux_setting_val "$fl")")")
       done
 
       dkind+=(spacer); did+=(""); dlabel+=("")
-      dkind+=(header); did+=(""); dlabel+=("Keys")
-      dkind+=(keyspreset); did+=(keyspreset); dlabel+=("$(ui_badge check) Apply recommended keybindings (ergonomic split/nav/copy + window & pane keys)")
-      dkind+=(keymode); did+=(keymode); dlabel+=("$(_tmux_value_label 'Mode keys' "$KEYMODE")")
-      dkind+=(prefix);  did+=(prefix);  dlabel+=("$(_tmux_value_label 'Prefix key' "$PREFIX")")
-      dkind+=(toggle);  did+=(keybindings); dlabel+=("$(_tmux_onoff_label 'Ergonomic keys' "$KEYBINDINGS")")
-      dkind+=(toggle);  did+=(window-nav);  dlabel+=("$(_tmux_onoff_label 'Window switch keys' "$WINDOW_NAV")")
+      dkind+=(header); did+=(""); dlabel+=("$(_tmux_t hdr_keys)")
+      dkind+=(keyspreset); did+=(keyspreset); dlabel+=("$(ui_badge check) $(_tmux_t act_apply_recommended_keys)")
+      dkind+=(keymode); did+=(keymode); dlabel+=("$(_tmux_value_label "$(_tmux_t lbl_mode_keys)" "$KEYMODE")")
+      dkind+=(prefix);  did+=(prefix);  dlabel+=("$(_tmux_value_label "$(_tmux_t lbl_prefix_key)" "$PREFIX")")
+      dkind+=(toggle);  did+=(keybindings); dlabel+=("$(_tmux_onoff_label "$(_tmux_t lbl_ergonomic_keys)" "$KEYBINDINGS")")
+      dkind+=(toggle);  did+=(window-nav);  dlabel+=("$(_tmux_onoff_label "$(_tmux_t lbl_window_switch_keys)" "$WINDOW_NAV")")
       local cmk_disp
       if [[ "$COPY_MODE_KEY" == "default" ]]; then cmk_disp="prefix [ (default)"
       elif _tmux_key_is_chord "$COPY_MODE_KEY"; then cmk_disp="$COPY_MODE_KEY (no prefix)"
       else cmk_disp="prefix $COPY_MODE_KEY"; fi
-      dkind+=(copymodekey); did+=(copymodekey); dlabel+=("$(_tmux_value_label 'Enter copy-mode' "$cmk_disp")")
+      dkind+=(copymodekey); did+=(copymodekey); dlabel+=("$(_tmux_value_label "$(_tmux_t lbl_enter_copy_mode)" "$cmk_disp")")
       local tree_disp
       if [[ "$TREE_KEY" == "default" ]]; then tree_disp="prefix w (default)"
       elif _tmux_key_is_chord "$TREE_KEY"; then tree_disp="$TREE_KEY (no prefix)"
       else tree_disp="prefix $TREE_KEY"; fi
-      dkind+=(treekey); did+=(treekey); dlabel+=("$(_tmux_value_label 'Window tree' "$tree_disp")")
-      dkind+=(splith);  did+=(splith);  dlabel+=("$(_tmux_value_label 'Split -h (L/R)' "prefix $SPLIT_H_KEY")")
-      dkind+=(splitv);  did+=(splitv);  dlabel+=("$(_tmux_value_label 'Split -v (T/B)' "prefix $SPLIT_V_KEY")")
-      dkind+=(toggle);  did+=(pane-keys); dlabel+=("$(_tmux_onoff_label 'Pane mgmt keys' "$PANE_KEYS")")
-      dkind+=(toggle);  did+=(alt-split); dlabel+=("$(_tmux_onoff_label 'Alt split (no prefix)' "$ALT_SPLIT")")
+      dkind+=(treekey); did+=(treekey); dlabel+=("$(_tmux_value_label "$(_tmux_t lbl_window_tree)" "$tree_disp")")
+      dkind+=(splith);  did+=(splith);  dlabel+=("$(_tmux_value_label "$(_tmux_t lbl_split_h)" "prefix $SPLIT_H_KEY")")
+      dkind+=(splitv);  did+=(splitv);  dlabel+=("$(_tmux_value_label "$(_tmux_t lbl_split_v)" "prefix $SPLIT_V_KEY")")
+      dkind+=(toggle);  did+=(pane-keys); dlabel+=("$(_tmux_onoff_label "$(_tmux_t lbl_pane_mgmt_keys)" "$PANE_KEYS")")
+      dkind+=(toggle);  did+=(alt-split); dlabel+=("$(_tmux_onoff_label "$(_tmux_t lbl_alt_split)" "$ALT_SPLIT")")
 
       dkind+=(spacer); did+=(""); dlabel+=("")
-      dkind+=(header); did+=(""); dlabel+=("Session")
-      dkind+=(toggle); did+=(resurrect-strategy); dlabel+=("$(_tmux_onoff_label 'Save vim/nvim sessions' "$RESURRECT_STRATEGY")")
-      dkind+=(toggle); did+=(continuum-boot);     dlabel+=("$(_tmux_onoff_label 'Auto-start on boot' "$CONTINUUM_BOOT")")
+      dkind+=(header); did+=(""); dlabel+=("$(_tmux_t hdr_session)")
+      dkind+=(toggle); did+=(resurrect-strategy); dlabel+=("$(_tmux_onoff_label "$(_tmux_t lbl_save_vim_sessions)" "$RESURRECT_STRATEGY")")
+      dkind+=(toggle); did+=(continuum-boot);     dlabel+=("$(_tmux_onoff_label "$(_tmux_t lbl_autostart_on_boot)" "$CONTINUUM_BOOT")")
 
       dkind+=(spacer); did+=(""); dlabel+=("")
-      dkind+=(header); did+=(""); dlabel+=("History")
-      dkind+=(history); did+=(history); dlabel+=("$(_tmux_value_label 'Scrollback lines' "$HISTORY")")
-      dkind+=(escape);  did+=(escape);  dlabel+=("$(_tmux_value_label 'Escape time' "${ESCAPE_TIME}ms")")
+      dkind+=(header); did+=(""); dlabel+=("$(_tmux_t hdr_history)")
+      dkind+=(history); did+=(history); dlabel+=("$(_tmux_value_label "$(_tmux_t lbl_scrollback_lines)" "$HISTORY")")
+      dkind+=(escape);  did+=(escape);  dlabel+=("$(_tmux_value_label "$(_tmux_t lbl_escape_time)" "${ESCAPE_TIME}ms")")
       local ss_disp
       if [[ "$SCROLL_SPEED" == "default" ]]; then ss_disp="default (5)"; else ss_disp="$SCROLL_SPEED lines"; fi
-      dkind+=(scrollspeed); did+=(scrollspeed); dlabel+=("$(_tmux_value_label 'Scroll speed' "$ss_disp")")
+      dkind+=(scrollspeed); did+=(scrollspeed); dlabel+=("$(_tmux_value_label "$(_tmux_t lbl_scroll_speed)" "$ss_disp")")
 
       dkind+=(spacer); did+=(""); dlabel+=("")
-      dkind+=(recommended); did+=(recommended); dlabel+=("$(ui_badge check) Apply recommended setup (TPM + popular plugins + theme + ergonomic keys)")
+      dkind+=(recommended); did+=(recommended); dlabel+=("$(ui_badge check) $(_tmux_t act_apply_recommended_setup)")
 
       dkind+=(spacer); did+=(""); dlabel+=("")
-      dkind+=(header); did+=(""); dlabel+=("Plugins")
+      dkind+=(header); did+=(""); dlabel+=("$(_tmux_t hdr_plugins)")
       local p on
       for p in $TMUX_KNOWN_PLUGINS; do
         on=0; _tmux_list_has "$p" "$PLUGINS" && on=1
@@ -1258,13 +1383,13 @@ ui() {
       done
       for p in $PLUGINS; do
         _tmux_list_has "$p" "$TMUX_KNOWN_PLUGINS" && continue
-        dkind+=(plugin); did+=("$p"); dlabel+=("  ${UI_OK}${UI_CHK_ON}${UI_OFF} $p ${UI_MUTED}(custom)${UI_OFF}")
+        dkind+=(plugin); did+=("$p"); dlabel+=("  ${UI_OK}${UI_CHK_ON}${UI_OFF} $p ${UI_MUTED}$(_tmux_t lbl_custom)${UI_OFF}")
       done
-      dkind+=(plugin_add); did+=(plugin_add); dlabel+=("  ${UI_ACCENT}+${UI_OFF} add plugin (owner/repo or git URL)…")
+      dkind+=(plugin_add); did+=(plugin_add); dlabel+=("  ${UI_ACCENT}+${UI_OFF} $(_tmux_t act_add_plugin)")
 
       dkind+=(spacer); did+=(""); dlabel+=("")
-      dkind+=(apply); did+=(apply); dlabel+=("$(ui_badge check) Apply config now")
-      if (( tpm )); then dkind+=(update); did+=(update); dlabel+=("$(ui_badge check) Update plugins"); fi
+      dkind+=(apply); did+=(apply); dlabel+=("$(ui_badge check) $(_tmux_t act_apply_config)")
+      if (( tpm )); then dkind+=(update); did+=(update); dlabel+=("$(ui_badge check) $(_tmux_t act_update_plugins)"); fi
       dkind+=(spacer); did+=(""); dlabel+=("")
       dkind+=(remove); did+=(remove); dlabel+=("${UI_ERR}${UI_CROSS}${UI_OFF} $(ui_t remove) tmux")
     fi
