@@ -60,6 +60,7 @@ readonly PY_UVINDEX_MARKER="# ubuntu-setup (uv default index)"
 # Same shape as lib/ui.sh's UI_MSG/ui_t, kept local. The language name "Python" and tool/command
 # names (python3, pip, uv, ruff, …) stay UNtranslated; only descriptive wording is localized.
 declare -gA PY_I18N
+PY_I18N[en:install_env_label]="Python dev environment"
 PY_I18N[en:uv_section]="uv — modern package/project manager"
 PY_I18N[en:dev_tools]="Dev tools (uv tool install)"
 PY_I18N[en:pkg_index]="Package index (pip + uv)"
@@ -80,6 +81,7 @@ PY_I18N[en:desc_ty]="Astral's fast type checker (preview)"
 PY_I18N[en:desc_mypy]="static type checker"
 PY_I18N[en:desc_ipython]="enhanced interactive REPL"
 PY_I18N[en:desc_pre-commit]="git pre-commit hook framework"
+PY_I18N[zh:install_env_label]="Python 开发环境"
 PY_I18N[zh:uv_section]="uv —— 现代包/项目管理器"
 PY_I18N[zh:dev_tools]="开发工具(uv tool install)"
 PY_I18N[zh:pkg_index]="包索引(pip + uv)"
@@ -100,6 +102,7 @@ PY_I18N[zh:desc_ty]="Astral 的高速类型检查器(预览)"
 PY_I18N[zh:desc_mypy]="静态类型检查器"
 PY_I18N[zh:desc_ipython]="增强的交互式 REPL"
 PY_I18N[zh:desc_pre-commit]="git pre-commit 钩子框架"
+PY_I18N[ja:install_env_label]="Python 開発環境"
 PY_I18N[ja:uv_section]="uv —— モダンなパッケージ/プロジェクト管理"
 PY_I18N[ja:dev_tools]="開発ツール(uv tool install)"
 PY_I18N[ja:pkg_index]="パッケージインデックス(pip + uv)"
@@ -431,7 +434,7 @@ ui() {
     # ---- build display rows (parallel arrays: kind / id / label) ----
     local -a dkind=() did=() dlabel=()
     if (( ! base )); then
-      dkind+=(install); did+=(install); dlabel+=("$(ui_badge missing) $(ui_t install) Python dev environment")
+      dkind+=(install); did+=(install); dlabel+=("$(ui_badge missing) $(ui_t install) $(_py_t install_env_label)")
     else
       dkind+=(status); did+=(""); dlabel+=("$(printf '%-13s %s' 'python3' "${UI_INFO}${pyver}${UI_OFF}")")
       dkind+=(status); did+=(""); dlabel+=("$(printf '%-13s %s' 'pip'     "${UI_INFO}${pipver}${UI_OFF}")")

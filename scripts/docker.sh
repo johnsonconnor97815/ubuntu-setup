@@ -179,7 +179,7 @@ ui() {
       enter|space)
         case "${dkind[$sel]}" in
           install)   ui_run "$(ui_t install) Docker" -- "$0" install ;;
-          configure) ui_run "configure · docker" -- "$0" configure ;;
+          configure) ui_run "$(ui_t configure) · docker" -- "$0" configure ;;
           remove)    ui_confirm "$(_docker_t confirm_remove)" n \
                        && ui_run "$(ui_t remove) Docker" -- "$0" remove ;;
         esac ;;

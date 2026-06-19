@@ -84,8 +84,113 @@ RIME_I18N[ja:cangjie5]="倉頡五代"
 RIME_I18N[ja:stroke]="筆画入力"
 RIME_I18N[ja:terra_pinyin]="地球拼音(声調付き)"
 
+# ui() chrome (ubuntu-setup): headers, notes, row labels, prompts, confirms, run titles.
+RIME_I18N[en:ui_ssh_note]="Desktop input method — over SSH/headless these apply where the desktop runs, after re-login."
+RIME_I18N[en:ui_sec_engine]="Engine"
+RIME_I18N[en:ui_im_environment]="IM environment"
+RIME_I18N[en:ui_state_on]="on"
+RIME_I18N[en:ui_state_missing]="missing"
+RIME_I18N[en:ui_fcitx5_autostart]="fcitx5 autostart"
+RIME_I18N[en:ui_rime_engine]="RIME engine"
+RIME_I18N[en:ui_sec_schemas]="Schemas"
+RIME_I18N[en:ui_ice_owns_schemas]="雾凇拼音 (rime-ice) is active and owns the schema list — remove it to manage schemas here."
+RIME_I18N[en:ui_add_schema_row]="add another schema by id…"
+RIME_I18N[en:ui_sec_options]="Options"
+RIME_I18N[en:ui_candidates_per_page]="Candidates per page"
+RIME_I18N[en:ui_ice_remove_row]="installed — remove rime-ice"
+RIME_I18N[en:ui_ice_install_row]="install rime-ice (batteries-included config)"
+RIME_I18N[en:ui_sec_actions]="Actions"
+RIME_I18N[en:ui_deploy_now]="Deploy now (apply config)"
+RIME_I18N[en:ui_apply_recommended]="Apply recommended setup"
+RIME_I18N[en:ui_footer_hints]="↑↓ move   space toggle   d default   a add   ↵ edit/run   esc/q close"
+RIME_I18N[en:ui_run_disable_schema]="disable schema"
+RIME_I18N[en:ui_run_enable_schema]="enable schema"
+RIME_I18N[en:ui_run_set_default_schema]="set default schema"
+RIME_I18N[en:ui_run_add_schema]="add schema"
+RIME_I18N[en:ui_prompt_schema_id]="schema id to enable (e.g. bopomofo, wubi86)"
+RIME_I18N[en:ui_confirm_remove_engine]="Uninstall the RIME engine? (fcitx5 and your data are kept)"
+RIME_I18N[en:ui_prompt_page_size]="candidates per page (5-10)"
+RIME_I18N[en:ui_run_set_page_size]="set page size"
+RIME_I18N[en:ui_confirm_install_ice]="Install 雾凇拼音 (rime-ice)? Clones a config repo from GitHub."
+RIME_I18N[en:ui_run_install_ice]="install rime-ice"
+RIME_I18N[en:ui_confirm_remove_ice]="Remove rime-ice and restore the built-in schemas?"
+RIME_I18N[en:ui_run_remove_ice]="remove rime-ice"
+RIME_I18N[en:ui_run_deploy]="deploy"
+RIME_I18N[en:ui_run_apply_recommended]="apply recommended"
+RIME_I18N[zh:ui_ssh_note]="桌面输入法 —— 经 SSH/无头时这些设置在运行桌面的机器上生效,需重新登录。"
+RIME_I18N[zh:ui_sec_engine]="引擎"
+RIME_I18N[zh:ui_im_environment]="输入法环境"
+RIME_I18N[zh:ui_state_on]="已启用"
+RIME_I18N[zh:ui_state_missing]="缺失"
+RIME_I18N[zh:ui_fcitx5_autostart]="fcitx5 自启动"
+RIME_I18N[zh:ui_rime_engine]="RIME 引擎"
+RIME_I18N[zh:ui_sec_schemas]="输入方案"
+RIME_I18N[zh:ui_ice_owns_schemas]="雾凇拼音 (rime-ice) 已启用并接管方案列表 —— 移除它才能在此管理方案。"
+RIME_I18N[zh:ui_add_schema_row]="按 id 添加其他方案…"
+RIME_I18N[zh:ui_sec_options]="选项"
+RIME_I18N[zh:ui_candidates_per_page]="每页候选词数"
+RIME_I18N[zh:ui_ice_remove_row]="已安装 —— 移除 rime-ice"
+RIME_I18N[zh:ui_ice_install_row]="安装 rime-ice(开箱即用配置)"
+RIME_I18N[zh:ui_sec_actions]="操作"
+RIME_I18N[zh:ui_deploy_now]="立即部署(应用配置)"
+RIME_I18N[zh:ui_apply_recommended]="应用推荐设置"
+RIME_I18N[zh:ui_footer_hints]="↑↓ 移动   space 切换   d 设默认   a 添加   ↵ 编辑/运行   esc/q 关闭"
+RIME_I18N[zh:ui_run_disable_schema]="禁用方案"
+RIME_I18N[zh:ui_run_enable_schema]="启用方案"
+RIME_I18N[zh:ui_run_set_default_schema]="设默认方案"
+RIME_I18N[zh:ui_run_add_schema]="添加方案"
+RIME_I18N[zh:ui_prompt_schema_id]="要启用的方案 id(如 bopomofo、wubi86)"
+RIME_I18N[zh:ui_confirm_remove_engine]="卸载 RIME 引擎?(保留 fcitx5 与你的数据)"
+RIME_I18N[zh:ui_prompt_page_size]="每页候选词数(5-10)"
+RIME_I18N[zh:ui_run_set_page_size]="设置每页候选数"
+RIME_I18N[zh:ui_confirm_install_ice]="安装 雾凇拼音 (rime-ice)?将从 GitHub 克隆一个配置仓库。"
+RIME_I18N[zh:ui_run_install_ice]="安装 rime-ice"
+RIME_I18N[zh:ui_confirm_remove_ice]="移除 rime-ice 并恢复内置方案?"
+RIME_I18N[zh:ui_run_remove_ice]="移除 rime-ice"
+RIME_I18N[zh:ui_run_deploy]="部署"
+RIME_I18N[zh:ui_run_apply_recommended]="应用推荐"
+RIME_I18N[ja:ui_ssh_note]="デスクトップ入力メソッド — SSH/ヘッドレスではデスクトップが動くマシンで再ログイン後に有効になります。"
+RIME_I18N[ja:ui_sec_engine]="エンジン"
+RIME_I18N[ja:ui_im_environment]="IM 環境"
+RIME_I18N[ja:ui_state_on]="有効"
+RIME_I18N[ja:ui_state_missing]="なし"
+RIME_I18N[ja:ui_fcitx5_autostart]="fcitx5 自動起動"
+RIME_I18N[ja:ui_rime_engine]="RIME エンジン"
+RIME_I18N[ja:ui_sec_schemas]="入力スキーマ(输入方案)"
+RIME_I18N[ja:ui_ice_owns_schemas]="雾凇拼音 (rime-ice) が有効でスキーマ一覧を管理しています — ここで管理するには先に削除してください。"
+RIME_I18N[ja:ui_add_schema_row]="id でほかのスキーマを追加…"
+RIME_I18N[ja:ui_sec_options]="オプション"
+RIME_I18N[ja:ui_candidates_per_page]="1 ページの候補数"
+RIME_I18N[ja:ui_ice_remove_row]="インストール済み — rime-ice を削除"
+RIME_I18N[ja:ui_ice_install_row]="rime-ice をインストール(設定込み)"
+RIME_I18N[ja:ui_sec_actions]="操作"
+RIME_I18N[ja:ui_deploy_now]="今すぐデプロイ(設定を適用)"
+RIME_I18N[ja:ui_apply_recommended]="推奨設定を適用"
+RIME_I18N[ja:ui_footer_hints]="↑↓ 移動   space 切替   d 既定   a 追加   ↵ 編集/実行   esc/q 閉じる"
+RIME_I18N[ja:ui_run_disable_schema]="スキーマを無効化"
+RIME_I18N[ja:ui_run_enable_schema]="スキーマを有効化"
+RIME_I18N[ja:ui_run_set_default_schema]="既定スキーマを設定"
+RIME_I18N[ja:ui_run_add_schema]="スキーマを追加"
+RIME_I18N[ja:ui_prompt_schema_id]="有効化するスキーマ id(例: bopomofo、wubi86)"
+RIME_I18N[ja:ui_confirm_remove_engine]="RIME エンジンをアンインストールしますか?(fcitx5 とデータは保持されます)"
+RIME_I18N[ja:ui_prompt_page_size]="1 ページの候補数(5-10)"
+RIME_I18N[ja:ui_run_set_page_size]="ページ候補数を設定"
+RIME_I18N[ja:ui_confirm_install_ice]="雾凇拼音 (rime-ice) をインストールしますか?GitHub から設定リポジトリを clone します。"
+RIME_I18N[ja:ui_run_install_ice]="rime-ice をインストール"
+RIME_I18N[ja:ui_confirm_remove_ice]="rime-ice を削除して内蔵スキーマを復元しますか?"
+RIME_I18N[ja:ui_run_remove_ice]="rime-ice を削除"
+RIME_I18N[ja:ui_run_deploy]="デプロイ"
+RIME_I18N[ja:ui_run_apply_recommended]="推奨を適用"
+
 # Gloss for a schema id, in the active UI language (English fallback, then the id itself).
 _rime_schema_desc() {
+  local lang="${UI_LANG:-en}" key="$1"
+  case "$lang" in en|zh|ja) ;; *) lang="en" ;; esac
+  printf '%s' "${RIME_I18N[$lang:$key]:-${RIME_I18N[en:$key]:-$key}}"
+}
+
+# _rime_t KEY — localized UI-chrome string for $UI_LANG (en/zh/ja), fallback en -> key.
+_rime_t() {
   local lang="${UI_LANG:-en}" key="$1"
   case "$lang" in en|zh|ja) ;; *) lang="en" ;; esac
   printf '%s' "${RIME_I18N[$lang:$key]:-${RIME_I18N[en:$key]:-$key}}"
@@ -582,24 +687,24 @@ ui() {
     # ---- build display rows (parallel arrays: kind / id / label) ----
     local -a dkind=() did=() dlabel=()
     if _rime_no_display; then
-      dkind+=(note); did+=(""); dlabel+=("Desktop input method — over SSH/headless these apply where the desktop runs, after re-login.")
+      dkind+=(note); did+=(""); dlabel+=("$(_rime_t ui_ssh_note)")
       dkind+=(spacer); did+=(""); dlabel+=("")
     fi
 
-    dkind+=(header); did+=(""); dlabel+=("Engine")
+    dkind+=(header); did+=(""); dlabel+=("$(_rime_t ui_sec_engine)")
     if (( ! installed )); then
       dkind+=(install); did+=(install); dlabel+=("$(ui_badge missing) $(ui_t install) fcitx5 + RIME")
     else
-      dkind+=(envrow); did+=(""); dlabel+=("$(printf '%-22s %s' 'IM environment' "$( ((envd_ok)) && printf '%s on' "$(ui_badge on)" || printf '%s missing' "$(ui_badge off)")")")
-      dkind+=(autorow); did+=(""); dlabel+=("$(printf '%-22s %s' 'fcitx5 autostart' "$( ((auto_ok)) && printf '%s on' "$(ui_badge on)" || printf '%s missing' "$(ui_badge off)")")")
-      dkind+=(remove);  did+=(remove);  dlabel+=("${UI_ERR}${UI_CROSS}${UI_OFF} $(ui_t remove) RIME engine")
+      dkind+=(envrow); did+=(""); dlabel+=("$(printf '%-22s %s' "$(_rime_t ui_im_environment)" "$( ((envd_ok)) && printf '%s %s' "$(ui_badge on)" "$(_rime_t ui_state_on)" || printf '%s %s' "$(ui_badge off)" "$(_rime_t ui_state_missing)")")")
+      dkind+=(autorow); did+=(""); dlabel+=("$(printf '%-22s %s' "$(_rime_t ui_fcitx5_autostart)" "$( ((auto_ok)) && printf '%s %s' "$(ui_badge on)" "$(_rime_t ui_state_on)" || printf '%s %s' "$(ui_badge off)" "$(_rime_t ui_state_missing)")")")
+      dkind+=(remove);  did+=(remove);  dlabel+=("${UI_ERR}${UI_CROSS}${UI_OFF} $(ui_t remove) $(_rime_t ui_rime_engine)")
     fi
 
     if (( installed )); then
       dkind+=(spacer); did+=(""); dlabel+=("")
-      dkind+=(header); did+=(""); dlabel+=("Schemas (输入方案)")
+      dkind+=(header); did+=(""); dlabel+=("$(_rime_t ui_sec_schemas)")
       if (( ice_on )); then
-        dkind+=(note); did+=(""); dlabel+=("雾凇拼音 (rime-ice) is active and owns the schema list — remove it to manage schemas here.")
+        dkind+=(note); did+=(""); dlabel+=("$(_rime_t ui_ice_owns_schemas)")
       else
         local key chk star desc
         for key in "${_RIME_CURATED[@]}"; do
@@ -608,25 +713,25 @@ ui() {
           desc="$(_rime_schema_desc "$key")"
           dkind+=(schema); did+=("$key"); dlabel+=("$(printf '%s %-20s %s%s' "$chk" "$key" "$desc" "$star")")
         done
-        dkind+=(addschema); did+=(""); dlabel+=("${UI_ACCENT}＋${UI_OFF} add another schema by id…")
+        dkind+=(addschema); did+=(""); dlabel+=("${UI_ACCENT}＋${UI_OFF} $(_rime_t ui_add_schema_row)")
       fi
 
       dkind+=(spacer); did+=(""); dlabel+=("")
-      dkind+=(header); did+=(""); dlabel+=("Options")
-      dkind+=(pagesize); did+=(pagesize); dlabel+=("$(printf '%-22s %s  %s' 'Candidates per page' "$PAGE_SIZE" "$UI_ARROW")")
+      dkind+=(header); did+=(""); dlabel+=("$(_rime_t ui_sec_options)")
+      dkind+=(pagesize); did+=(pagesize); dlabel+=("$(printf '%-22s %s  %s' "$(_rime_t ui_candidates_per_page)" "$PAGE_SIZE" "$UI_ARROW")")
 
       dkind+=(spacer); did+=(""); dlabel+=("")
       dkind+=(header); did+=(""); dlabel+=("雾凇拼音 (rime-ice)")
       if (( ice_on )); then
-        dkind+=(iceremove); did+=(""); dlabel+=("$(ui_badge on) installed — remove rime-ice")
+        dkind+=(iceremove); did+=(""); dlabel+=("$(ui_badge on) $(_rime_t ui_ice_remove_row)")
       else
-        dkind+=(iceinstall); did+=(""); dlabel+=("$(ui_badge off) install rime-ice (batteries-included config)")
+        dkind+=(iceinstall); did+=(""); dlabel+=("$(ui_badge off) $(_rime_t ui_ice_install_row)")
       fi
 
       dkind+=(spacer); did+=(""); dlabel+=("")
-      dkind+=(header); did+=(""); dlabel+=("Actions")
-      dkind+=(deploy);  did+=(""); dlabel+=("$(ui_badge check) Deploy now (apply config)")
-      dkind+=(recommend); did+=(""); dlabel+=("$(ui_badge check) Apply recommended setup")
+      dkind+=(header); did+=(""); dlabel+=("$(_rime_t ui_sec_actions)")
+      dkind+=(deploy);  did+=(""); dlabel+=("$(ui_badge check) $(_rime_t ui_deploy_now)")
+      dkind+=(recommend); did+=(""); dlabel+=("$(ui_badge check) $(_rime_t ui_apply_recommended)")
     fi
 
     local n=${#dkind[@]}
@@ -650,7 +755,7 @@ ui() {
       esac
       (( row++ ))
     done
-    ui_footer "↑↓ move   space toggle   d default   a add   ↵ edit/run   esc/q close"
+    ui_footer "$(_rime_t ui_footer_hints)"
 
     # ---- input ----
     ui_read_key
@@ -662,42 +767,42 @@ ui() {
           schema)
             local id="${did[$sel]}"
             if _rime_schema_in "$id"; then
-              ui_run "disable schema $id · rime" -- "$0" remove-schema "$id"
+              ui_run "$(_rime_t ui_run_disable_schema) $id · rime" -- "$0" remove-schema "$id"
             else
-              ui_run "enable schema $id · rime" -- "$0" add-schema "$id"
+              ui_run "$(_rime_t ui_run_enable_schema) $id · rime" -- "$0" add-schema "$id"
             fi ;;
         esac ;;
       d|D)
-        [[ "${dkind[$sel]}" == schema ]] && ui_run "set default schema ${did[$sel]} · rime" -- "$0" set-default-schema "${did[$sel]}" ;;
+        [[ "${dkind[$sel]}" == schema ]] && ui_run "$(_rime_t ui_run_set_default_schema) ${did[$sel]} · rime" -- "$0" set-default-schema "${did[$sel]}" ;;
       a|A)
         if (( installed )) && (( ! ice_on )); then
-          if ui_input "schema id to enable (e.g. bopomofo, wubi86)" ""; then
-            [[ -n "$UI_INPUT" ]] && ui_run "add schema $UI_INPUT · rime" -- "$0" add-schema "$UI_INPUT"
+          if ui_input "$(_rime_t ui_prompt_schema_id)" ""; then
+            [[ -n "$UI_INPUT" ]] && ui_run "$(_rime_t ui_run_add_schema) $UI_INPUT · rime" -- "$0" add-schema "$UI_INPUT"
           fi
         fi ;;
       enter)
         case "${dkind[$sel]}" in
           install)    ui_run "$(ui_t install) fcitx5 + RIME" -- "$0" install ;;
-          remove)     ui_confirm "Uninstall the RIME engine? (fcitx5 and your data are kept)" n && ui_run "$(ui_t remove) RIME engine" -- "$0" remove ;;
+          remove)     ui_confirm "$(_rime_t ui_confirm_remove_engine)" n && ui_run "$(ui_t remove) $(_rime_t ui_rime_engine)" -- "$0" remove ;;
           schema)
             local id="${did[$sel]}"
             if _rime_schema_in "$id"; then
-              ui_run "disable schema $id · rime" -- "$0" remove-schema "$id"
+              ui_run "$(_rime_t ui_run_disable_schema) $id · rime" -- "$0" remove-schema "$id"
             else
-              ui_run "enable schema $id · rime" -- "$0" add-schema "$id"
+              ui_run "$(_rime_t ui_run_enable_schema) $id · rime" -- "$0" add-schema "$id"
             fi ;;
           addschema)
-            if ui_input "schema id to enable (e.g. bopomofo, wubi86)" ""; then
-              [[ -n "$UI_INPUT" ]] && ui_run "add schema $UI_INPUT · rime" -- "$0" add-schema "$UI_INPUT"
+            if ui_input "$(_rime_t ui_prompt_schema_id)" ""; then
+              [[ -n "$UI_INPUT" ]] && ui_run "$(_rime_t ui_run_add_schema) $UI_INPUT · rime" -- "$0" add-schema "$UI_INPUT"
             fi ;;
           pagesize)
-            if ui_input "candidates per page (5-10)" "$PAGE_SIZE"; then
-              [[ -n "$UI_INPUT" ]] && ui_run "set page size · rime" -- "$0" configure --page-size "$UI_INPUT"
+            if ui_input "$(_rime_t ui_prompt_page_size)" "$PAGE_SIZE"; then
+              [[ -n "$UI_INPUT" ]] && ui_run "$(_rime_t ui_run_set_page_size) · rime" -- "$0" configure --page-size "$UI_INPUT"
             fi ;;
-          iceinstall) ui_confirm "Install 雾凇拼音 (rime-ice)? Clones a config repo from GitHub." y && ui_run "install rime-ice · rime" -- "$0" install-rime-ice ;;
-          iceremove)  ui_confirm "Remove rime-ice and restore the built-in schemas?" n && ui_run "remove rime-ice · rime" -- "$0" remove-rime-ice ;;
-          deploy)     ui_run "deploy · rime" -- "$0" deploy ;;
-          recommend)  ui_run "apply recommended · rime" -- "$0" configure --recommended ;;
+          iceinstall) ui_confirm "$(_rime_t ui_confirm_install_ice)" y && ui_run "$(_rime_t ui_run_install_ice) · rime" -- "$0" install-rime-ice ;;
+          iceremove)  ui_confirm "$(_rime_t ui_confirm_remove_ice)" n && ui_run "$(_rime_t ui_run_remove_ice) · rime" -- "$0" remove-rime-ice ;;
+          deploy)     ui_run "$(_rime_t ui_run_deploy) · rime" -- "$0" deploy ;;
+          recommend)  ui_run "$(_rime_t ui_run_apply_recommended) · rime" -- "$0" configure --recommended ;;
         esac ;;
       q|Q|esc|backspace) break ;;
     esac
