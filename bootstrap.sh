@@ -522,6 +522,9 @@ tui_settings() {
 }
 
 run_tui() {
+  # Preload the catalog cache in the background so "Install software" is instant by the time the
+  # user navigates to it. Best-effort, detached; never blocks or affects the TUI.
+  kit_cache_warm "$(kit_scripts_dir)" >/dev/null 2>&1 &
   ui_begin || { warn "Could not open the interactive UI (no usable terminal)."; return 0; }
   while true; do
     ui_pick "$(t app_title)" "$(t main_prompt)" "$(t nav_main)" -- \
