@@ -50,6 +50,8 @@ Usage:
   swkit ui                                 Browse the whole collection (interactive catalog)
   swkit list                               List every script, grouped by category
   swkit search <term>                      Find scripts matching <term>
+  swkit warm                               Pre-probe every script into the cache (preload)
+  swkit cache clear                        Clear the catalog cache
   swkit help                               Show this help
 
 Examples:
@@ -75,13 +77,14 @@ EOF
 # swkit list — group scripts by category, one aligned line each, [installed] tag.
 cmd_list() {
   local f blob key name category installed
+  kit_cache_fill "$KIT_SCRIPTS_DIR"   # parallel; only probes missing/stale status -> warm = near-instant
   # Collect "category<TAB>key<TAB>name<TAB>installed<TAB>desc" rows; skip bad meta.
   local -a rows=()
   shopt -s nullglob
   for f in "$KIT_SCRIPTS_DIR"/*.sh; do
     [[ "$(basename "$f")" == "TEMPLATE.sh" ]] && continue
     [[ -x "$f" ]] || continue
-    if ! blob="$("$f" meta 2>/dev/null)"; then
+    if ! blob="$(kit_meta_cached "$f" 2>/dev/null)"; then
       log_warn "Skipping $(basename "$f"): its 'meta' failed."
       continue
     fi
@@ -94,7 +97,7 @@ cmd_list() {
       continue
     fi
     [[ -n "$category" ]] || category="other"
-    if "$f" status >/dev/null 2>&1; then installed="yes"; else installed="no"; fi
+    if [[ "$(kit_status_value "$f")" == 1 ]]; then installed="yes"; else installed="no"; fi
     rows+=("$category"$'\t'"$key"$'\t'"$name"$'\t'"$installed"$'\t'"$desc")
   done
   shopt -u nullglob
@@ -143,11 +146,12 @@ cmd_search() {
   fi
   local term_lc; term_lc="$(printf '%s' "$term" | tr '[:upper:]' '[:lower:]')"
   local f blob key name desc hay found=""
+  kit_meta_warm "$KIT_SCRIPTS_DIR"   # search needs only meta; warm cache makes it near-instant
   shopt -s nullglob
   for f in "$KIT_SCRIPTS_DIR"/*.sh; do
     [[ "$(basename "$f")" == "TEMPLATE.sh" ]] && continue
     [[ -x "$f" ]] || continue
-    blob="$("$f" meta 2>/dev/null)" || { log_warn "Skipping $(basename "$f"): its 'meta' failed."; continue; }
+    blob="$(kit_meta_cached "$f" 2>/dev/null)" || { log_warn "Skipping $(basename "$f"): its 'meta' failed."; continue; }
     key="$(meta_field "$blob" key)"
     name="$(meta_field "$blob" name)"
     desc="$(meta_field "$blob" desc)"
@@ -186,12 +190,23 @@ cmd_run() {
 }
 
 main() {
+  # Global --no-cache: bypass the probe cache entirely (LLM/debugging).
+  if [[ "${1:-}" == "--no-cache" ]]; then export KIT_NO_CACHE=1; shift; fi
   local first="${1:-}"
   case "$first" in
     ""|help|-h|--help) usage ;;
     list)   shift; cmd_list ;;
     search) shift; cmd_search "$@" ;;
     ui)     shift; ui_catalog "$KIT_SCRIPTS_DIR" ;;
+    warm)   shift; kit_cache_warm "$KIT_SCRIPTS_DIR"; printf 'Catalog cache warmed.\n' ;;
+    cache)
+      shift
+      case "${1:-}" in
+        clear)   kit_cache_clear; printf 'Catalog cache cleared.\n' ;;
+        warm|"") kit_cache_warm "$KIT_SCRIPTS_DIR"; printf 'Catalog cache warmed.\n' ;;
+        *)       log_err "Usage: swkit cache [warm|clear]"; return 2 ;;
+      esac
+      ;;
     *)      cmd_run "$@" ;;
   esac
 }

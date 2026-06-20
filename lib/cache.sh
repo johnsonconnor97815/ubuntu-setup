@@ -52,9 +52,13 @@ kit_cache_dir() {
 # Epoch mtime of a file (0 if missing).
 _kit_mtime() { stat -c %Y "$1" 2>/dev/null || echo 0; }
 
-# Filename-safe base (script basename without .sh) for cache file names.
-_kit_cache_base() { local b; b="$(basename "$1")"; printf '%s' "${b%.sh}"; }
+# Filename-safe base (script basename without .sh) for cache file names. Pure bash param
+# expansion (no basename fork) — this runs in every cache hot-path read.
+_kit_cache_base() { local b="${1##*/}"; printf '%s' "${b%.sh}"; }
 _kit_cache_keysafe() { [[ "$1" =~ ^[A-Za-z0-9_-]+$ ]]; }
+
+# Current epoch seconds via the printf builtin (no `date` fork). Falls back to date.
+_kit_now() { local t; printf -v t '%(%s)T' -1 2>/dev/null && printf '%s' "$t" || date +%s 2>/dev/null || echo 0; }
 
 # Atomically replace FILE with stdin (temp file + mv). Best-effort; cleans up on failure.
 _kit_atomic_write() {
@@ -93,6 +97,22 @@ kit_meta_cached() {
   printf '%s\n' "$blob"
 }
 
+# Fast read of cached meta WITHOUT mtime revalidation and WITHOUT any fork — for the UI hot
+# path's first paint, where instant matters more than catching a just-edited script (the
+# background rescan / `r` refresh / child-return rescan use kit_meta_cached to pick up edits).
+# Returns 1 if there is no cached meta (caller then probes). Honors KIT_NO_CACHE.
+kit_meta_read() {
+  local base cache line
+  [[ -n "${KIT_NO_CACHE:-}" ]] && { "$1" meta 2>/dev/null; return $?; }
+  base="$(_kit_cache_base "$1")"
+  cache="$(kit_cache_dir)/${base}.meta"
+  [[ -f "$cache" ]] || return 1
+  while IFS= read -r line; do
+    [[ "$line" == script_mtime=* ]] && continue
+    printf '%s\n' "$line"
+  done <"$cache"
+}
+
 # Probe status (boolean only), write installed + ts. Exit code = installed. KIT_PROBE_ONLY
 # tells slimmed status functions to skip expensive detail.
 kit_probe_status() {
@@ -101,7 +121,7 @@ kit_probe_status() {
   if [[ -z "${KIT_NO_CACHE:-}" ]]; then
     base="$(_kit_cache_base "$script")"
     if _kit_cache_keysafe "$base"; then
-      ts="$(date +%s 2>/dev/null || echo 0)"
+      ts="$(_kit_now)"
       cache="$(kit_cache_dir)/${base}.status"
       { printf 'installed=%s\n' "$inst"; printf 'status_ts=%s\n' "$ts"; } | _kit_atomic_write "$cache"
     fi
@@ -129,7 +149,7 @@ kit_status_age() {
   cache="$(kit_cache_dir)/${base}.status"
   ts="$(_kit_cache_field "$cache" status_ts 2>/dev/null || echo '')"
   [[ -n "$ts" ]] || { echo 999999; return 0; }
-  now="$(date +%s 2>/dev/null || echo "$ts")"
+  now="$(_kit_now)"
   echo $(( now - ts ))
 }
 
@@ -170,9 +190,27 @@ _kit_parallel_scripts() {
 # Warm only meta (cheap; fills meta cache so subsequent reads are warm).
 kit_meta_warm() { _kit_parallel_scripts "${1:-${KIT_SCRIPTS_DIR:-}}" kit_meta_cached; }
 
-# Warm meta then status for the whole collection (preload). meta first so .meta files exist.
+# Warm meta then status for the whole collection (preload). Forces a fresh status re-probe
+# of every script — use for an explicit `swkit warm` / startup preload where fresh state is
+# wanted. meta first so .meta files exist.
 kit_cache_warm() {
   local dir="${1:-${KIT_SCRIPTS_DIR:-}}"
   _kit_parallel_scripts "$dir" kit_meta_cached
   _kit_parallel_scripts "$dir" kit_probe_status
+}
+
+# Probe a script's status only if it is missing or older than the soft TTL.
+_kit_probe_if_stale() {
+  local script="$1" v age
+  v="$(kit_status_value "$script")"
+  age="$(kit_status_age "$script")"
+  if [[ -z "$v" ]] || (( age > KIT_STATUS_TTL )); then kit_probe_status "$script" >/dev/null 2>&1; fi
+}
+
+# Fill the cache for a one-shot consumer (swkit list): meta always (mtime-cheap), status only
+# for missing/stale entries. A warm cache within the TTL re-probes nothing -> near-instant.
+kit_cache_fill() {
+  local dir="${1:-${KIT_SCRIPTS_DIR:-}}"
+  _kit_parallel_scripts "$dir" kit_meta_cached
+  _kit_parallel_scripts "$dir" _kit_probe_if_stale
 }

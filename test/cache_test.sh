@@ -28,6 +28,13 @@ printf 'script_mtime=0\nkey=STALE\n' >"$(kit_cache_dir)/git.meta"
 m3="$(kit_meta_cached "$S")"
 [[ "$m3" == *"key=git"* ]] && ok "stale mtime forces re-probe" || bad "stale mtime not re-probed"
 
+# kit_meta_read: fast read, no mtime check, strips script_mtime; returns 1 when absent
+mr="$(kit_meta_read "$S")"
+[[ "$mr" == *"key=git"* && "$mr" != *script_mtime* ]] && ok "kit_meta_read returns clean meta" || bad "kit_meta_read bad: $mr"
+rm -f "$(kit_cache_dir)/git.meta"
+kit_meta_read "$S" >/dev/null 2>&1 && bad "kit_meta_read should fail when no cache" || ok "kit_meta_read fails when no cache"
+kit_meta_cached "$S" >/dev/null   # restore the meta cache for the assertions that follow
+
 # status: probe writes installed + ts; value reads without probing
 kit_probe_status "$S" || true
 v="$(kit_status_value "$S")"
