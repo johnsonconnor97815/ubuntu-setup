@@ -14,9 +14,28 @@
 *.log
 .cache/
 
-# Local AI dev-workflow scaffolding (Trellis) + code-intel index — not part of the deliverable
-.trellis/
-.agents/
-.codex/
-.claude/
+# Trellis AI dev-workflow scaffolding is COMMITTED, not ignored: the versioned
+# spec library, task history, and cross-session journal are the whole point, and
+# committing them is what makes Trellis materialize correctly in fresh clones and
+# git worktrees (no more manual `.trellis` symlink). Trellis's own
+# .trellis/.gitignore already carves out the local-only bits (.developer,
+# .runtime/, __pycache__, …), so we let it govern instead of blanket-ignoring.
+
+# Generated platform adapters (Claude Code / Codex hooks, agents, commands,
+# skills, shared settings) are likewise committed so Trellis actually runs in
+# worktrees — the SessionStart / workflow-state hooks and trellis-* sub-agents
+# are present rather than missing. Only the machine-local bits are ignored.
+.claude/settings.local.json
+.claude/worktrees/
+.claude/checkpoints/
+.claude/mailbox/
+.claude/routines/.state/
+.claude/scheduled_tasks.json
+.claude/scheduled_tasks.lock
+.claude/agent-registry.json
+.claude/agent-memory-local/
+.claude/first-run
+.claude/assistant-daemon-state.json
+
+# Code-intel index — a rebuildable binary SQLite db, never part of the repo.
 .codegraph/
