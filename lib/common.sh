@@ -146,27 +146,47 @@ append_once() {
   printf '%s\n' "$line" >>"$file"
 }
 
-# Ensure ~/.local/bin is on PATH: export it for this process (so a just-installed CLI
-# is found now) and append a guarded line to the user's shell rc for future shells.
-# The official native installers (Claude Code, Codex) drop binaries there. Runs as the
-# user — never edits another user's dotfiles. No-op if the dir is already on PATH or
-# does not exist yet.
-ensure_local_bin_on_path() {
-  local local_bin="$HOME/.local/bin" rc_file line
+# _ensure_dir_on_path DIR RC_LINE — put DIR on PATH for this process (so a just-installed CLI
+# is found now) and append RC_LINE (a literal that re-expands at shell-startup time) to the
+# user's shell rc for future shells. Runs as the user — never edits another user's dotfiles.
+# No-op if DIR is already on PATH or does not exist yet.
+_ensure_dir_on_path() {
+  local dir="$1" rc_line="$2" rc_file
   case ":$PATH:" in
-    *":$local_bin:"*) return 0 ;;
+    *":$dir:"*) return 0 ;;
   esac
-  [[ -d "$local_bin" ]] || return 0
-  export PATH="$local_bin:$PATH"
+  [[ -d "$dir" ]] || return 0
+  export PATH="$dir:$PATH"
   case "${SHELL:-/bin/bash}" in
     */zsh) rc_file="$HOME/.zshrc" ;;
     *)     rc_file="$HOME/.bashrc" ;;
   esac
+  append_once "$rc_line" "$rc_file"
+  log_warn "Added $dir to PATH in $rc_file — open a new shell or run 'source $rc_file'."
+}
+
+# Ensure ~/.local/bin is on PATH. The official native installers (Claude Code, Codex) and
+# user-space tools (uv) drop binaries there, as does the `swkit` symlink itself.
+ensure_local_bin_on_path() {
   # Literal — must expand at shell-startup time, not now.
   # shellcheck disable=SC2016
-  line='export PATH="$HOME/.local/bin:$PATH"'
-  append_once "$line" "$rc_file"
-  log_warn "Added ~/.local/bin to PATH in $rc_file — open a new shell or run 'source $rc_file'."
+  _ensure_dir_on_path "$HOME/.local/bin" 'export PATH="$HOME/.local/bin:$PATH"'
+}
+
+# Ensure the npm global bin dir is on PATH, for CLIs installed via `npm install -g`. The dir
+# is derived LIVE from `npm config get prefix` (<prefix>/bin), so a user's custom prefix is
+# honored; for the kit default this is ~/.npm-global/bin — kept out of ~/.local/bin so npm
+# globals never collide with native installers (Claude/Codex) that land there.
+ensure_npm_global_bin_on_path() {
+  have_cmd npm || return 0
+  local prefix bin line
+  prefix="$(npm config get prefix 2>/dev/null)" || return 0
+  [[ -n "$prefix" ]] || return 0
+  bin="$prefix/bin"
+  # Literal $PATH — must re-expand at shell-startup time, not now.
+  # shellcheck disable=SC2016
+  printf -v line 'export PATH="%s:$PATH"' "$bin"
+  _ensure_dir_on_path "$bin" "$line"
 }
 
 # --- Vendor apt channel (channel priority; NEVER apt-key) ----------------------
@@ -215,7 +235,7 @@ npm_global_writable() {
   if [[ ! -w "$target" ]]; then
     log_err "npm's global prefix ($prefix) is not writable by $(id -un)."
     log_err "Refusing 'sudo npm install -g'. Point npm at a user-writable prefix instead:"
-    log_err "    npm config set prefix \"\$HOME/.local\""
+    log_err "    npm config set prefix \"\$HOME/.npm-global\""
     return 1
   fi
   return 0
@@ -224,7 +244,8 @@ npm_global_writable() {
 # Make `npm install -g` work AS THE USER (never sudo) for scripts whose only install channel
 # is npm. If the global prefix is already user-writable, do nothing. If it is a system DEFAULT
 # (/usr or /usr/local) — i.e. the user never chose a custom prefix — redirect npm's *user*
-# config to ~/.local (writes ~/.npmrc, no sudo; npm's own recommended sudo-less setup) and
+# config to ~/.npm-global (writes ~/.npmrc, no sudo) — a DEDICATED npm-global dir kept out of
+# ~/.local/bin so it never collides with native installers (Claude/Codex) landing there — and
 # re-verify. A CUSTOM but unwritable prefix is left untouched (respect the user's deliberate
 # choice) and we refuse with the standard guidance. Returns 0 only once global installs will
 # land somewhere writable. This is the automated form of npm_global_writable's printed advice:
@@ -245,7 +266,7 @@ npm_ensure_user_prefix() {
   local prefix; prefix="$(npm config get prefix 2>/dev/null)"
   case "$prefix" in
     /usr|/usr/ | /usr/local|/usr/local/)
-      local target="$HOME/.local"
+      local target="$HOME/.npm-global"
       log_info "npm's global prefix ($prefix) is not user-writable; configuring a user-space prefix ($target) — no sudo."
       log_info "(Reverts with: npm config delete prefix)"
       npm config set prefix "$target" || { log_err "Could not set the npm prefix."; return 1; }
@@ -259,10 +280,10 @@ npm_ensure_user_prefix() {
   esac
 
   if ! npm_global_writable 2>/dev/null; then
-    log_err "npm's global prefix is still not writable after configuring $HOME/.local."
+    log_err "npm's global prefix is still not writable after configuring $HOME/.npm-global."
     return 1
   fi
-  # NOTE: callers run ensure_local_bin_on_path right after `npm install -g`; we deliberately
+  # NOTE: callers run ensure_npm_global_bin_on_path right after `npm install -g`; we deliberately
   # don't here (avoids a redundant, $HOME-touching call inside this prefix-only helper).
   return 0
 }

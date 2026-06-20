@@ -117,7 +117,7 @@ _codex_install_npm() {
 
   log_info "Installing Codex CLI via npm (@openai/codex)."
   npm install -g @openai/codex
-  ensure_local_bin_on_path
+  ensure_npm_global_bin_on_path
 }
 
 # Best-effort, never sudo: undo whichever channel installed it. The official native

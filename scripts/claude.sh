@@ -351,7 +351,7 @@ _claude_install_native() {
 
 # Optional npm path — only for users who already run a recent Node. We refuse to touch
 # Node ourselves, and we never `sudo npm` (npm_ensure_user_prefix establishes a user-writable
-# prefix in ~/.local — no sudo — or refuses a custom unwritable one).
+# prefix in ~/.npm-global — no sudo — or refuses a custom unwritable one).
 _claude_install_npm() {
   local node_major
   if ! have_cmd node || ! have_cmd npm; then
@@ -372,7 +372,7 @@ _claude_install_npm() {
   npm_ensure_user_prefix || return 1
   log_info "Installing $_CLAUDE_NPM_PKG via npm (user-space global)..."
   npm install -g "$_CLAUDE_NPM_PKG"
-  ensure_local_bin_on_path
+  ensure_npm_global_bin_on_path
 }
 
 # Best-effort removal: never sudo. The official native installer has no documented
