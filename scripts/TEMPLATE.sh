@@ -39,7 +39,18 @@ META
 
 # Exit 0 iff already installed/active, printing the version/state. The idempotency
 # probe — observe the LIVE system (have_cmd / pkg_installed / a version command),
-# never a recorded flag.
+# never a recorded flag. MUST be read-only (no writes / side effects): the catalog
+# caches its boolean (lib/cache.sh).
+#
+# If status is EXPENSIVE (spawns a runtime, scans many files), honor KIT_PROBE_ONLY:
+# when it is set, determine the install boolean cheaply and return early, skipping
+# version strings / tool enumeration. Both paths MUST return the same exit code. The
+# cache/catalog sets KIT_PROBE_ONLY=1; a human `swkit <key> status` does not. Example:
+#   status() {
+#     have_cmd example || return 1
+#     [[ -n "${KIT_PROBE_ONLY:-}" ]] && return 0   # boolean only, skip the spawn below
+#     example --version
+#   }
 status() {
   have_cmd example && example --version
 }
