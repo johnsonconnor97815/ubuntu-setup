@@ -659,13 +659,17 @@ ui_catalog() {
       [[ -n "${keys[$sel]}" ]] || _ui_catalog_step keys sel 1   # never rest on a section header
       # which scripts need a (re)probe: unknown, or older than the soft TTL. kit_status_fresh
       # is fork-free (exit code, no $()), so this stays off the first-paint critical path.
+      # Under KIT_NO_CACHE the scan already probed status live (si[] is authoritative), so
+      # there is nothing to revalidate — skip the background work entirely.
       pending=()
-      for (( i=0; i<${#sp[@]}; i++ )); do
-        if [[ "${si[$i]}" == -1 ]] || ! kit_status_fresh "${sp[$i]}"; then
-          pending+=("${sp[$i]}")
-        fi
-      done
-      _ui_spawn_probes "${pending[@]}"
+      if [[ -z "${KIT_NO_CACHE:-}" ]]; then
+        for (( i=0; i<${#sp[@]}; i++ )); do
+          if [[ "${si[$i]}" == -1 ]] || ! kit_status_fresh "${sp[$i]}"; then
+            pending+=("${sp[$i]}")
+          fi
+        done
+        _ui_spawn_probes "${pending[@]}"
+      fi
       rescan=0
     fi
 
