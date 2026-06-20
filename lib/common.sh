@@ -351,6 +351,13 @@ kit_dispatch() {
   esac
 }
 
+# --- Probe cache ---------------------------------------------------------------
+# Catalog meta/status memoization (stale-while-revalidate), sourced BEFORE ui.sh so the
+# catalog and swkit/bootstrap all share one cache. meta is cached by file mtime, status by
+# a short TTL; a stale badge never causes a wrong action (real ops re-check the live system).
+# shellcheck source=cache.sh
+source "$KIT_LIB_DIR/cache.sh"
+
 # --- UI primitives -------------------------------------------------------------
 # The modern-TUI rendering library, sourced LAST so its kit_have_tty fallback is skipped
 # (ours is already defined) and log_*/probes exist for it. bootstrap, swkit and every
