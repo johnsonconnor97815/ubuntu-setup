@@ -97,7 +97,7 @@ do_install() {
 
   log_info "Installing CodeGraph via npm ($CODEGRAPH_PKG)."
   npm install -g "$CODEGRAPH_PKG"
-  ensure_local_bin_on_path
+  ensure_npm_global_bin_on_path
 }
 
 # Wire the CodeGraph MCP server into detected agents — the meaningful configuration.

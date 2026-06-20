@@ -142,7 +142,7 @@ do_install() {
 
   log_info "Installing Trellis via npm (${TRELLIS_PKG}@latest)."
   npm install -g "${TRELLIS_PKG}@latest"
-  ensure_local_bin_on_path
+  ensure_npm_global_bin_on_path
 }
 
 # Initialize Trellis in the CURRENT git repo (its only meaningful configuration step).
