@@ -26,6 +26,7 @@
 #   plugin-enable <name>         ·  plugin-disable <name>        (toggle without uninstalling)
 #   skill-install <git-url|curated-name> [name] [subdir]  ·  skill-remove <name>
 #   set-editor <curated-name|command>  ·  clear-editor    (Claude's Ctrl+G editor; settings.json)
+#   set-effort <low|medium|high|xhigh|max>  ·  clear-effort   (Claude Code's /effort default; settings.json)
 #
 # All extension files live under the user's HOME and are written AS THE USER, never via sudo;
 # extension actions refuse a sudo-wrapped run so ~/.claude stays user-owned.
@@ -59,6 +60,13 @@ readonly _CLAUDE_SKILL_PROTECTED="ubuntu-install zsh-setup claude-extensions"
 # and emacs uses -nw so the editor BLOCKS until the edit is done — Claude waits on the
 # process before reading the prompt back. Arbitrary commands are always allowed too.
 readonly _CLAUDE_EDITOR_CURATED_KEYS="code cursor nvim vim nano micro emacs helix"
+# Curated thinking-effort levels for the "default thinking effort" axis. Claude Code's
+# /effort level is persisted as the top-level "effortLevel" in ~/.claude/settings.json, so a
+# new session starts at this effort. The level names are Claude Code identifiers and stay
+# UNtranslated; only the one-line gloss (effort_desc:*) is localized. The value is validated
+# against this list before writing (an enum, unlike the free-form editor command) so junk /
+# JSON injection is rejected. ("max" is offered but may not persist — see do_set_effort.)
+readonly _CLAUDE_EFFORT_LEVELS="low medium high xhigh max"
 
 # --- i18n (software-specific strings) ------------------------------------------
 # Same shape as lib/ui.sh's UI_MSG/ui_t, kept local so the generic UI library stays free of
@@ -143,6 +151,17 @@ CLAUDE_I18N[en:editor_desc:nano]="Simple, always-available editor"
 CLAUDE_I18N[en:editor_desc:micro]="Modern, easy terminal editor"
 CLAUDE_I18N[en:editor_desc:emacs]="Emacs in the terminal"
 CLAUDE_I18N[en:editor_desc:helix]="Helix (hx)"
+# Default thinking-effort axis (Claude Code's /effort level)
+CLAUDE_I18N[en:effort_section]="Default thinking effort"
+CLAUDE_I18N[en:effort_use_default]="clear (use model default)"
+CLAUDE_I18N[en:effort_current]="current: {X}"
+CLAUDE_I18N[en:effort_unset]="not set (Claude uses each model's default)"
+CLAUDE_I18N[en:confirm_clear_effort]="Clear Claude Code's default thinking effort (fall back to each model's default)?"
+CLAUDE_I18N[en:effort_desc:low]="Fast & cheap; short, scoped, latency-sensitive tasks"
+CLAUDE_I18N[en:effort_desc:medium]="Lower token use for cost-sensitive work"
+CLAUDE_I18N[en:effort_desc:high]="Balanced; the default on most models"
+CLAUDE_I18N[en:effort_desc:xhigh]="Deeper reasoning at higher token spend (Opus)"
+CLAUDE_I18N[en:effort_desc:max]="Maximum capability; may overthink — test first"
 
 CLAUDE_I18N[zh:mcp_servers]="MCP 服务器"
 CLAUDE_I18N[zh:plugins_mkts]="插件与市场"
@@ -214,6 +233,17 @@ CLAUDE_I18N[zh:editor_desc:nano]="简单、几乎总是可用"
 CLAUDE_I18N[zh:editor_desc:micro]="现代、易用的终端编辑器"
 CLAUDE_I18N[zh:editor_desc:emacs]="终端里的 Emacs"
 CLAUDE_I18N[zh:editor_desc:helix]="Helix(hx)"
+# Default thinking-effort axis
+CLAUDE_I18N[zh:effort_section]="默认思考级别"
+CLAUDE_I18N[zh:effort_use_default]="清除(用模型默认)"
+CLAUDE_I18N[zh:effort_current]="当前:{X}"
+CLAUDE_I18N[zh:effort_unset]="未设置(Claude 用每个模型的默认级别)"
+CLAUDE_I18N[zh:confirm_clear_effort]="清除 Claude Code 的默认思考级别(回退到每个模型的默认)?"
+CLAUDE_I18N[zh:effort_desc:low]="快且省;短小、有界、对延迟敏感的任务"
+CLAUDE_I18N[zh:effort_desc:medium]="降低 token 用量,适合成本敏感的工作"
+CLAUDE_I18N[zh:effort_desc:high]="均衡;多数模型的默认"
+CLAUDE_I18N[zh:effort_desc:xhigh]="更深推理、更高 token 开销(Opus)"
+CLAUDE_I18N[zh:effort_desc:max]="最大能力;可能过度思考——先测试"
 
 CLAUDE_I18N[ja:mcp_servers]="MCP サーバー"
 CLAUDE_I18N[ja:plugins_mkts]="プラグインとマーケットプレイス"
@@ -285,6 +315,17 @@ CLAUDE_I18N[ja:editor_desc:nano]="シンプルでほぼ常に利用可能"
 CLAUDE_I18N[ja:editor_desc:micro]="モダンで使いやすい端末エディタ"
 CLAUDE_I18N[ja:editor_desc:emacs]="端末内の Emacs"
 CLAUDE_I18N[ja:editor_desc:helix]="Helix(hx)"
+# Default thinking-effort axis
+CLAUDE_I18N[ja:effort_section]="デフォルト思考レベル"
+CLAUDE_I18N[ja:effort_use_default]="クリア(モデル既定を使用)"
+CLAUDE_I18N[ja:effort_current]="現在: {X}"
+CLAUDE_I18N[ja:effort_unset]="未設定(各モデルの既定を使用)"
+CLAUDE_I18N[ja:confirm_clear_effort]="Claude Code のデフォルト思考レベルをクリアしますか(各モデルの既定にフォールバック)?"
+CLAUDE_I18N[ja:effort_desc:low]="高速・低コスト;短く限定的でレイテンシ重視のタスク"
+CLAUDE_I18N[ja:effort_desc:medium]="コスト重視の作業向けにトークン使用量を削減"
+CLAUDE_I18N[ja:effort_desc:high]="バランス型;多くのモデルの既定"
+CLAUDE_I18N[ja:effort_desc:xhigh]="より深い推論、トークン消費は増加(Opus)"
+CLAUDE_I18N[ja:effort_desc:max]="最大能力;考えすぎる場合あり — 先にテストを"
 
 # _claude_t KEY — localized Claude string for $UI_LANG (en/zh/ja), fallback en -> key.
 _claude_t() {
@@ -844,7 +885,7 @@ _claude_editor_current() {
 }
 
 # Ensure jq is available (apt-installed if missing). Returns non-zero if it still isn't.
-_claude_editor_need_jq() {
+_claude_need_jq() {
   have_cmd jq && return 0
   log_info "jq is needed to edit ~/.claude/settings.json safely — installing it…"
   apt_install jq || true
@@ -858,7 +899,7 @@ _claude_editor_need_jq() {
 _claude_editor_write() {
   local val="$1" settings tmp
   settings="$(_claude_settings_path)"
-  _claude_editor_need_jq || return 1
+  _claude_need_jq || return 1
   mkdir -p "$(dirname "$settings")"
   [[ -f "$settings" ]] || printf '{}\n' >"$settings"
   if ! jq -e . "$settings" >/dev/null 2>&1; then
@@ -882,7 +923,7 @@ _claude_editor_clear() {
     log_info "No ~/.claude/settings.json — Claude's default editor is not set; nothing to clear."
     return 0
   fi
-  _claude_editor_need_jq || return 1
+  _claude_need_jq || return 1
   if ! jq -e . "$settings" >/dev/null 2>&1; then
     log_err "$settings is not valid JSON — fix or remove it first (then re-run)."
     return 1
@@ -937,6 +978,112 @@ do_clear_editor() {
 }
 
 # ===============================================================================
+# Axis 5 — Default thinking effort (~/.claude/settings.json top-level "effortLevel")
+# ===============================================================================
+# Claude Code's reasoning effort (the /effort level) is persisted as the top-level
+# "effortLevel" in ~/.claude/settings.json, so a NEW session starts at the chosen level
+# (equivalent to running /effort once and letting it stick). Like the editor axis, every JSON
+# edit goes through jq with a backup first; unlike the editor (a free-form command), the level
+# is an enum validated before write. Runs AS THE USER (refuses sudo) so ~/.claude stays owned.
+
+# Exit 0 iff $1 is a known effort level (enum guard — also blocks junk / JSON injection).
+_claude_effort_valid() {
+  case " $_CLAUDE_EFFORT_LEVELS " in *" $1 "*) return 0 ;; *) return 1 ;; esac
+}
+
+# Echo the effortLevel currently set in settings.json (empty if none). Prefers jq; falls back
+# to a best-effort grep purely for the display line.
+_claude_effort_current() {
+  local settings; settings="$(_claude_settings_path)"
+  [[ -f "$settings" ]] || return 0
+  if have_cmd jq; then
+    jq -r '.effortLevel // empty' "$settings" 2>/dev/null
+  else
+    sed -n 's/.*"effortLevel"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$settings" 2>/dev/null | head -1
+  fi
+}
+
+# Write .effortLevel = VALUE into settings.json (idempotent). Needs jq; backs up first;
+# refuses to touch a file that is not valid JSON (the backup is the only undo).
+_claude_effort_write() {
+  local val="$1" settings tmp
+  settings="$(_claude_settings_path)"
+  _claude_need_jq || return 1
+  mkdir -p "$(dirname "$settings")"
+  [[ -f "$settings" ]] || printf '{}\n' >"$settings"
+  if ! jq -e . "$settings" >/dev/null 2>&1; then
+    log_err "$settings is not valid JSON — fix or remove it first (then re-run)."
+    return 1
+  fi
+  backup_file "$settings"
+  tmp="$(mktemp)"
+  if jq --arg e "$val" '.effortLevel = $e' "$settings" >"$tmp"; then
+    mv "$tmp" "$settings"
+  else
+    rm -f "$tmp"; log_err "Failed to update $settings via jq."; return 1
+  fi
+}
+
+# Remove .effortLevel from settings.json (back to each model's built-in default).
+_claude_effort_clear() {
+  local settings tmp
+  settings="$(_claude_settings_path)"
+  if [[ ! -f "$settings" ]]; then
+    log_info "No ~/.claude/settings.json — Claude Code's thinking effort is not set; nothing to clear."
+    return 0
+  fi
+  _claude_need_jq || return 1
+  if ! jq -e . "$settings" >/dev/null 2>&1; then
+    log_err "$settings is not valid JSON — fix or remove it first (then re-run)."
+    return 1
+  fi
+  if [[ -z "$(_claude_effort_current)" ]]; then
+    log_info "Claude Code's thinking effort is not set in settings.json — nothing to clear."
+    return 0
+  fi
+  backup_file "$settings"
+  tmp="$(mktemp)"
+  if jq 'del(.effortLevel)' "$settings" >"$tmp"; then
+    mv "$tmp" "$settings"
+  else
+    rm -f "$tmp"; log_err "Failed to update $settings via jq."; return 1
+  fi
+}
+
+# set-effort <level>: set Claude Code's default thinking effort (the /effort level), written as
+# the top-level "effortLevel" in ~/.claude/settings.json so new sessions start there. The level
+# must be one of: low medium high xhigh max. Runs as the user (refuses a sudo-wrapped run).
+do_set_effort() {
+  _claude_gate || return 0
+  _claude_user_paths || return 1
+  local level="${1:-}"
+  if [[ -z "$level" ]]; then
+    log_err "Usage: claude set-effort <low|medium|high|xhigh|max>"
+    return 2
+  fi
+  if ! _claude_effort_valid "$level"; then
+    log_err "Unknown effort level '$level' — expected one of: $_CLAUDE_EFFORT_LEVELS."
+    return 2
+  fi
+  log_info "Setting Claude Code's default thinking effort to '$level' in $(_claude_settings_path)…"
+  _claude_effort_write "$level" || return 1
+  if [[ "$level" == max ]]; then
+    log_warn "Claude Code may not persist 'max' across sessions (a known limitation); for a"
+    log_warn "permanent max default, also set CLAUDE_CODE_EFFORT_LEVEL=max in your shell profile."
+  fi
+  log_info "Done — new Claude Code sessions will start at '$level' effort (run /effort to confirm)."
+}
+
+# clear-effort: remove effortLevel from settings.json (each model falls back to its built-in
+# default; equivalent to /effort auto).
+do_clear_effort() {
+  _claude_gate || return 0
+  _claude_user_paths || return 1
+  log_info "Clearing Claude Code's default thinking effort from $(_claude_settings_path)…"
+  _claude_effort_clear || return 1
+}
+
+# ===============================================================================
 # Interactive management screen (the script's own UI) — consolidated extension manager
 # ===============================================================================
 # A bespoke full-screen panel: install state at top, then three sections — MCP servers,
@@ -960,7 +1107,7 @@ ui() {
   local sel=0 g refresh=1
   local installed=0 ver=""
   local mcp_names="" plug_state="" skill_list="" mkt_list=""
-  local editor_current="" editor_shell=""
+  local editor_current="" editor_shell="" effort_current=""
   while true; do
     [[ "${_UI_WINCH:-0}" == 1 ]] && { _UI_WINCH=0; ui_size; }
 
@@ -982,6 +1129,8 @@ ui() {
         # $EDITOR/$VISUAL for the honest "where the current editor comes from" line.
         editor_current="$(_claude_editor_current 2>/dev/null || true)"
         editor_shell="${VISUAL:-${EDITOR:-}}"
+        # Default thinking effort: the effortLevel we set in settings.json (empty if none).
+        effort_current="$(_claude_effort_current 2>/dev/null || true)"
       fi
       refresh=0
     fi
@@ -1100,6 +1249,25 @@ ui() {
       dkind+=(editor_custom); did+=(editor_custom); dlabel+=("  ${UI_ACCENT}+${UI_OFF} $(_claude_t editor_set_custom)")
       if [[ -n "$editor_current" ]]; then
         dkind+=(editor_clear); did+=(editor_clear); dlabel+=("  ${UI_MUTED}↺ $(_claude_t editor_use_default)${UI_OFF}")
+      fi
+
+      # ---- Default thinking effort (/effort; ~/.claude/settings.json effortLevel) ----
+      dkind+=(spacer); did+=(""); dlabel+=("")
+      local effinfo eff
+      if [[ -n "$effort_current" ]]; then effinfo="$(_claude_tx effort_current X "$effort_current")"
+      else effinfo="$(_claude_t effort_unset)"; fi
+      dkind+=(header); did+=(""); dlabel+=("$(_claude_t effort_section) ${UI_MUTED}— $effinfo${UI_OFF}")
+      for eff in $_CLAUDE_EFFORT_LEVELS; do
+        desc="$(_claude_t "effort_desc:$eff")"
+        dkind+=(effort); did+=("$eff")
+        if [[ -n "$effort_current" && "$effort_current" == "$eff" ]]; then
+          dlabel+=("  ${UI_OK}${UI_CHK_ON}${UI_OFF} $eff ${UI_MUTED}— $desc${UI_OFF}")
+        else
+          dlabel+=("  ${UI_MUTED}${UI_CHK_OFF}${UI_OFF} $eff ${UI_MUTED}— $desc${UI_OFF}")
+        fi
+      done
+      if [[ -n "$effort_current" ]]; then
+        dkind+=(effort_clear); did+=(effort_clear); dlabel+=("  ${UI_MUTED}↺ $(_claude_t effort_use_default)${UI_OFF}")
       fi
 
       # ---- danger zone ----
@@ -1237,6 +1405,11 @@ ui() {
           editor_clear)
             ui_confirm "$(_claude_t confirm_clear_editor)" n \
               && { ui_run "clear-editor · claude" -- "$0" clear-editor; refresh=1; } ;;
+          effort)
+            ui_run "set-effort ${did[$sel]} · claude" -- "$0" set-effort "${did[$sel]}"; refresh=1 ;;
+          effort_clear)
+            ui_confirm "$(_claude_t confirm_clear_effort)" n \
+              && { ui_run "clear-effort · claude" -- "$0" clear-effort; refresh=1; } ;;
         esac ;;
       q|Q|esc|backspace) break ;;
     esac
@@ -1292,6 +1465,13 @@ Default editor (~/.claude/settings.json env EDITOR/VISUAL — Claude's Ctrl+G ed
   set-editor <command>            Set any command verbatim (e.g. "vim", "code --wait").
                                   GUI editors need a wait flag so Claude blocks on the edit.
   clear-editor                    Remove it (Claude falls back to your shell \$EDITOR).
+
+Default thinking effort (~/.claude/settings.json effortLevel — Claude Code's /effort level):
+  set-effort <level>              Set the default thinking effort, persisted across sessions so
+                                  new sessions start there. Level is one of:
+                                    $_CLAUDE_EFFORT_LEVELS
+                                  (max may not persist — set CLAUDE_CODE_EFFORT_LEVEL=max for that).
+  clear-effort                    Remove it (each model falls back to its built-in default).
 
 Other:
   ui                              Open the interactive extension manager (needs a terminal).

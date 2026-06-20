@@ -1,11 +1,11 @@
 ---
 name: claude-extensions
-description: Use when the user wants to manage Claude Code CLI's extensions on Ubuntu/Debian — add/remove/enable/disable MCP servers (stdio/http/sse), install/uninstall/enable/disable plugins, add/remove plugin marketplaces, install/remove skills (~/.claude/skills), or set Claude's default external editor (Ctrl+G; EDITOR/VISUAL in settings.json — vim/nvim/nano/code/cursor/…). Covers picking servers/plugins/skills/editor with taste (token cost, runtimes, secrets, scope). Drives scripts/claude.sh in the ubuntu-setup kit (a Claude Code extension manager) and extends it when a capability is missing. Works on headless servers over SSH.
+description: Use when the user wants to manage Claude Code CLI's extensions on Ubuntu/Debian — add/remove/enable/disable MCP servers (stdio/http/sse), install/uninstall/enable/disable plugins, add/remove plugin marketplaces, install/remove skills (~/.claude/skills), set Claude's default external editor (Ctrl+G; EDITOR/VISUAL in settings.json — vim/nvim/nano/code/cursor/…), or set Claude Code's default thinking effort (the /effort level — low/medium/high/xhigh/max — in settings.json). Covers picking servers/plugins/skills/editor/effort with taste (token cost, runtimes, secrets, scope). Drives scripts/claude.sh in the ubuntu-setup kit (a Claude Code extension manager) and extends it when a capability is missing. Works on headless servers over SSH.
 ---
 
 # Claude Code Extension Management
 
-The mechanics of installing the Claude Code CLI **and managing its four extension axes**
+The mechanics of installing the Claude Code CLI **and managing its five extension axes**
 live in one script — **`scripts/claude.sh`** in the ubuntu-setup kit, a **component manager**
 runnable as `swkit claude <action>` (or, for a human at a terminal, an interactive full-screen
 screen via `swkit claude` / the bootstrap catalog — see §5). That script, not this prose, is the
@@ -13,9 +13,10 @@ single implementation: it sources `lib/common.sh` (idempotency probes, back-up-b
 **shells out to the official `claude` CLI** for MCP and plugins (the authoritative interface —
 it owns scopes and storage and survives format changes), manages **skills** as directories
 under `~/.claude/skills/`, and sets Claude's **default editor** by writing `EDITOR`/`VISUAL`
-into `~/.claude/settings.json`'s `env` (Claude reads the standard `$EDITOR`/`$VISUAL`).
+into `~/.claude/settings.json`'s `env` (Claude reads the standard `$EDITOR`/`$VISUAL`), and sets
+Claude Code's **default thinking effort** by writing the top-level `effortLevel` in that same file.
 
-The four extension axes are independent:
+The five extension axes are independent:
 
 - **MCP servers** (`claude mcp …`) — stdio / http / sse servers, stored per **scope** (local /
   user / project). The kit defaults to **`--scope user`** (global, all your projects).
@@ -25,6 +26,9 @@ The four extension axes are independent:
   these; the kit clones single-skill git repos (or a subdir of a multi-skill repo) into place.
 - **Default editor** (`settings.json` `env`) — the `Ctrl+G` external editor; `EDITOR`/`VISUAL` in
   `~/.claude/settings.json`. Claude-scoped (not the global shell), live-detected, single-valued.
+- **Default thinking effort** (`settings.json` `effortLevel`) — Claude Code's `/effort` level
+  (`low`/`medium`/`high`/`xhigh`/`max`), written to the top level of `~/.claude/settings.json` so a
+  new session starts there. An enum (validated before write), single-valued, Claude-scoped.
 
 Your job:
 
@@ -93,6 +97,16 @@ add checks existence first, every remove checks first; re-running converges. `in
   (so you can configure before installing) with a warning.
 - **`clear-editor`** — remove it; Claude falls back to your shell `$EDITOR`.
 
+**Default thinking effort** (`~/.claude/settings.json` `effortLevel` — Claude Code's `/effort` level)
+- **`set-effort <level>`** — set the default reasoning effort, persisted as the top-level
+  `effortLevel` so **new sessions start there** (the same thing `/effort` does, made sticky). Level is
+  one of `low`, `medium`, `high`, `xhigh`, `max` — validated before write (an enum; junk is refused).
+  `high` is most models' built-in default; `xhigh` suits long agentic/coding work on Opus.
+- **`set-effort max`** — allowed, but Claude Code may **not persist `max`** across sessions (a known
+  limitation); for a permanent max default, also set `CLAUDE_CODE_EFFORT_LEVEL=max` in the shell. The
+  action warns about this.
+- **`clear-effort`** — remove `effortLevel`; each model falls back to its built-in default (≡ `/effort auto`).
+
 ## 2. Helping the user choose
 
 You're on a stranger's machine — **don't impose taste.** Lay out choices, recommend conservative
@@ -123,6 +137,10 @@ Suggestions by axis (offer, don't impose):
   installed (the screen marks the rest "not installed"); for a missing one, point at the right
   installer (`swkit vscode install`, `swkit cursor install`, or `apt install vim`) first. It's
   Claude-only — say so if the user expected their global `$EDITOR` to change.
+- **Default thinking effort:** most users want `high` (the default) or `xhigh` for heavy coding /
+  agentic work on Opus; `low`/`medium` trade intelligence for speed/cost. Don't blanket-set `max` — it
+  can overthink and may not persist. It's a persisted default for **new** sessions; `/effort` still
+  changes the live one, so the user can always override per session.
 
 **Scope:** default `user` (global) suits "set up my machine". Use `-s project` only when the user
 wants an MCP server committed to a specific repo's `.mcp.json`.
@@ -166,7 +184,7 @@ The how-to (follow the authoring contract in the repo's `CLAUDE.md`):
 ## 5. The interactive screen, and the boundary with bootstrap
 
 `scripts/claude.sh` defines its **own full-screen `ui()`** — a consolidated extension manager with
-four sections (MCP servers, Plugins & marketplaces, Skills, Default editor), each a checklist of
+five sections (MCP servers, Plugins & marketplaces, Skills, Default editor, Default thinking effort), each a checklist of
 curated quick-adds + currently configured items + an "add…"/"set…" row. A human opens it with **`swkit claude`** (no action)
 or by drilling into Claude Code from the bootstrap catalog. **Space** toggles the selected item
 (add/remove a server, add/remove a marketplace, install/remove a skill, enable/disable a plugin);
