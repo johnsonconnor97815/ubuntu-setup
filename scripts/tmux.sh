@@ -781,11 +781,22 @@ TMUXWIN
   fi
 
   if [[ "$KEYBINDINGS" == on ]]; then
+    # Don't re-bind what an enabled plugin owns and sources AFTER us (tpm runs later, so the
+    # plugin would win anyway — re-binding here is just dead config). pain-control provides the
+    # same pane split/nav/resize (with cwd); yank provides the copy-mode yanks.
+    local _has_pc=0 _has_yank=0
+    _tmux_list_has pain-control "$PLUGINS" && _has_pc=1
+    _tmux_list_has yank "$PLUGINS" && _has_yank=1
     printf '\n# ---- Ergonomic keybindings ----\n'
     printf '# Split keeping the current path (keys configurable via --split-h / --split-v).\n'
     # Each direction can bind several keys (\ and |, - and _): loop and emit one bind per key.
     # Keys are single-quoted so a literal backslash binds cleanly (in tmux.conf single quotes
     # treat \ literally, so 'bind \' would otherwise be mis-parsed).
+    if (( _has_pc )); then
+      printf '# NOTE: tmux-pain-control (sourced later by tpm) wins for any split key it shares —\n'
+      printf '# with cwd too, and it makes \\ / _ FULL-size splits. Custom --split-h/--split-v keys\n'
+      printf '# it does not use still take effect.\n'
+    fi
     local _splitk; local -a _splith _splitv
     IFS=$' \t' read -ra _splith <<<"$SPLIT_H_KEY"
     IFS=$' \t' read -ra _splitv <<<"$SPLIT_V_KEY"
@@ -795,7 +806,12 @@ TMUXWIN
     for _splitk in "${_splitv[@]}"; do
       printf "bind '%s' split-window -v -c \"#{pane_current_path}\"\n" "$_splitk"
     done
-    cat <<'TMUXKEYS'
+    # Pane nav (hjkl) / resize (HJKL) / new-window-with-cwd (c): identical in tmux-pain-control,
+    # which is sourced after us and overrides them anyway — emit only when pain-control is OFF.
+    if (( _has_pc )); then
+      printf '# Pane nav (hjkl), resize (HJKL) and new-window-with-cwd (c) come from tmux-pain-control.\n'
+    else
+      cat <<'TMUXKEYS'
 bind c new-window -c "#{pane_current_path}"
 # vim-style pane navigation (note: rebinds prefix-l away from last-window)
 bind h select-pane -L
@@ -807,26 +823,33 @@ bind -r H resize-pane -L 5
 bind -r J resize-pane -D 5
 bind -r K resize-pane -U 5
 bind -r L resize-pane -R 5
-# vi copy-mode: v begin, C-v rectangle, y copy (system clipboard via set-clipboard/OSC52)
-bind -T copy-mode-vi v send -X begin-selection
-bind -T copy-mode-vi C-v send -X rectangle-toggle
-bind -T copy-mode-vi y send -X copy-selection-and-cancel
-bind -T copy-mode-vi MouseDragEnd1Pane send -X copy-selection-and-cancel
 TMUXKEYS
+    fi
+    # vi copy-mode selection. v / C-v are kit-specific (tmux-yank doesn't bind them). y and the
+    # mouse-drag copy go to tmux-yank when enabled (it copies to the system clipboard and is
+    # sourced after us); bind them here only when yank is OFF.
+    printf '# vi copy-mode: v begin-selection, C-v rectangle-toggle.\n'
+    printf 'bind -T copy-mode-vi v send -X begin-selection\n'
+    printf 'bind -T copy-mode-vi C-v send -X rectangle-toggle\n'
+    if (( ! _has_yank )); then
+      printf '# y / drag copy to the system clipboard (tmux-yank not enabled).\n'
+      printf 'bind -T copy-mode-vi y send -X copy-selection-and-cancel\n'
+      printf 'bind -T copy-mode-vi MouseDragEnd1Pane send -X copy-selection-and-cancel\n'
+    fi
   fi
 
   if [[ "$PANE_KEYS" == on ]]; then
-    cat <<'TMUXPANE'
-
-# ---- Pane management ----
-# prefix S toggles synchronized input to every pane in the window (type once, run everywhere).
-bind S set-window-option synchronize-panes \; display-message "sync-panes #{?synchronize-panes,on,off}"
-# prefix b breaks the current pane into its own window; > / < swap it down / up in the layout.
-bind b break-pane
-bind > swap-pane -D
-bind < swap-pane -U
-# (zoom the current pane with the built-in prefix z)
-TMUXPANE
+    printf '\n# ---- Pane management ----\n'
+    printf '# prefix b breaks the current pane into its own window.\n'
+    printf '# (swap two panes with the built-in prefix { / prefix }; zoom with prefix z)\n'
+    printf 'bind b break-pane\n'
+    # prefix S = toggle synchronized input. tmux-sessionist also binds prefix S (switch-client -l,
+    # i.e. the built-in prefix L) and tpm sources it AFTER us, so when both apply we (re)bind S in
+    # the post-TPM overrides below instead — here only when nothing would clobber it.
+    if ! { _tmux_tpm_installed && _tmux_list_has sessionist "$PLUGINS"; }; then
+      printf '# prefix S toggles synchronized input to every pane in the window.\n'
+      printf 'bind S set-window-option synchronize-panes \\; display-message "sync-panes #{?synchronize-panes,on,off}"\n'
+    fi
   fi
 
   if [[ "$ALT_SPLIT" == on ]]; then
@@ -941,6 +964,21 @@ TMUXPANE
           printf "run '%s/%s/%s'\n" "$_TPLUGDIR" "$dir" "$entry"
         done
       fi
+    fi
+
+    # ---- Post-TPM kit overrides ----
+    # Re-assert the few kit settings a plugin sourced by `run tpm` would otherwise clobber
+    # (plugins load after this file's earlier sections). Kept deliberately minimal — only the
+    # genuinely conflicting ones, so we don't fight plugins that are doing the right thing.
+    if [[ "$PANE_KEYS" == on ]] && _tmux_list_has sessionist "$PLUGINS"; then
+      printf '\n# Reclaim prefix S for synchronize-panes (tmux-sessionist binds S to switch-client -l;\n'
+      printf '# use the built-in prefix L for last-session instead).\n'
+      printf 'bind S set-window-option synchronize-panes \\; display-message "sync-panes #{?synchronize-panes,on,off}"\n'
+    fi
+    if _tmux_list_has sensible "$PLUGINS"; then
+      printf '\n# Reclaim aggressive-resize: tmux-sensible force-sets it on (no user-default check),\n'
+      printf '# so re-assert kit'\''s value here so behaviour matches what the UI/state reports.\n'
+      printf 'setw -g aggressive-resize %s\n' "$AGGRESSIVE_RESIZE"
     fi
   fi
 
