@@ -277,10 +277,18 @@ ui_row() {
 }
 
 # --- Input: decode one logical keypress into UI_KEY ----------------------------
+# ui_read_key [TIMEOUT] — decode one keypress. With a TIMEOUT (seconds, may be fractional),
+# a quiet period sets UI_KEY="timeout" and returns 0 (so a render loop can poll background
+# work and repaint). Without it, blocks until a key arrives (original behavior).
 ui_read_key() {
-  local c b1 b2 seq
+  local c b1 b2 seq to="${1:-}"
   UI_KEY=""
-  IFS= read -rsn1 c <&"$_UI_FD" 2>/dev/null || { UI_KEY="enter"; return 0; }
+  if [[ -n "$to" ]]; then
+    IFS= read -rsn1 -t "$to" c <&"$_UI_FD" 2>/dev/null || { UI_KEY="timeout"; return 0; }
+    [[ -z "$c" ]] && { UI_KEY="timeout"; return 0; }
+  else
+    IFS= read -rsn1 c <&"$_UI_FD" 2>/dev/null || { UI_KEY="enter"; return 0; }
+  fi
   case "$c" in
     $'\x1b')
       if IFS= read -rsn1 -t "$_UI_ESC_DELAY" b1 <&"$_UI_FD" 2>/dev/null && [[ -n "$b1" ]]; then
@@ -632,24 +640,37 @@ ui_catalog() {
   local own=0
   if [[ "${_UI_ACTIVE:-0}" != 1 ]]; then ui_begin || { _ui_catalog_text "$dir"; return $?; }; own=1; fi
 
-  local sel=0 refresh=1 n=0
-  local -a keys=() labels=() paths=()
+  # Stale-while-revalidate: paint instantly from cache, re-probe status in the background, and
+  # repaint as fresh results land. si[]: 1 installed, 0 not, -1 unknown (shown as a "probing"
+  # badge). The render loop polls with a timeout so input is never blocked by probing.
+  local sel=0 rescan=1 n=0 i p
+  # selectable arrays (filled/read via nameref by _ui_catalog_scan/_ui_catalog_build)
+  # shellcheck disable=SC2034
+  local -a sk=() sn=() sc=() sp=() si=()     # keys/names/cats/paths/installed
+  local -a keys=() labels=() paths=()        # display: interleaved headers (empty key) + rows
+  local -a pending=()                         # paths whose fresh status we are still awaiting
   while true; do
-    # Metadata/status probing shells out to every script. Keep that off the hot
-    # keypress path; refresh only on entry and after returning from a child UI.
-    if (( refresh )); then
-      _ui_catalog_collect "$dir" keys labels paths
+    if (( rescan )); then
+      _ui_catalog_scan "$dir" sk sn sc sp si
+      _ui_catalog_build sk sn sc sp si keys labels paths
       n=${#keys[@]}
       if (( n == 0 )); then ui_notify "$(ui_t install_software)" "$(ui_t no_scripts)"; break; fi
       (( sel >= n )) && sel=$(( n - 1 )); (( sel < 0 )) && sel=0
       [[ -n "${keys[$sel]}" ]] || _ui_catalog_step keys sel 1   # never rest on a section header
-      refresh=0
+      # which scripts need a (re)probe: unknown, or older than the soft TTL
+      pending=()
+      for (( i=0; i<${#sp[@]}; i++ )); do
+        if [[ "${si[$i]}" == -1 ]] || (( $(kit_status_age "${sp[$i]}") > KIT_STATUS_TTL )); then
+          pending+=("${sp[$i]}")
+        fi
+      done
+      _ui_spawn_probes "${pending[@]}"
+      rescan=0
     fi
 
     [[ "${_UI_WINCH:-0}" == 1 ]] && { _UI_WINCH=0; ui_size; }
-    local listrow=3 avail=$(( UI_ROWS - 3 - 1 )) top=0 i row
+    local listrow=3 avail=$(( UI_ROWS - 3 - 1 )) top=0 row
     (( avail < 1 )) && avail=1
-    # keep selection in view (skip headers when computing, but headers are interleaved)
     (( sel < top )) && top=$sel
     (( sel >= top + avail )) && top=$(( sel - avail + 1 ))
     printf '\033[2J' >&"$_UI_FD"
@@ -664,24 +685,49 @@ ui_catalog() {
       (( row++ ))
     done
     ui_footer "$(ui_t nav_catalog)"
-    ui_read_key
+
+    # Poll for input while status probes are in flight; on a quiet tick, harvest fresh status
+    # from the cache and repaint. Once nothing is pending, go back to a blocking read (no spin).
+    if (( ${#pending[@]} > 0 )); then ui_read_key 0.15; else ui_read_key; fi
     case "$UI_KEY" in
+      timeout)
+        local changed=0 newv idx
+        local -a still=()
+        for p in "${pending[@]}"; do
+          newv="$(kit_status_value "$p")"
+          if [[ -n "$newv" ]]; then
+            for (( idx=0; idx<${#sp[@]}; idx++ )); do
+              [[ "${sp[$idx]}" == "$p" ]] || continue
+              case "$newv" in 1) newv=1 ;; *) newv=0 ;; esac
+              [[ "${si[idx]}" != "$newv" ]] && { si[idx]="$newv"; changed=1; }
+              break
+            done
+          else
+            still+=("$p")
+          fi
+        done
+        pending=("${still[@]}")
+        (( changed )) && _ui_catalog_build sk sn sc sp si keys labels paths
+        ;;
       up|k)   _ui_catalog_step keys sel -1 ;;
       down|j) _ui_catalog_step keys sel 1 ;;
       home)   sel=0; [[ -z "${keys[0]}" ]] && _ui_catalog_step keys sel 1 ;;
       end)    sel=$(( n - 1 )) ;;
+      r|R)    kit_cache_clear; rescan=1 ;;     # hard refresh: drop cache, re-probe everything
       enter|right|l)
         if [[ -n "${keys[$sel]}" ]]; then
           ui_end
           "${paths[$sel]}" ui || true
+          kit_cache_invalidate "${paths[$sel]}"   # this script may have changed; re-probe on return
           ui_begin
-          refresh=1
+          rescan=1
         fi
         ;;
       esc|backspace) break ;;
       q|Q) break ;;
     esac
   done
+  [[ -n "${_UI_WARM_PID:-}" ]] && { wait "$_UI_WARM_PID" 2>/dev/null || true; _UI_WARM_PID=""; }
   [[ $own == 1 ]] && ui_end
   return 0
 }
@@ -697,45 +743,100 @@ _ui_catalog_step() {
   _sel_ref=$i
 }
 
-# Fill KEYS/LABELS/PATHS (by name) with interleaved section headers (empty key) + items.
-_ui_catalog_collect() {
-  local dir="$1"; local -n _keys="$2" _labels="$3" _paths="$4"
-  _keys=(); _labels=(); _paths=()
-  local f blob key name category inst
-  local -a rk=() rn=() rp=() rc=() ri=()
+# Fill the SELECTABLE arrays (keys/names/cats/paths/installed) from the cache with ZERO forks
+# in the hot loop — meta/status come from the cache files via kit_meta_into/kit_status_read
+# (which set globals, so there is no `$(...)` subshell per script). Cold start: any script whose
+# meta is not cached yet is probed in parallel first (one-time). installed: 1/0/empty -> 1/0/-1
+# ("unknown"); the catalog re-probes status in the background. Honors the TEMPLATE.sh skip.
+_ui_catalog_scan() {
+  local dir="$1"; local -n __s_k="$2" __s_n="$3" __s_c="$4" __s_p="$5" __s_i="$6"
+  __s_k=(); __s_n=(); __s_c=(); __s_p=(); __s_i=()
+  kit_cache_dir >/dev/null   # ensure $_KIT_CACHE_DIR is set so the helpers stay fork-free
+  local f base v cdir="$_KIT_CACHE_DIR"
+  local -a miss=()
   shopt -s nullglob
   for f in "$dir"/*.sh; do
     [[ -x "$f" ]] || continue
-    [[ "$(basename "$f")" == "TEMPLATE.sh" ]] && continue
-    blob="$("$f" meta 2>/dev/null)" || continue
-    key="$(printf '%s\n' "$blob" | _ui_meta_field key)"
-    [[ -n "$key" ]] || continue
-    name="$(printf '%s\n' "$blob" | _ui_meta_field name)"; [[ -n "$name" ]] || name="$key"
-    category="$(printf '%s\n' "$blob" | _ui_meta_field category)"; [[ -n "$category" ]] || category="other"
-    if "$f" status >/dev/null 2>&1; then inst=1; else inst=0; fi
-    rk+=("$key"); rn+=("$name"); rp+=("$f"); rc+=("$category"); ri+=("$inst")
+    base="${f##*/}"; [[ "$base" == "TEMPLATE.sh" ]] && continue
+    [[ -n "${KIT_NO_CACHE:-}" ]] && continue                 # no-cache: nothing to pre-probe
+    [[ -f "$cdir/${base%.sh}.meta" ]] || miss+=("$f")
+  done
+  if (( ${#miss[@]} > 0 )); then
+    local m; for m in "${miss[@]}"; do kit_meta_cached "$m" >/dev/null 2>&1 & done; wait
+  fi
+  for f in "$dir"/*.sh; do
+    [[ -x "$f" ]] || continue
+    base="${f##*/}"; [[ "$base" == "TEMPLATE.sh" ]] && continue
+    kit_meta_into "$f" || continue
+    # _KIT_META_* / _KIT_STATUS_V are set by kit_meta_into/kit_status_read in lib/cache.sh
+    # (sourced via common.sh, not directly here, so shellcheck can't see the assignment).
+    # shellcheck disable=SC2153
+    [[ -n "$_KIT_META_N" ]] || _KIT_META_N="$_KIT_META_K"
+    [[ -n "$_KIT_META_C" ]] || _KIT_META_C="other"
+    kit_status_read "$f"
+    case "$_KIT_STATUS_V" in 1) v=1 ;; 0) v=0 ;; *) v=-1 ;; esac
+    __s_k+=("$_KIT_META_K"); __s_n+=("$_KIT_META_N"); __s_c+=("$_KIT_META_C"); __s_p+=("$f"); __s_i+=("$v")
   done
   shopt -u nullglob
-  # Ordered categories first, then any extras.
+}
+
+# Build the interleaved DISPLAY arrays (KEYS empty = section header) from the selectable
+# arrays. installed -> badge: 1 installed, 0 missing, -1 mid ("probing"). Nameref params use
+# a __b_ prefix so they never collide with a caller's array names (avoids circular refs).
+_ui_catalog_build() {
+  local -n __b_sk="$1" __b_sn="$2" __b_sc="$3" __b_sp="$4" __b_si="$5"   # selectable in
+  local -n __b_dk="$6" __b_dl="$7" __b_dp="$8"                            # display out
+  __b_dk=(); __b_dl=(); __b_dp=()
+  # Hoist all subshells out of the per-item loop: the three badges and the "installed" word are
+  # the same for every row, so compute them once (keeps a repaint on a status change near-free).
+  local b_on b_off b_mid word_installed
+  b_on="$(ui_badge installed)"; b_off="$(ui_badge missing)"; b_mid="$(ui_badge mid)"
+  word_installed="$(ui_t installed)"
   local -a cats=("${_KIT_UI_CAT_ORDER[@]}")
-  local c seen
-  for c in "${rc[@]}"; do
-    seen=0; local e; for e in "${cats[@]}"; do [[ "$e" == "$c" ]] && { seen=1; break; }; done
+  local c seen e i lbl tag cat any lbl_word
+  for c in "${__b_sc[@]}"; do
+    seen=0; for e in "${cats[@]}"; do [[ "$e" == "$c" ]] && { seen=1; break; }; done
     (( seen )) || cats+=("$c")
   done
-  local cat i lbl tag
   for cat in "${cats[@]}"; do
-    local any=0
-    for (( i=0; i<${#rk[@]}; i++ )); do [[ "${rc[$i]}" == "$cat" ]] && { any=1; break; }; done
+    any=0
+    for (( i=0; i<${#__b_sk[@]}; i++ )); do [[ "${__b_sc[$i]}" == "$cat" ]] && { any=1; break; }; done
     (( any )) || continue
-    _keys+=(""); _labels+=("$(_ui_cat_label "$cat")"); _paths+=("")
-    for (( i=0; i<${#rk[@]}; i++ )); do
-      [[ "${rc[$i]}" == "$cat" ]] || continue
-      if (( ri[i] )); then tag="$(ui_badge installed)"; else tag="$(ui_badge missing)"; fi
-      printf -v lbl '%s %-12s %s' "$tag" "${rn[$i]}" "${UI_MUTED}$( (( ri[i] )) && ui_t installed )${UI_OFF}"
-      _keys+=("${rk[$i]}"); _labels+=("$lbl"); _paths+=("${rp[$i]}")
+    __b_dk+=(""); __b_dl+=("$(_ui_cat_label "$cat")"); __b_dp+=("")
+    for (( i=0; i<${#__b_sk[@]}; i++ )); do
+      [[ "${__b_sc[$i]}" == "$cat" ]] || continue
+      case "${__b_si[$i]}" in
+        1) tag="$b_on";  lbl_word="$word_installed" ;;
+        0) tag="$b_off"; lbl_word="" ;;
+        *) tag="$b_mid"; lbl_word="" ;;
+      esac
+      printf -v lbl '%s %-12s %s' "$tag" "${__b_sn[$i]}" "${UI_MUTED}${lbl_word}${UI_OFF}"
+      __b_dk+=("${__b_sk[$i]}"); __b_dl+=("$lbl"); __b_dp+=("${__b_sp[$i]}")
     done
   done
+}
+
+# Spawn one background reviser that probes the given script paths in parallel (each writes its
+# own .status; the render loop polls the cache). Opportunistically reap a finished prior one.
+_UI_WARM_PID=""
+_ui_spawn_probes() {
+  (( $# == 0 )) && return 0
+  if [[ -n "$_UI_WARM_PID" ]] && ! kill -0 "$_UI_WARM_PID" 2>/dev/null; then
+    wait "$_UI_WARM_PID" 2>/dev/null || true; _UI_WARM_PID=""
+  fi
+  local paths=("$@")
+  ( local p; for p in "${paths[@]}"; do kit_probe_status "$p" >/dev/null 2>&1 & done; wait ) &
+  _UI_WARM_PID=$!
+}
+
+# Compat shim: fill interleaved KEYS/LABELS/PATHS for the limited-TTY / text path. Synchronous
+# (no async repaint there), so warm the whole cache up front, then scan + build.
+_ui_catalog_collect() {
+  local dir="$1"; local -n _keys="$2" _labels="$3" _paths="$4"
+  local -a _sk=() _sn=() _sc=() _sp=() _si=()
+  kit_cache_fill "$dir"
+  _ui_catalog_scan "$dir" _sk _sn _sc _sp _si
+  _ui_catalog_build _sk _sn _sc _sp _si _keys _labels _paths
 }
 
 # Plain numbered catalog for limited TTY.

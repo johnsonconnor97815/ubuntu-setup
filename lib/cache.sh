@@ -28,6 +28,12 @@ _KIT_CACHE_LOADED=1
 # catalog entry (throttles repeated spawns). Override with KIT_STATUS_TTL.
 : "${KIT_STATUS_TTL:=5}"
 
+# Scratch globals filled by kit_meta_into / kit_status_read and read by the UI hot path
+# (lib/ui.sh's _ui_catalog_scan). Declared here so the contract is visible and tools see them
+# assigned. Callers read these instead of capturing `$(...)`, keeping the hot loop fork-free.
+# shellcheck disable=SC2034  # consumed cross-file by lib/ui.sh
+_KIT_META_K="" _KIT_META_N="" _KIT_META_C="" _KIT_STATUS_V=""
+
 # Resolve the real user's home, honoring a sudo wrapper (mirror kit_load_lang).
 _kit_real_home() {
   local home="${HOME:-}"
@@ -97,19 +103,53 @@ kit_meta_cached() {
   printf '%s\n' "$blob"
 }
 
-# Fast read of cached meta WITHOUT mtime revalidation and WITHOUT any fork — for the UI hot
-# path's first paint, where instant matters more than catching a just-edited script (the
-# background rescan / `r` refresh / child-return rescan use kit_meta_cached to pick up edits).
-# Returns 1 if there is no cached meta (caller then probes). Honors KIT_NO_CACHE.
-kit_meta_read() {
-  local base cache line
-  [[ -n "${KIT_NO_CACHE:-}" ]] && { "$1" meta 2>/dev/null; return $?; }
-  base="$(_kit_cache_base "$1")"
-  cache="$(kit_cache_dir)/${base}.meta"
+# Read cached meta fields into globals _KIT_META_K/_KIT_META_N/_KIT_META_C (key/name/category)
+# WITHOUT any fork — for the UI hot path's first paint, where instant matters more than catching
+# a just-edited script (the background rescan / `r` refresh / child-return rescan use
+# kit_meta_cached to pick up edits). Returns 1 if no meta is available. Honors KIT_NO_CACHE
+# (parses live `meta`). No `$(...)` here: callers read the globals, so no subshell per script.
+kit_meta_into() {
+  local line base cache
+  _KIT_META_K="" _KIT_META_N="" _KIT_META_C=""
+  if [[ -n "${KIT_NO_CACHE:-}" ]]; then
+    while IFS= read -r line; do
+      case "$line" in
+        key=*)      _KIT_META_K="${line#*=}" ;;
+        name=*)     _KIT_META_N="${line#*=}" ;;
+        category=*) _KIT_META_C="${line#*=}" ;;
+      esac
+    done < <("$1" meta 2>/dev/null)
+    [[ -n "$_KIT_META_K" ]]; return
+  fi
+  [[ -n "$_KIT_CACHE_DIR" ]] || kit_cache_dir >/dev/null
+  base="${1##*/}"; base="${base%.sh}"
+  cache="$_KIT_CACHE_DIR/$base.meta"
   [[ -f "$cache" ]] || return 1
   while IFS= read -r line; do
-    [[ "$line" == script_mtime=* ]] && continue
-    printf '%s\n' "$line"
+    case "$line" in
+      key=*)      _KIT_META_K="${line#*=}" ;;
+      name=*)     _KIT_META_N="${line#*=}" ;;
+      category=*) _KIT_META_C="${line#*=}" ;;
+    esac
+  done <"$cache"
+  [[ -n "$_KIT_META_K" ]]
+}
+
+# Read the cached install boolean into the global _KIT_STATUS_V (1/0/empty) WITHOUT any fork.
+# Honors KIT_NO_CACHE (probes once). Companion to kit_meta_into for the UI hot path.
+kit_status_read() {
+  local line base cache
+  _KIT_STATUS_V=""
+  if [[ -n "${KIT_NO_CACHE:-}" ]]; then
+    if KIT_PROBE_ONLY=1 "$1" status >/dev/null 2>&1; then _KIT_STATUS_V=1; else _KIT_STATUS_V=0; fi
+    return 0
+  fi
+  [[ -n "$_KIT_CACHE_DIR" ]] || kit_cache_dir >/dev/null
+  base="${1##*/}"; base="${base%.sh}"
+  cache="$_KIT_CACHE_DIR/$base.status"
+  [[ -f "$cache" ]] || return 0
+  while IFS= read -r line; do
+    [[ "$line" == installed=* ]] && { _KIT_STATUS_V="${line#*=}"; break; }
   done <"$cache"
 }
 
