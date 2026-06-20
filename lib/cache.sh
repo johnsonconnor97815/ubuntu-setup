@@ -32,7 +32,7 @@ _KIT_CACHE_LOADED=1
 # (lib/ui.sh's _ui_catalog_scan). Declared here so the contract is visible and tools see them
 # assigned. Callers read these instead of capturing `$(...)`, keeping the hot loop fork-free.
 # shellcheck disable=SC2034  # consumed cross-file by lib/ui.sh
-_KIT_META_K="" _KIT_META_N="" _KIT_META_C="" _KIT_STATUS_V=""
+_KIT_META_K="" _KIT_META_N="" _KIT_META_C="" _KIT_STATUS_V="" _KIT_STATUS_TS=""
 
 # Resolve the real user's home, honoring a sudo wrapper (mirror kit_load_lang).
 _kit_real_home() {
@@ -183,14 +183,35 @@ kit_status_value() {
 }
 
 # Seconds since the last status probe (999999 if never).
+# Read the cached status_ts into the global _KIT_STATUS_TS (empty if none). Fork-free.
+_kit_status_ts() {
+  local base cache line
+  _KIT_STATUS_TS=""
+  [[ -n "$_KIT_CACHE_DIR" ]] || kit_cache_dir >/dev/null
+  base="${1##*/}"; base="${base%.sh}"
+  cache="$_KIT_CACHE_DIR/$base.status"
+  [[ -f "$cache" ]] || return 0
+  while IFS= read -r line; do
+    [[ "$line" == status_ts=* ]] && { _KIT_STATUS_TS="${line#*=}"; break; }
+  done <"$cache"
+}
+
 kit_status_age() {
-  local script base cache ts now
-  script="$1"; base="$(_kit_cache_base "$script")"
-  cache="$(kit_cache_dir)/${base}.status"
-  ts="$(_kit_cache_field "$cache" status_ts 2>/dev/null || echo '')"
-  [[ -n "$ts" ]] || { echo 999999; return 0; }
+  local now
+  _kit_status_ts "$1"
+  [[ -n "$_KIT_STATUS_TS" ]] || { echo 999999; return 0; }
   now="$(_kit_now)"
-  echo $(( now - ts ))
+  echo $(( now - _KIT_STATUS_TS ))
+}
+
+# Exit 0 if the cached status is fresh (younger than the soft TTL), 1 if stale/missing. Used
+# by the catalog's pending computation — fork-free (no `$(...)`), so the first paint stays fast.
+kit_status_fresh() {
+  local now
+  _kit_status_ts "$1"
+  [[ -n "$_KIT_STATUS_TS" ]] || return 1
+  printf -v now '%(%s)T' -1 2>/dev/null || now="$_KIT_STATUS_TS"
+  (( now - _KIT_STATUS_TS <= KIT_STATUS_TTL ))
 }
 
 # Drop a script's cached status (force re-probe). Keeps meta.

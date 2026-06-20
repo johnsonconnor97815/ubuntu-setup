@@ -657,10 +657,11 @@ ui_catalog() {
       if (( n == 0 )); then ui_notify "$(ui_t install_software)" "$(ui_t no_scripts)"; break; fi
       (( sel >= n )) && sel=$(( n - 1 )); (( sel < 0 )) && sel=0
       [[ -n "${keys[$sel]}" ]] || _ui_catalog_step keys sel 1   # never rest on a section header
-      # which scripts need a (re)probe: unknown, or older than the soft TTL
+      # which scripts need a (re)probe: unknown, or older than the soft TTL. kit_status_fresh
+      # is fork-free (exit code, no $()), so this stays off the first-paint critical path.
       pending=()
       for (( i=0; i<${#sp[@]}; i++ )); do
-        if [[ "${si[$i]}" == -1 ]] || (( $(kit_status_age "${sp[$i]}") > KIT_STATUS_TTL )); then
+        if [[ "${si[$i]}" == -1 ]] || ! kit_status_fresh "${sp[$i]}"; then
           pending+=("${sp[$i]}")
         fi
       done
