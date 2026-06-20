@@ -90,6 +90,7 @@ META
 # Exit 0 iff installed. have_cmd is the authoritative gate; version is best-effort.
 status() {
   have_cmd trellis || return 1
+  [[ -n "${KIT_PROBE_ONLY:-}" ]] && return 0   # catalog probe: boolean only, skip version spawn
   local v=""
   v="$(trellis --version 2>/dev/null | head -n1)" || v=""
   [[ -n "$v" ]] || v="trellis (installed)"

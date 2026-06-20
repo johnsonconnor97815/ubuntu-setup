@@ -265,6 +265,7 @@ _py_latest_available() {
 # count, and — only when the system python3 is shadowed by a uv version — that fact.
 status() {
   _py_base_installed || return 1
+  [[ -n "${KIT_PROBE_ONLY:-}" ]] && return 0   # catalog probe: boolean only, skip python/pip/uv spawns
   local py pip uvv="-" ntools=0 t npy=0 shadow=""
   py="$(python3 --version 2>&1 | awk '{print $2}')"
   pip="$(python3 -m pip --version 2>/dev/null | awk '{print $2}')"

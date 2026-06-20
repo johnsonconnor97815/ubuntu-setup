@@ -64,15 +64,9 @@ META
 
 # Exit 0 iff VS Code is installed (on PATH via apt/snap, or a dpkg-installed package).
 status() {
-  if have_cmd code; then
-    code --version 2>/dev/null | head -n1
-    return 0
-  fi
-  if pkg_installed code; then
-    printf 'code (dpkg: installed)\n'
-    return 0
-  fi
-  return 1
+  have_cmd code || pkg_installed code || return 1
+  [[ -n "${KIT_PROBE_ONLY:-}" ]] && return 0   # catalog probe: boolean only, never spawn code
+  if have_cmd code; then code --version 2>/dev/null | head -n1; else printf 'code (dpkg: installed)\n'; fi
 }
 
 # True iff we are in an SSH/headless session (no local GUI to run VS Code in).

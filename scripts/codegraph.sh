@@ -71,6 +71,7 @@ META
 # (the exact --version output is the tool's concern — never let it abort status).
 status() {
   have_cmd codegraph || return 1
+  [[ -n "${KIT_PROBE_ONLY:-}" ]] && return 0   # catalog probe: boolean only, skip version spawn
   local v=""
   v="$(codegraph --version 2>/dev/null | head -n1)" || v=""
   [[ -n "$v" ]] || v="codegraph (installed)"

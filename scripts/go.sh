@@ -159,6 +159,7 @@ _go_tool_valid()     { [[ -n "${GO_TOOL_PATH[$1]:-}" ]]; }
 # of curated tools present, and whether GOBIN is on PATH.
 status() {
   have_cmd go || return 1
+  [[ -n "${KIT_PROBE_ONLY:-}" ]] && return 0   # catalog probe: boolean only, skip go version/env spawns
   local ver proxy gobin n=0 t total=0 path_ok="no"
   ver="$(go version 2>/dev/null | awk '{print $3}')"
   proxy="$(go env GOPROXY 2>/dev/null || true)"

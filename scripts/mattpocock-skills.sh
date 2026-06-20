@@ -361,6 +361,18 @@ META
 # Exit 0 iff >=1 curated skill is installed in any target agent; print a one-line summary.
 status() {
   _mps_user_paths >/dev/null 2>&1 || return 1
+  # catalog probe: any curated skill in any agent? resolve agents once, exit on first hit —
+  # far cheaper than _mps_installed_curated's 17×agents scan (which re-resolves agents each loop).
+  if [[ -n "${KIT_PROBE_ONLY:-}" ]]; then
+    local a p s
+    for a in $(_mps_get_agents); do
+      p="$(_mps_agent_path "$a")" || continue
+      for s in $_MPS_SKILL_KEYS; do
+        [[ -f "$p/$s/SKILL.md" ]] && return 0
+      done
+    done
+    return 1
+  fi
   local installed count agents
   installed="$(_mps_installed_curated)"
   [[ -n "$installed" ]] || return 1

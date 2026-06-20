@@ -44,8 +44,9 @@ META
 
 # Both must be present to count as installed.
 status() {
-  have_cmd node && have_cmd npm \
-    && printf 'node %s / npm %s\n' "$(node --version)" "$(npm --version)"
+  have_cmd node && have_cmd npm || return 1
+  [[ -n "${KIT_PROBE_ONLY:-}" ]] && return 0   # catalog probe: boolean only, skip version spawns
+  printf 'node %s / npm %s\n' "$(node --version)" "$(npm --version)"
 }
 
 do_install() {
