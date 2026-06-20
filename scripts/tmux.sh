@@ -650,6 +650,27 @@ _tmux_run_clean_plugins() {
 
 # --- Managed block generation --------------------------------------------------
 
+# Build the status-right fragment for the enabled status-bar widget plugins — the #{...}
+# placeholders their plugins interpolate into commands. Order follows TMUX_STATUS_WIDGETS;
+# the string is empty when no widget is enabled. Shared by both status-right paths in
+# _tmux_emit_block: the no-theme path (placed BEFORE tpm, interpolated when tpm sources the
+# plugins) and the themed path (appended AFTER tpm, then the plugins are re-sourced).
+_tmux_status_widgets_str() {
+  local sr="" w
+  for w in $TMUX_STATUS_WIDGETS; do
+    _tmux_list_has "$w" "$PLUGINS" || continue
+    case "$w" in
+      prefix-highlight) sr="${sr}#{prefix_highlight}" ;;
+      mode-indicator)   sr="${sr}#{tmux_mode_indicator} " ;;
+      net-speed)        sr="${sr}D:#{download_speed} U:#{upload_speed} " ;;
+      online-status)    sr="${sr}net:#{online_status} " ;;
+      cpu)              sr="${sr}cpu:#{cpu_percentage} " ;;
+      battery)          sr="${sr}#{battery_icon} #{battery_percentage} " ;;
+    esac
+  done
+  printf '%s' "$sr"
+}
+
 # Emit the whole managed block to stdout (markers included). The plugin section (the @plugin
 # declarations + TPM bootstrap/init) is emitted only when TPM is actually installed, so
 # `uninstall-tpm` cleanly drops it while the user's plugin selection is preserved in state.
@@ -856,23 +877,13 @@ TMUXPANE
       printf "set -g %s '%s'\n" "$topt" "${THEME_FLAVOR:-$tdef}"
     fi
 
-    # Status-bar widgets stay invisible unless their interpolation sits in status-right.
-    # Assemble it from the enabled widgets — but ONLY when no theme is active (a theme owns
-    # status-right and would clash). With a theme the widget plugins still load; the theme
-    # decides where to place them.
+    # Status-bar widgets stay invisible unless their interpolation sits in status-right. With
+    # NO theme we own status-right, so assemble it here (BEFORE tpm) from the enabled widgets;
+    # tpm then sources their plugins, which interpolate the #{...} placeholders in place. When
+    # a THEME owns status-right we cannot do this (the theme overwrites it during `run tpm`) —
+    # instead we layer the widgets on top AFTER tpm has run, past the `run '.../tpm'` line below.
     if [[ "$THEME" == none ]]; then
-      local sr="" w
-      for w in $TMUX_STATUS_WIDGETS; do
-        _tmux_list_has "$w" "$PLUGINS" || continue
-        case "$w" in
-          prefix-highlight) sr="${sr}#{prefix_highlight}" ;;
-          mode-indicator)   sr="${sr}#{tmux_mode_indicator} " ;;
-          net-speed)        sr="${sr}D:#{download_speed} U:#{upload_speed} " ;;
-          online-status)    sr="${sr}net:#{online_status} " ;;
-          cpu)              sr="${sr}cpu:#{cpu_percentage} " ;;
-          battery)          sr="${sr}#{battery_icon} #{battery_percentage} " ;;
-        esac
-      done
+      local sr; sr="$(_tmux_status_widgets_str)"
       if [[ -n "$sr" ]]; then
         printf '\n# ---- Status-right widgets (assembled because no theme owns the status bar) ----\n'
         printf 'set -g status-right "%s %%Y-%%m-%%d %%H:%%M "\n' "$sr"
@@ -885,8 +896,36 @@ TMUXPANE
     printf '\n# Auto-install TPM + the declared plugins on a fresh machine (skipped once TPM exists).\n'
     printf 'if "test ! -d %s" \\\n' "$_TPM_DIR"
     printf '   "run '\''git clone --depth=1 %s %s && %s/bin/install_plugins'\''"\n' "$TPM_REPO" "$_TPM_DIR" "$_TPM_DIR"
-    printf '\n# Initialize TPM — keep this the LAST line of the managed block.\n'
+    # Initialize TPM. This sources every declared plugin SYNCHRONOUSLY (the theme sets its own
+    # status-right here; continuum is sourced LAST). The only thing allowed to follow is the
+    # themed-widget layering below — it must run AFTER the theme has set status-right.
+    printf '\n# Initialize TPM (sources all declared plugins).\n'
     printf 'run '\''%s/tpm'\''\n' "$_TPM_DIR"
+
+    # Themed status bar: the theme owns status-right (set during `run tpm` above), so the
+    # before-tpm assembly was skipped. Layer the enabled widgets on top now — append their
+    # placeholders, then re-source each widget plugin so it interpolates them in place. The
+    # theme's own status-right has none of these placeholders, so it is left intact; so is
+    # continuum's autosave hook (which it prepends to status-right). Each widget was already
+    # sourced once by tpm above (a no-op then — no placeholder was present yet), so re-sourcing
+    # interpolates exactly the just-appended placeholder, once.
+    if [[ "$THEME" != none ]]; then
+      local sr w dir entry
+      sr="$(_tmux_status_widgets_str)"
+      if [[ -n "$sr" ]]; then
+        printf '\n# ---- Status-right widgets layered on top of the theme (re-sourced post-TPM) ----\n'
+        printf 'set -ag status-right " %s"\n' "$sr"
+        for w in $TMUX_STATUS_WIDGETS; do
+          _tmux_list_has "$w" "$PLUGINS" || continue
+          dir="$(_tmux_plugin_dir "$w")"
+          # A curated widget's entry file = its repo dir minus the 'tmux-' prefix, '-' -> '_'
+          # (tmux-cpu -> cpu.tmux, tmux-net-speed -> net_speed.tmux, tmux-mode-indicator ->
+          # mode_indicator.tmux, tmux-prefix-highlight -> prefix_highlight.tmux).
+          entry="${dir#tmux-}"; entry="${entry//-/_}.tmux"
+          printf "run '%s/%s/%s'\n" "$_TPLUGDIR" "$dir" "$entry"
+        done
+      fi
+    fi
   fi
 
   printf '%s\n' "$TMUX_BLOCK_END"
