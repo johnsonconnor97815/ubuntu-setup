@@ -890,6 +890,22 @@ TMUXPANE
       fi
     fi
 
+    # Guard against tmux-resurrect's zero-byte 'last' bug before continuum auto-restores it.
+    # continuum's systemd ExecStop save (run after every session has already closed) — and any
+    # save cut short by a crash/shutdown — can leave 'last' pointing at an empty (or dangling)
+    # file; auto-restoring that yields zero sessions and the server exits on startup, i.e.
+    # `tmux` prints "[exited]" immediately (tmux-resurrect#287 / #403). Emit this BEFORE the
+    # `run '.../tpm'` line below (tpm sources continuum, which kicks off its background restore
+    # after a 1s sleep), and only when continuum is enabled. It is a no-op unless 'last' is a
+    # symlink that is empty or dangling, so it costs nothing on a healthy startup.
+    if _tmux_list_has continuum "$PLUGINS"; then
+      printf '\n# ---- Guard: drop a corrupt (empty/dangling) resurrect '\''last'\'' before continuum restores it ----\n'
+      # This run-shell body is a literal handed to tmux's /bin/sh at startup; its $vars and $()
+      # must NOT expand when we emit it, hence single quotes (SC2016 is the intended behaviour).
+      # shellcheck disable=SC2016
+      printf '%s\n' 'run-shell '\''d="${XDG_DATA_HOME:-$HOME/.local/share}/tmux/resurrect"; [ -L "$d/last" ] && [ ! -s "$d/last" ] || exit 0; find "$d" -maxdepth 1 -name "tmux_resurrect_*.txt" -size 0 -delete 2>/dev/null; n=$(ls -t "$d"/tmux_resurrect_*.txt 2>/dev/null | head -n1); [ -n "$n" ] && ln -sf "$n" "$d/last" || rm -f "$d/last"'\'''
+    fi
+
     # TPM lives under ~/.tmux/plugins, or <xdg>/tmux/plugins when an XDG config exists (TPM's
     # own rule — see _tmux_resolve_paths). Emit the resolved absolute path so the bootstrap +
     # init point at the same dir TPM uses at runtime.
@@ -1172,7 +1188,12 @@ do_configure() {
     [[ "$THEME" == "none" ]] && THEME="catppuccin"
     _tmux_apply_keys_preset
     RESURRECT_STRATEGY="on"
-    CONTINUUM_BOOT="on"
+    # Session-restore (@continuum-restore) is on whenever continuum is enabled, but auto-start-
+    # on-boot stays OFF even under --recommended: continuum's boot service runs a resurrect save
+    # on stop — after every session has closed — which writes an empty layout and can corrupt
+    # 'last', making tmux exit on the next start (tmux-resurrect#287). The startup guard above
+    # contains the damage, but boot autostart remains opt-in via `--continuum-boot on`.
+    CONTINUUM_BOOT="off"
   fi
   (( keys_preset )) && _tmux_apply_keys_preset
   if (( ! want_plugins )); then
