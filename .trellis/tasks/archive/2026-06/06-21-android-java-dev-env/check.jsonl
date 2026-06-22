@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/scripts/quality-guidelines.md", "reason": "校验门:bash -n、shellcheck -x、脚本自测(meta ops 精确匹配、ui 不在 ops、status 独立可跑)、伪终端冒烟"}
+{"file": ".trellis/spec/scripts/idempotency.md", "reason": "复检 status 只读 + KIT_PROBE_ONLY 两路径退出码一致、重跑安全、改前备份"}
+{"file": ".trellis/spec/lib/safety-contract.md", "reason": "复检 5 条不可妥协项:绝无整体 root/裸 sudo/apt-key、绝不自动装 Java、purge 护栏、用户态守卫"}
+{"file": ".trellis/spec/lib/sudo-and-apt.md", "reason": "复检提权与 apt 全经 lib helper、无裸 apt-get、sudo_run argv 语义"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "通用『跨层边界』思维框架(映射数据流/定契约/在边界校验一次)——用以审 android->java 这条跨脚本边界;本任务特定的 gate/status-不调-gate/home stdout 纯净契约见本任务 design.md §C"}
