@@ -36,3 +36,36 @@
 ### Next Steps
 
 - None - task complete
+
+
+## Session 2: 实现 java.sh + android.sh 联动脚本(OpenJDK 多版本 + headless Android SDK)
+
+**Date**: 2026-06-21
+**Task**: 实现 java.sh + android.sh 联动脚本(OpenJDK 多版本 + headless Android SDK)
+**Branch**: `dev`
+
+### Summary
+
+新增两个联动 runtime 脚本:scripts/java.sh(641 行,apt OpenJDK 多版本管理器——curated {17,21}+add-version 动态探测、update-java-alternatives 分组切默认+切后断言 java/javac 同版本、受管 JAVA_HOME、只读零 JVM 的 home [<N>] 查询 op)与 scripts/android.sh(1163 行,headless Android SDK 工具链——块作用域解析 repository2 XML+sha1/size 校验、镜像预设 tencent/ustc/aliyun 无 tsinghua+正向 URL 白名单+404 回退、许可显式、purge 多重护栏)。单向联动 android→java:_android_java_gate 在每个 sdkmanager JVM spawn 前找兼容 JDK≥17(无界 dpkg glob、JAVA_HOME=$(java.sh home N) 判非空、缺则指路不自动装),status 绝不调 gate 零 JVM。每脚本经一个 Workflow(实现→静态门+6/7 视角对抗式审查→修复闭环):java 抓修 1 HIGH awk bug,android 抓修 set-mirror ; 注入绕过(HIGH)+缺失的 404 回退(HIGH)+硬编码 JDK 上限等共 10 处。最终静态门 java 9/9、android 16/16,主代理独立复跑 17/17,trellis-check PASS 零代码缺陷。CLAUDE.md 种子集+两要点已同步。测试期两 sub-agent 不慎污染 ~/.zshrc(set-mirror 校验 bug 期写入 + ensure-path 无参默认 on),已从干净备份精确还原并记入记忆。行为验收(真装)留待真机。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `9c092fb` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

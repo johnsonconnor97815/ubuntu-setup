@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 1
-- **Last Active**: 2026-06-17
+- **Total Sessions**: 2
+- **Last Active**: 2026-06-21
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~38 | Active |
+| `journal-1.md` | ~71 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 2 | 2026-06-21 | 实现 java.sh + android.sh 联动脚本(OpenJDK 多版本 + headless Android SDK) | `9c092fb` | `dev` |
 | 1 | 2026-06-17 | Bootstrap Trellis spec：重塑为 scripts/lib/skills 源码实证规范 | - | `dev` |
 <!-- @@@/auto:session-history -->
 
