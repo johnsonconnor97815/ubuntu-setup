@@ -17,7 +17,7 @@
 | [unified-interface.md](./unified-interface.md) | 统一接口:`meta`/`status`/`do_install`/`do_remove`/`do_configure`/自定义 op;`kit_dispatch` 路由;渠道优先级 |
 | [idempotency.md](./idempotency.md) | 幂等纪律:`status` 闸门、查活系统、收敛、重跑安全、改前备份 |
 | [ui-conventions.md](./ui-conventions.md) | `ui()` 交互界面:入口模式(非 op)、三档终端降级、`ui_run` 跑状态变更、`lib/ui.sh` 原语 |
-| [quality-guidelines.md](./quality-guidelines.md) | 校验:`bash -n`、`shellcheck -x`、脚本自测、伪终端冒烟;贡献者工作流 |
+| [quality-guidelines.md](./quality-guidelines.md) | 校验:`bash -n`、`shellcheck -x`、脚本自测、伪终端冒烟;`set -e` 末命令 `&&` 退出码泄露 gotcha;贡献者工作流 |
 
 ## 必看 lib 安全契约
 

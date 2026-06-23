@@ -20,7 +20,7 @@
 | 文件 | 内容 |
 |------|------|
 | [safety-contract.md](./safety-contract.md) | 5 条不可妥协项 + 各自由哪个 lib 原语强制 |
-| [sudo-and-apt.md](./sudo-and-apt.md) | `sudo_run` 逐命令提权 / `RC_NEED_SUDO` / 非交互 apt / vendor apt 渠道(`add_apt_keyring`/`add_apt_source`) |
+| [sudo-and-apt.md](./sudo-and-apt.md) | `sudo_run` 逐命令提权 / `RC_NEED_SUDO` / 非交互 apt / vendor apt 渠道(`add_apt_keyring`/`add_apt_source`)/ vendor 二进制 `.deb`(curl + `apt_install` 本地路径,curl `--max-time` 二分律) |
 | [npm-and-files.md](./npm-and-files.md) | 用户态 npm 全局安装(绝不 `sudo npm`) / `backup_file` / `append_once` / `ensure_local_bin_on_path` |
 
 ## 唯一来源与"漂移"纪律(CRITICAL)

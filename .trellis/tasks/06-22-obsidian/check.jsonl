@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/scripts/quality-guidelines.md", "reason": "校验门:bash -n、shellcheck -x 零告警、脚本自测(meta ops 精确匹配且不含 ui、status 独立可跑、ui 无 TTY 退 0)、伪终端冒烟——obsidian 的验收依据。"}
+{"file": ".trellis/spec/scripts/idempotency.md", "reason": "复检 status 只读 + KIT_PROBE_ONLY 两路径退出码一致、重跑安全、保守 remove 留 ~/.config/obsidian。"}
+{"file": ".trellis/spec/lib/safety-contract.md", "reason": "复检不可妥协项:绝无整体 root/裸 sudo/apt-key/dpkg -i/jq、.deb 经 apt_install、conservative remove 不 purge 不 rm -rf、arch 非 amd64 诚实 return 1。"}
+{"file": ".trellis/spec/lib/sudo-and-apt.md", "reason": "复检提权与 apt/snap 全经 lib helper(sudo_run/apt_install/apt_remove)、无裸 apt-get、curl 限连接/停滞不加 --max-time(大下载)。"}

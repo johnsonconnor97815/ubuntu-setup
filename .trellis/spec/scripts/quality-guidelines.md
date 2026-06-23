@@ -34,6 +34,21 @@ printf 'q' | TERM=xterm-256color script -qec '<script> ui' /dev/null
 # 确认渲染不崩、q 干净退出、终端复原
 ```
 
+## Gotcha:`set -Eeuo pipefail` 下 `cond && action` 作末命令
+
+`do_install`/`do_update` 等的**最后一条命令**若是 `_in_ssh && log_warn …` 这类**条件式**,当条件为假(非 SSH 的正常本地装)时,`&&` 整体退出码为**假**,经 `set -e` 上抛 → **成功的安装误报退 1**。
+
+#### Wrong
+```bash
+_where_note() { _in_ssh && log_warn "$(_t ssh_note)"; }          # 作 do_install 末命令 → 非 SSH 时泄露 false
+```
+#### Correct
+```bash
+_where_note() { if _in_ssh; then log_warn "$(_t ssh_note)"; fi; }  # 非 SSH 返回 0
+```
+
+规则:**任何可能为假的条件式,若会落在某 `do_*` 函数末尾,用 `if…then…fi`(或显式 `return 0`),绝不用裸 `&&`。** 见 `cursor.sh`/`obsidian.sh` 的 `_*_where_note`。
+
 ## 贡献者工作流
 
 1. `cp scripts/TEMPLATE.sh scripts/<key>.sh`,保留结构。

@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/lib/safety-contract.md", "reason": "5 条不可妥协项——写脚本前提:逐命令 sudo(sudo_run)、非交互 apt、绝不 apt-key/整体 root、幂等、fail-fast。obsidian 的 .deb 必经 apt_install(非 dpkg -i)、绝不 sudo npm/jq。"}
+{"file": ".trellis/spec/lib/sudo-and-apt.md", "reason": "obsidian 的 .deb 安装/卸载与 snap 兜底:apt_install 接受本地 .deb 路径解依赖、apt_remove(非 purge)、snap 经 sudo_run;逐命令提权语义。"}
+{"file": ".trellis/spec/scripts/unified-interface.md", "reason": "meta/status/do_install/do_remove/do_update + kit_dispatch 路由 + 渠道优先级(apt→vendor .deb→snap)——obsidian.sh 的接口骨架与 update op 路由。"}
+{"file": ".trellis/spec/scripts/idempotency.md", "reason": "status 闸门、查活系统、KIT_PROBE_ONLY 早返、改前不累积——obsidian 的三路探测幂等与重跑安全。"}
+{"file": ".trellis/spec/scripts/ui-conventions.md", "reason": "ui() 入口模式非 op、三档终端降级、ui_run 跑状态变更、ui_confirm 二次确认——obsidian 的 ui() 仿 cursor.sh。"}
