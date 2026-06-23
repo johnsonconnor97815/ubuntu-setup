@@ -22,3 +22,25 @@ shellcheck -x --source-path=SCRIPTDIR swkit scripts/*.sh lib/common.sh lib/ui.sh
 ```
 
 **漂移注意**:安全不可妥协项现**同时**作为 `lib/common.sh` 的代码强制、与 `CLAUDE.md` 的「编写契约」(给在仓库里写/改脚本的贡献者)散文存在——改 lib 的安全语义必须同步 `CLAUDE.md` 的契约散文,反之亦然。同理 **UI 契约**(`ui()` 约定、`ui` 是入口模式而非 op、三档终端降级)同时落在 `lib/ui.sh`、`scripts/TEMPLATE.sh` 与 `CLAUDE.md`。(旧的「每软件配置逻辑双写在 bootstrap bash 与 skill 散文」已被消除:唯一来源是脚本。)
+
+<!-- TRELLIS:START -->
+# Trellis Instructions
+
+These instructions are for AI assistants working in this project.
+
+This project is managed by Trellis. The working knowledge you need lives under `.trellis/`:
+
+- `.trellis/workflow.md` — development phases, when to create tasks, skill routing
+- `.trellis/spec/` — package- and layer-scoped coding guidelines (read before writing code in a given layer)
+- `.trellis/workspace/` — per-developer journals and session traces
+- `.trellis/tasks/` — active and archived tasks (PRDs, research, jsonl context)
+
+If a Trellis command is available on your platform (e.g. `/trellis:finish-work`, `/trellis:continue`), prefer it over manual steps. Not every platform exposes every command.
+
+If you're using Codex or another agent-capable tool, additional project-scoped helpers may live in:
+- `.agents/skills/` — reusable Trellis skills
+- `.codex/agents/` — optional custom subagents
+
+Managed by Trellis. Edits outside this block are preserved; edits inside may be overwritten by a future `trellis update`.
+
+<!-- TRELLIS:END -->
