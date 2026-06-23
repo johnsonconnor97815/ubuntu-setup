@@ -300,20 +300,25 @@ do_set_default() {
     else log_warn "update-java-alternatives --set $id failed — falling back to per-link switching."; fi
   fi
 
-  # Headless fallback: no grouped .jinfo (or the grouped switch failed). Point each registered link
-  # at the candidate whose path contains java-<N>-openjdk, one link at a time.
+  # Headless fallback: no grouped .jinfo (or the grouped switch failed). Enumerate EVERY registered
+  # alternatives master (via --get-selections, whose first field is the master name) — not a fixed
+  # tool list, since openjdk-<N>-jdk-headless registers many more links (jlink/jcmd/jmod/jstack/jmap/
+  # jstat/jfr/jdeprscan/…); a hard-coded subset would leave deep-tool links on the old JVM silently.
+  # For each master, if --list offers a candidate path under java-<N>-openjdk, --set it, one at a time.
   if (( ! switched )); then
     local link cand chosen any=0
-    for link in java javac jar jarsigner javadoc keytool jshell javap jdeps; do
-      have_cmd update-alternatives || break
-      chosen=""
-      while IFS= read -r cand; do
-        case "$cand" in */java-"${n}"-openjdk*) chosen="$cand"; break ;; esac
-      done < <(update-alternatives --list "$link" 2>/dev/null || true)
-      [[ -n "$chosen" ]] || continue
-      if sudo_run update-alternatives --set "$link" "$chosen"; then any=1
-      else log_warn "Could not set the alternatives link for '$link'."; fi
-    done
+    if have_cmd update-alternatives; then
+      while IFS= read -r link; do
+        [[ -n "$link" ]] || continue
+        chosen=""
+        while IFS= read -r cand; do
+          case "$cand" in */java-"${n}"-openjdk*) chosen="$cand"; break ;; esac
+        done < <(update-alternatives --list "$link" 2>/dev/null || true)
+        [[ -n "$chosen" ]] || continue
+        if sudo_run update-alternatives --set "$link" "$chosen"; then any=1
+        else log_warn "Could not set the alternatives link for '$link'."; fi
+      done < <(update-alternatives --get-selections 2>/dev/null | awk '{print $1}')
+    fi
     (( any )) || { log_err "Could not switch the default JDK to openjdk-$n (no alternatives links found)."; return 1; }
   fi
 
@@ -477,33 +482,60 @@ do_home() {
 
 # --- configure -----------------------------------------------------------------
 # With NO flags: the conservative baseline = ensure JDK 17 + default + JAVA_HOME (same as install).
-# --recommended is also 17-centric (no extra layering — a JDK is the whole point). Flags layer on a
-# specific default, the JAVA_HOME toggle, and the full (non-headless) JDK choice.
+# --recommended is also 17-centric. Flags layer on a specific default, the JAVA_HOME toggle, and the
+# full (non-headless) JDK choice.
+#
+# Flags are first COLLECTED into locals, then APPLIED in a fixed precedence AFTER the parse loop — so
+# argv order never decides the outcome. Precedence: (1) --recommended baseline; (2) --full-jdk installs
+# the COMPLETE JDK for the effective target (the chosen --default, else 17) + makes it default + writes
+# JAVA_HOME — a full do_install analogue for ANY version (so --full-jdk never leaves a bare set-default
+# on a missing version); (3) an explicit --default <N> (so --default wins over --recommended either way);
+# (4) the JAVA_HOME toggle, last. Thus `--default 21 --recommended` and `--recommended --default 21` both
+# end at 21, and `--full-jdk --default 21` installs+defaults 21 (not 17).
 do_configure() {
   if [[ $# -eq 0 ]]; then
     do_install
     return 0
   fi
-  local full=0
+  local recommended=0 full=0 default_n="" ensure_mode=""
   while (( $# > 0 )); do
     case "$1" in
-      --recommended)
-        do_install
-        shift ;;
-      --default)   [[ $# -ge 2 ]] || { log_err "--default needs a JDK major version (e.g. 17)."; return 2; }; do_set_default "$2"; shift 2 ;;
-      --default=*) do_set_default "${1#--default=}"; shift ;;
-      --ensure-java-home)   [[ $# -ge 2 ]] || { log_err "--ensure-java-home needs on|off."; return 2; }; do_ensure_java_home "$2"; shift 2 ;;
-      --ensure-java-home=*) do_ensure_java_home "${1#--ensure-java-home=}"; shift ;;
+      --recommended)        recommended=1; shift ;;
+      --default)   [[ $# -ge 2 ]] || { log_err "--default needs a JDK major version (e.g. 17)."; return 2; }; default_n="$2"; shift 2 ;;
+      --default=*) default_n="${1#--default=}"; shift ;;
+      --ensure-java-home)   [[ $# -ge 2 ]] || { log_err "--ensure-java-home needs on|off."; return 2; }; ensure_mode="$2"; shift 2 ;;
+      --ensure-java-home=*) ensure_mode="${1#--ensure-java-home=}"; shift ;;
       --full-jdk)  full=1; shift ;;
       -h|--help) usage; return 0 ;;
       *) log_err "Unknown configure option: $1"; usage; return 2 ;;
     esac
   done
-  # --full-jdk: also pull the complete (X/GUI-bearing) JDK for the baseline, on top of headless.
-  if (( full )); then
-    if _java_apt_available "$JAVA_BASELINE"; then apt_install "openjdk-$JAVA_BASELINE-jdk"
-    else log_warn "openjdk-$JAVA_BASELINE-jdk (full) is not available from apt on this release."; fi
+
+  # Effective target for --full-jdk = the chosen --default, else the 17 baseline.
+  local full_target="${default_n:-$JAVA_BASELINE}"
+
+  # 1) --recommended: the 17-centric baseline (install + default + JAVA_HOME).
+  if (( recommended )); then
+    do_install
   fi
+  # 2) --full-jdk: install the COMPLETE (X/GUI-bearing) JDK for the target version, then make it the
+  # default and write JAVA_HOME — the full-setup analogue of do_install for ANY version (the full pkg
+  # supersets the headless toolchain, so the target ends up installed + defaulted). This is why both
+  # `--full-jdk` alone and `--full-jdk --default <N>` yield a coherent install with no bare set-default
+  # on a missing version. The JAVA_HOME write follows do_install's sudo-wrap guard.
+  if (( full )); then
+    if _java_apt_available "$full_target"; then apt_install "openjdk-$full_target-jdk"
+    elif _java_version_installed "$full_target"; then log_warn "openjdk-$full_target-jdk (full) is unavailable from apt; keeping the installed headless openjdk-$full_target."
+    else log_err "openjdk-$full_target-jdk is not available from apt on this release."; return 1; fi
+    do_set_default "$full_target"
+    if [[ $EUID -ne 0 || -z "${SUDO_USER:-}" ]]; then do_ensure_java_home on
+    else log_warn "Full JDK installed + defaulted, but JAVA_HOME was NOT written (sudo-wrapped run). Re-run as your user: ${0##*/} ensure-java-home on"; fi
+  fi
+  # 3) An explicit --default <N> wins regardless of argv order. With --full-jdk it is already the default
+  # (full_target==N, a harmless re-assert); without --full-jdk it switches to an already-installed N.
+  [[ -n "$default_n" ]] && do_set_default "$default_n"
+  # 4) The JAVA_HOME toggle, applied LAST so on/off is the final word over any write above.
+  [[ -n "$ensure_mode" ]] && do_ensure_java_home "$ensure_mode"
 }
 
 # --- Interactive management screen (the script's own UI) -----------------------

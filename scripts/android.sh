@@ -50,17 +50,18 @@ readonly ANDROID_BLOCK_END="# <<< ubuntu-setup android (managed block) <<<"
 # Marker for the managed SDK-mirror line in the rc (so set-mirror can find/replace just our line).
 readonly ANDROID_MIRROR_MARKER="# ubuntu-setup (android SDK mirror)"
 
-# Curated SDK-download mirrors. tencent / ustc / aliyun host the repository2 layout; tsinghua
-# (TUNA) deliberately does NOT mirror the Android SDK (copyright — its /android/ is the Studio IDE
-# + AOSP git, not repository2), so it is intentionally absent. Default = direct to dl.google.com.
-# Each base ends with '/' (the SDK_TEST_BASE_URL contract). key -> mirror base.
+# Curated SDK-download mirror. Only tencent is curated — it is the one live-verified mirror of the
+# repository2 layout (mirrors.cloud.tencent.com/AndroidSDK/ → 200). tsinghua (TUNA), ustc and aliyun
+# are intentionally absent: tsinghua declines to mirror the SDK for copyright reasons, ustc now only
+# mirrors AOSP source, and the aliyun android.googlesource.com path is the git source — none host the
+# repository2-*.xml binary index (selecting them would silently yield no packages). set-mirror still
+# accepts any raw URL. Default = direct to dl.google.com. Each base ends with '/' (the
+# SDK_TEST_BASE_URL contract). key -> mirror base.
 declare -gA ANDROID_MIRROR_PRESET=(
   [default]="$ANDROID_REPO_BASE_DEFAULT"
   [tencent]="https://mirrors.cloud.tencent.com/AndroidSDK/"
-  [ustc]="https://mirrors.ustc.edu.cn/android/repository/"
-  [aliyun]="https://mirrors.aliyun.com/android.googlesource.com/android/repository/"
 )
-readonly ANDROID_MIRROR_ORDER="default tencent ustc aliyun"
+readonly ANDROID_MIRROR_ORDER="default tencent"
 
 # --- i18n (software-specific strings) ------------------------------------------
 # Same shape as scripts/go.sh's GO_I18N / rime.sh's RIME_I18N, kept local. Proper nouns —
@@ -103,6 +104,7 @@ ANDROID_I18N[en:abi_default]="No ABI in the system-image id — defaulting to th
 ANDROID_I18N[en:abi_mismatch]="The requested ABI ({REQ}) differs from this host's ABI ({HOST}) — that system image runs only under emulation (slow) and may not launch here."
 ANDROID_I18N[en:prereq_chain]="Prerequisite chain before platform-tools: swkit java install → swkit android accept-licenses → swkit android install"
 ANDROID_I18N[en:license_terms]="License terms: https://developer.android.com/studio/terms"
+ANDROID_I18N[en:purge_studio_warn]="Note: ~/Android/Sdk is also Android Studio's default SDK — purging it removes the SDK shared with Android Studio too (your AVDs under ~/.android/avd are left untouched)."
 
 ANDROID_I18N[zh:sec_components]="SDK 组件"
 ANDROID_I18N[zh:sec_actions]="操作"
@@ -139,6 +141,7 @@ ANDROID_I18N[zh:abi_default]="system-image id 未含 ABI —— 默认采用本�
 ANDROID_I18N[zh:abi_mismatch]="请求的 ABI({REQ})与本机 ABI({HOST})不同 —— 该系统镜像只能在模拟下运行(很慢),且可能无法在此启动。"
 ANDROID_I18N[zh:prereq_chain]="装 platform-tools 前的前置链:swkit java install → swkit android accept-licenses → swkit android install"
 ANDROID_I18N[zh:license_terms]="许可条款:https://developer.android.com/studio/terms"
+ANDROID_I18N[zh:purge_studio_warn]="注意:~/Android/Sdk 也是 Android Studio 的默认 SDK —— 清空会一并删除与 Android Studio 共用的 SDK(~/.android/avd 下的 AVD 不动)。"
 
 ANDROID_I18N[ja:sec_components]="SDK コンポーネント"
 ANDROID_I18N[ja:sec_actions]="操作"
@@ -175,6 +178,7 @@ ANDROID_I18N[ja:abi_default]="system-image id に ABI がありません —— 
 ANDROID_I18N[ja:abi_mismatch]="要求された ABI({REQ})はこのホストの ABI({HOST})と異なります —— そのシステムイメージはエミュレーション(低速)でのみ動作し、ここでは起動しない場合があります。"
 ANDROID_I18N[ja:prereq_chain]="platform-tools の前提チェーン: swkit java install → swkit android accept-licenses → swkit android install"
 ANDROID_I18N[ja:license_terms]="ライセンス条項: https://developer.android.com/studio/terms"
+ANDROID_I18N[ja:purge_studio_warn]="注意: ~/Android/Sdk は Android Studio の既定 SDK でもあります —— パージすると Android Studio と共有する SDK も削除されます(~/.android/avd の AVD はそのまま)。"
 
 # _android_t KEY — localized string for $UI_LANG (en/zh/ja), fallback en -> key.
 _android_t() {
@@ -232,6 +236,44 @@ _android_rc_file() {
 # Path to the sdkmanager that we extract under cmdline-tools/latest/.
 _android_sdkmanager_bin() { printf '%s/cmdline-tools/latest/bin/sdkmanager' "$(_android_home)"; }
 
+# True when the SDK licenses are already accepted: sdkmanager writes a hash file per accepted license
+# under $ANDROID_HOME/licenses/. Pure fs (zero JVM); a non-empty licenses/ dir means install can
+# proceed without re-prompting (re-run idempotency).
+_android_licenses_accepted() {
+  local licdir; licdir="$(_android_home)/licenses"
+  [[ -d "$licdir" ]] && [[ -n "$(find "$licdir" -mindepth 1 -maxdepth 1 -type f -print -quit 2>/dev/null)" ]]
+}
+
+# Assert $1 is a deletion-safe path under the real user's HOME — the FULL guard set shared by both
+# do_remove (before its rm of cmdline-tools/latest) and do_purge (before its rm of the whole SDK):
+# non-empty; the original is not a symlink (rm wouldn't follow it, but a symlinked parent like
+# ~/Android -> /mnt/data/Android would let realpath escape); canonicalize with realpath -m; absolute;
+# != / ; != the real $HOME ; strictly UNDER the real $HOME. Exit 0 when safe, non-zero (with a log)
+# otherwise. Callers still keep the ${VAR:?} belt-and-suspenders on the rm itself.
+_android_path_safe_under_home() {
+  local path="$1" real_home target
+  real_home="$(_android_real_home)"
+  [[ -n "$path" ]] || { log_err "Refusing to delete an empty path."; return 1; }
+  [[ -n "$real_home" ]] || { log_err "Could not resolve your home directory — refusing to delete."; return 1; }
+  # Reject a symlinked path (rm -rf would not follow it, but realpath could escape elsewhere).
+  if [[ -L "$path" ]]; then
+    log_err "Refusing to delete: $path is a symlink. Inspect and remove it manually if intended."
+    return 1
+  fi
+  target="$(realpath -m "$path" 2>/dev/null || true)"
+  [[ -n "$target" ]] || { log_err "Refusing to delete: could not canonicalize $path."; return 1; }
+  case "$target" in
+    /) log_err "Refusing to delete '/' — aborting."; return 1 ;;
+    /*) ;;
+    *) log_err "Refusing to delete a non-absolute path: $target"; return 1 ;;
+  esac
+  [[ "$target" == "$real_home" ]] && { log_err "Refusing to delete your home directory itself ($real_home)."; return 1; }
+  case "$target" in
+    "$real_home"/*) ;;   # must live strictly under the real home
+    *) log_err "Refusing to delete a path outside your home ($real_home): $target"; return 1 ;;
+  esac
+}
+
 # --- Environment / arch probes (best-effort; honest disclosure) ----------------
 
 # dpkg architecture -> the matching emulator/system-image ABI token.
@@ -250,6 +292,14 @@ _android_is_arm() { [[ "$(dpkg --print-architecture 2>/dev/null || true)" == arm
 # True in an SSH session (no local graphical display to run the emulator on).
 _android_in_ssh() { [[ -n "${SSH_CONNECTION:-}${SSH_TTY:-}${SSH_CLIENT:-}" ]]; }
 
+# True when there is NO local graphical session to run the emulator on: an SSH session OR no display
+# at all (both DISPLAY and WAYLAND_DISPLAY empty). Mirrors rime.sh's _rime_no_display idiom — the
+# emulator is a GUI component, so a missing display (not just SSH) is also headless.
+_android_headless() {
+  _android_in_ssh && return 0
+  [[ -z "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]]
+}
+
 # True when there is NO usable /dev/kvm (emulator hardware acceleration unavailable).
 _android_no_kvm() { [[ ! -r /dev/kvm || ! -w /dev/kvm ]]; }
 
@@ -257,7 +307,9 @@ _android_no_kvm() { [[ ! -r /dev/kvm || ! -w /dev/kvm ]]; }
 # (a trailing `cond && log_warn` that is false would otherwise return 1 and, called unguarded under
 # `set -e`, abort the caller — the classic errexit-on-&&-false trap).
 _android_emulator_notes() {
-  _android_in_ssh && log_warn "$(_android_t ssh_note)"
+  # Headless (SSH or no DISPLAY/WAYLAND_DISPLAY) — these GUI/KVM settings apply on a machine with a
+  # display + /dev/kvm, not here (design §B: 无 DISPLAY/dev/kvm).
+  _android_headless && log_warn "$(_android_t ssh_note)"
   _android_no_kvm && log_warn "$(_android_t no_kvm)"
   return 0
 }
@@ -295,7 +347,10 @@ _android_mirror_base() {
     if [[ -n "$line" ]]; then
       # line shape: export SDK_TEST_BASE_URL="<base>" # marker
       base="${line#*SDK_TEST_BASE_URL=\"}"; base="${base%%\"*}"
-      [[ -n "$base" ]] && { printf '%s' "$base"; return 0; }
+      # Fail CLOSED: a marked-but-malformed line (e.g. no well-formed assignment) leaves $base as the
+      # whole comment, which the non-empty check would wrongly accept — validate it as a real mirror
+      # base and only then return it; otherwise fall through to the direct default.
+      _android_valid_mirror "$base" && { printf '%s' "$base"; return 0; }
     fi
   fi
   printf '%s' "$ANDROID_REPO_BASE_DEFAULT"
@@ -334,7 +389,12 @@ _android_java_gate() {
   if def_home="$(bash "$java_sh" home 2>/dev/null)" && [[ -n "$def_home" ]]; then
     def_major="$(printf '%s' "$def_home" | sed -n 's#.*/java-\([0-9][0-9]*\)-openjdk.*#\1#p')"
     if [[ -n "$def_major" ]] && (( def_major >= ANDROID_JDK_MIN )); then
-      return 0   # default is compatible; sdkmanager will find it on PATH, no prefix needed
+      # Pin the resolved compatible home as the process-local prefix (parallel to step 2). The
+      # sdkmanager launcher prefers $JAVA_HOME over PATH, so an incompatible inherited
+      # `export JAVA_HOME=<jdk11>` from the user shell would otherwise silently override the
+      # alternatives default — always pin so the wrapper wins.
+      _ANDROID_JAVA_HOME="$def_home"
+      return 0
     fi
   fi
 
@@ -667,13 +727,18 @@ do_install() {
     return 0
   fi
 
-  # Licenses (explicit only). Accepting them is required before sdkmanager will install packages.
+  # Licenses (explicit only). sdkmanager refuses to install packages until they are accepted, so we
+  # never silently spawn platform-tools without acceptance: accept when --accept-licenses was passed,
+  # otherwise proceed only if licenses are ALREADY accepted (re-run idempotency); if neither holds,
+  # lay down cmdline-tools, print the full prerequisite chain, and STOP cleanly (design §B / prd R4).
   if (( accept )); then
     do_accept_licenses || return 1
-  else
-    log_warn "Licenses are NOT accepted yet. platform-tools install may stop pending acceptance."
-    log_warn "Accept them with: ${0##*/} accept-licenses   (or re-run: ${0##*/} install --accept-licenses)"
+  elif ! _android_licenses_accepted; then
+    log_warn "Licenses are NOT accepted yet — platform-tools is NOT installed."
+    log_warn "$(_android_t prereq_chain)"
+    log_info "Accept them with: ${0##*/} accept-licenses   (or re-run: ${0##*/} install --accept-licenses)"
     log_info "$(_android_t license_terms)"
+    return 0
   fi
 
   log_info "Installing platform-tools (adb / fastboot)…"
@@ -712,17 +777,16 @@ do_accept_licenses() {
 # the full-delete guidance (purge).
 do_remove() {
   _android_user_guard || return 1
-  local home real_home sm; home="$(_android_home)"; real_home="$(_android_real_home)"; sm="$(_android_sdkmanager_bin)"
-  # Mirror purge's minimum guard: never let an empty/abnormal home produce a root-relative rm path.
-  # _android_home is "$real_home/Android/Sdk", so an empty real_home would make home "/Android/Sdk"
-  # — non-empty, so ${home:?} would NOT fire. Assert home lives strictly under the resolved home.
-  [[ -n "$real_home" ]] || { log_err "Could not resolve your home directory — refusing to remove."; return 1; }
-  case "$home" in "$real_home"/*) ;; *) log_err "Refusing to remove a path outside your home ($real_home): $home"; return 1 ;; esac
+  local home sm; home="$(_android_home)"; sm="$(_android_sdkmanager_bin)"
+  # Same FULL hardening as purge before any rm: a symlinked parent (~/Android -> /mnt/data/Android)
+  # would otherwise let rm escape HOME despite the ${home:?} belt-and-suspenders kept below.
+  _android_path_safe_under_home "$home/cmdline-tools/latest" || return 1
   if [[ ! -x "$sm" ]] && { [[ ! -f "$(_android_rc_file)" ]] || ! grep -qxF "$ANDROID_BLOCK_BEGIN" "$(_android_rc_file)"; }; then
     log_info "Nothing kit-managed to remove (no cmdline-tools, no env block)."
     return 0
   fi
   do_ensure_path off || true
+  _android_clear_mirror_line || true   # leave no stale SDK_TEST_BASE_URL mirror line behind
   if [[ -d "$home/cmdline-tools/latest" ]]; then
     rm -rf "${home:?}/cmdline-tools/latest"
     rmdir "$home/cmdline-tools" 2>/dev/null || true
@@ -738,38 +802,22 @@ do_remove() {
 # a bare `rm -rf`. AVDs under ~/.android/avd are left untouched (a different tree).
 do_purge() {
   _android_user_guard || return 1
-  local home target real_home; home="$(_android_home)"; real_home="$(_android_real_home)"
+  local home target; home="$(_android_home)"
 
-  # --- path guardrails (all must hold before any rm) ---
-  [[ -n "$home" ]] || { log_err "Refusing to purge: ANDROID_HOME resolved to an empty path."; return 1; }
-  [[ -n "$real_home" ]] || { log_err "Refusing to purge: could not resolve your home directory."; return 1; }
-  # Reject a symlinked ANDROID_HOME (rm -rf would not follow it, but realpath could escape elsewhere).
-  if [[ -L "$home" ]]; then
-    log_err "Refusing to purge: $home is a symlink. Inspect and remove it manually if intended."
-    return 1
-  fi
-  target="$(realpath -m "$home" 2>/dev/null || true)"
-  [[ -n "$target" ]] || { log_err "Refusing to purge: could not canonicalize $home."; return 1; }
-  case "$target" in
-    /) log_err "Refusing to purge '/' — aborting."; return 1 ;;
-    /*) ;;
-    *) log_err "Refusing to purge a non-absolute path: $target"; return 1 ;;
-  esac
-  if [[ "$target" == "$real_home" ]]; then
-    log_err "Refusing to purge your home directory itself ($real_home)."; return 1
-  fi
-  case "$target" in
-    "$real_home"/*) ;;   # must live strictly under the real home
-    *) log_err "Refusing to purge a path outside your home ($real_home): $target"; return 1 ;;
-  esac
+  # --- path guardrails (the FULL shared guard set; all must hold before any rm) ---
+  _android_path_safe_under_home "$home" || return 1
+  target="$(realpath -m "$home" 2>/dev/null || true)"   # canonical form for the rm + the logs
 
   if [[ ! -d "$target" ]]; then
     log_info "No SDK directory at $target — nothing to purge."
     return 0
   fi
+  # ~/Android/Sdk is also Android Studio's default SDK — be loud that this removes the shared SDK.
+  log_warn "$(_android_t purge_studio_warn)"
   log_warn "Purging the ENTIRE Android SDK at $target (this cannot be undone)…"
   rm -rf "${target:?}"
   do_ensure_path off || true
+  _android_clear_mirror_line || true   # leave no stale SDK_TEST_BASE_URL mirror line behind
   log_info "Purged $target. (AVDs under ~/.android/avd were left untouched.)"
 }
 
@@ -832,6 +880,17 @@ do_remove_platform() {
 }
 
 # --- mirror (persisted managed rc line; trust disclosure on non-default) --------
+# Strip our managed SDK_TEST_BASE_URL line from the shell rc (the exact path `set-mirror default`
+# uses), backing up first. Shared by set-mirror default AND remove/purge teardown so no stale
+# `export SDK_TEST_BASE_URL` pointing at a third-party mirror survives. No-op when no line exists.
+_android_clear_mirror_line() {
+  local rc tmp; rc="$(_android_rc_file)"
+  [[ -f "$rc" ]] && grep -qF "$ANDROID_MIRROR_MARKER" "$rc" || return 0
+  backup_file "$rc"
+  tmp="$(mktemp)"; grep -vF "$ANDROID_MIRROR_MARKER" "$rc" >"$tmp" || true
+  mv "$tmp" "$rc" || { rm -f "$tmp"; return 1; }
+}
+
 # set-mirror <name|url> — point sdkmanager's download root at a curated preset or a raw base URL by
 # writing a managed SDK_TEST_BASE_URL line in the shell rc (read live by _android_mirror_base, and
 # exported into each sdkmanager spawn). 'default' clears the override (back to dl.google.com).
@@ -842,11 +901,7 @@ do_set_mirror() {
 
   if [[ "$arg" == "default" ]]; then
     # Remove our managed mirror line (back to direct).
-    if [[ -f "$rc" ]] && grep -qF "$ANDROID_MIRROR_MARKER" "$rc"; then
-      backup_file "$rc"
-      tmp="$(mktemp)"; grep -vF "$ANDROID_MIRROR_MARKER" "$rc" >"$tmp" || true
-      mv "$tmp" "$rc" || { rm -f "$tmp"; return 1; }
-    fi
+    _android_clear_mirror_line || return 1
     log_info "SDK download mirror reset to direct ($ANDROID_REPO_BASE_DEFAULT)."
     return 0
   fi
@@ -913,16 +968,15 @@ do_configure() {
     return 0
   fi
 
-  # --recommended: dynamically resolve the latest stable platform + build-tools from sdkmanager.
+  # --recommended: dynamically resolve the latest stable platform + build-tools from sdkmanager,
+  # capturing `--list` ONCE for both (the resolver relies on this up-front gate + each spawn's gate).
   _android_java_gate || { log_warn "$(_android_t prereq_chain)"; return 1; }
-  local latest_plat latest_bt
-  latest_plat="$(_android_latest_platform || true)"
-  latest_bt="$(_android_latest_build_tools || true)"
+  _android_resolve_recommended_versions
   local -a want=("platform-tools")
-  [[ -n "$latest_plat" ]] && want+=("platforms;android-$latest_plat")
-  [[ -n "$latest_bt" ]]   && want+=("build-tools;$latest_bt")
+  [[ -n "$_ANDROID_LATEST_PLAT" ]] && want+=("platforms;android-$_ANDROID_LATEST_PLAT")
+  [[ -n "$_ANDROID_LATEST_BT" ]]   && want+=("build-tools;$_ANDROID_LATEST_BT")
   # emulator only when there is a display + KVM (drop it on headless / no-KVM).
-  if _android_in_ssh || _android_no_kvm; then
+  if _android_headless || _android_no_kvm; then
     _android_emulator_notes
     log_info "Skipping the emulator (headless / no /dev/kvm)."
   else
@@ -934,22 +988,26 @@ do_configure() {
   _android_arch_note
 }
 
-# Resolve the latest stable platform API level from `sdkmanager --list` (never hard-coded).
-# Parses the highest android-<N> among "platforms;android-<N>" entries. Passes the gate first.
-_android_latest_platform() {
-  _android_java_gate || return 1
-  _android_sdkmanager --list 2>/dev/null \
+# Resolve the latest stable platform + build-tools from ONE `sdkmanager --list` capture (never
+# hard-coded). Sets _ANDROID_LATEST_PLAT (highest android-<N>) and _ANDROID_LATEST_BT (highest stable
+# X.Y.Z). --recommended used to spawn `--list` TWICE (once per version); a single capture halves the
+# JVM cost. No explicit gate here — every _android_sdkmanager spawn already gates, and --recommended
+# gates up front, so an extra per-helper gate would re-spawn java.sh redundantly (status() must still
+# never reach this path). PREVIEW lines (-alpha/-beta/-rc/-dev) are SKIPPED ENTIRELY before the pick
+# (like _android_resolve_cmdline_zip) — we do NOT strip an -rcN suffix, which would invent a possibly
+# nonexistent stable (e.g. build-tools;36.0.0-rc1 → 36.0.0).
+_android_resolve_recommended_versions() {
+  _ANDROID_LATEST_PLAT=""; _ANDROID_LATEST_BT=""
+  local list; list="$(_android_sdkmanager --list 2>/dev/null || true)"
+  [[ -n "$list" ]] || return 0
+  # Drop preview lines outright, then extract each kind from the cleaned list.
+  local stable; stable="$(printf '%s\n' "$list" | grep -vE -- '-(alpha|beta|rc|dev)')"
+  _ANDROID_LATEST_PLAT="$(printf '%s\n' "$stable" \
     | sed -n 's/.*platforms;android-\([0-9][0-9]*\).*/\1/p' \
-    | sort -n -u | tail -n1
-}
-
-# Resolve the latest stable build-tools version from `sdkmanager --list` (never hard-coded).
-# Parses the highest X.Y.Z among "build-tools;X.Y.Z" entries (excludes -rcN previews). Gate first.
-_android_latest_build_tools() {
-  _android_java_gate || return 1
-  _android_sdkmanager --list 2>/dev/null \
+    | sort -n -u | tail -n1)"
+  _ANDROID_LATEST_BT="$(printf '%s\n' "$stable" \
     | sed -n 's/.*build-tools;\([0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\)[^0-9].*/\1/p' \
-    | sort -t. -k1,1n -k2,2n -k3,3n -u | tail -n1
+    | sort -t. -k1,1n -k2,2n -k3,3n -u | tail -n1)"
 }
 
 # --- Interactive management screen (the script's own UI) -----------------------
@@ -1103,7 +1161,10 @@ ui() {
           recommended) ui_run "$(_android_t apply_recommended)" -- "$0" configure --recommended ;;
           remove)      ui_confirm "$(_android_t confirm_remove)" n && ui_run "$(ui_t remove) Android SDK" -- "$0" remove ;;
           purge)
+            # ~/Android/Sdk is also Android Studio's default SDK — fold the shared-SDK warning into
+            # the confirm prompt so the user sees it before agreeing (design §B: ui_confirm+Studio 警告).
             local cmsg; cmsg="$(_android_t confirm_purge)"; cmsg="${cmsg//\{DIR\}/$home}"
+            cmsg="$cmsg"$'\n'"$(_android_t purge_studio_warn)"
             ui_confirm "$cmsg" n && ui_run "$(_android_t purge)" -- "$0" purge ;;
         esac ;;
       a)
