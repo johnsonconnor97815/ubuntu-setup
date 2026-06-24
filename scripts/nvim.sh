@@ -123,6 +123,7 @@ NVIM_I18N[en:managed_config]="Managed config (options / keymaps / colorscheme / 
 NVIM_I18N[en:mc_options]="Editor options (best-practice baseline)"
 NVIM_I18N[en:mc_keymaps]="Keymaps (leader + quality-of-life)"
 NVIM_I18N[en:mc_leader]="Leader key"
+NVIM_I18N[en:mc_leader_distro_only]="Leader: owned by your distro/config — set vim.g.mapleader early in the distro (kit can't; an overlay loads too late)."
 NVIM_I18N[en:mc_colorscheme]="Colorscheme (built-in)"
 NVIM_I18N[en:mc_plugins]="Plugins (curated; bare-nvim takeover only)"
 NVIM_I18N[en:mc_lsp]="LSP (lspconfig + Mason + blink.cmp)"
@@ -163,6 +164,7 @@ NVIM_I18N[zh:managed_config]="受管配置(options / keymaps / colorscheme / 插
 NVIM_I18N[zh:mc_options]="编辑器 options(最佳实践基线)"
 NVIM_I18N[zh:mc_keymaps]="keymaps(leader + 便捷键)"
 NVIM_I18N[zh:mc_leader]="leader 键"
+NVIM_I18N[zh:mc_leader_distro_only]="leader 键:由 distro/你的配置拥有 —— 请在 distro 里早设 vim.g.mapleader(kit 无法代设:overlay 加载太晚)。"
 NVIM_I18N[zh:mc_colorscheme]="colorscheme(内置主题)"
 NVIM_I18N[zh:mc_plugins]="插件(curated;仅裸 nvim 接管)"
 NVIM_I18N[zh:mc_lsp]="LSP(lspconfig + Mason + blink.cmp)"
@@ -203,6 +205,7 @@ NVIM_I18N[ja:managed_config]="管理対象の設定(options / keymaps / colorsch
 NVIM_I18N[ja:mc_options]="エディタ options(ベストプラクティス基準)"
 NVIM_I18N[ja:mc_keymaps]="keymaps(leader + 便利キー)"
 NVIM_I18N[ja:mc_leader]="leader キー"
+NVIM_I18N[ja:mc_leader_distro_only]="leader キー:distro/あなたの設定が所有 — distro 側で vim.g.mapleader を早期設定してください(kit は不可:overlay は読み込みが遅すぎる)。"
 NVIM_I18N[ja:mc_colorscheme]="colorscheme(内蔵テーマ)"
 NVIM_I18N[ja:mc_plugins]="プラグイン(curated;素の nvim 引き継ぎ時のみ)"
 NVIM_I18N[ja:mc_lsp]="LSP(lspconfig + Mason + blink.cmp)"
@@ -878,11 +881,15 @@ _nvim_cfg_list_remove() {
 }
 
 # --- Validators (block injection into the generated Lua / conf keys) ------------
-# Leader: the word 'space' or a single safe char (excludes " \ $ ` ( ) * | & ; < > and whitespace).
+# Leader: the word 'space', or any single character safe inside the generated `vim.g.mapleader =
+# "<x>"` Lua string. Only a double-quote, a backslash, or whitespace/control chars would break (or
+# inject into) that string; everything else is fine — including common picks like ; < | & ( ) : that
+# the old over-strict allow-list wrongly rejected. (Use the word 'space' for <Space>.)
 _nvim_leader_valid() {
   [[ "$1" == space ]] && return 0
-  local re='^[A-Za-z0-9,:./_-]$'
-  [[ "$1" =~ $re ]]
+  [[ ${#1} -eq 1 ]] || return 1
+  case "$1" in '"'|\\|[[:space:]]|[[:cntrl:]]) return 1 ;; esac
+  return 0
 }
 # Built-in colorscheme name (loose; emitted into a Lua double-quoted string).
 _nvim_colorscheme_valid() { [[ "$1" =~ ^[A-Za-z0-9_-]+$ ]]; }
@@ -1193,9 +1200,16 @@ do_set_keymaps() {
 do_set_leader() {
   _nvim_resolve_home || return 1
   local l="${1:-}"; [[ -n "$l" ]] || { log_err "Usage: ${0##*/} set-leader <char|space>"; return 2; }
-  _nvim_leader_valid "$l" || { log_err "Invalid leader: $l (a single safe char, or the word 'space')."; return 2; }
+  _nvim_leader_valid "$l" || { log_err "Invalid leader: $l (a single character other than \" or \\, or the word 'space')."; return 2; }
+  # The leader must be set BEFORE plugins load; kit's overlay (after/plugin) runs last, far too late
+  # to change a distro's leader. So leader is takeover-only — refuse (don't silently no-op) in overlay,
+  # matching how add-plugin/enable-lsp gate themselves, and point the user at the distro's own config.
+  if [[ "$(_nvim_cfg_mode nvim)" != takeover ]]; then
+    log_err "Leader is owned by your distro/config here (overlay mode) — kit can't set it: vim.g.mapleader must be set before plugins load, which an after/plugin overlay can't do. Set it in your distro's early config (e.g. LazyVim: ~/.config/nvim/lua/config/options.lua), or let kit own an empty ~/.config/nvim to manage the leader."
+    return 1
+  fi
   _nvim_conf_set CFG_LEADER "$l"
-  log_info "Leader set to '${l}' — takes effect in kit-owned (takeover) configs; a distro keeps its own leader."
+  log_info "Leader set to '${l}'."
   _nvim_config_apply nvim
 }
 do_set_colorscheme() {
@@ -1373,7 +1387,11 @@ ui() {
       dkind+=(mcopts); did+=(mcopts); dlabel+=("$ob $(_nvim_t mc_options)")
       local kb; if (( km_on )); then kb="$(ui_badge on)"; else kb="$(ui_badge off)"; fi
       dkind+=(mckeys); did+=(mckeys); dlabel+=("$kb $(_nvim_t mc_keymaps)")
-      dkind+=(mcleader); did+=(mcleader); dlabel+=("  $(_nvim_t mc_leader): ${UI_INFO}${cfg_leader}${UI_OFF}")
+      if [[ "$cfgmode" == takeover ]]; then
+        dkind+=(mcleader); did+=(mcleader); dlabel+=("  $(_nvim_t mc_leader): ${UI_INFO}${cfg_leader}${UI_OFF}")
+      else
+        dkind+=(info); did+=(""); dlabel+=("  ${UI_MUTED}$(_nvim_t mc_leader_distro_only)${UI_OFF}")
+      fi
       dkind+=(mccolor); did+=(mccolor); dlabel+=("  $(_nvim_t mc_colorscheme): ${UI_INFO}${cfg_color:-—}${UI_OFF}")
       if [[ "$cfgmode" == takeover ]]; then
         local cp pb instok
