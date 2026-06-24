@@ -1,0 +1,896 @@
+#!/usr/bin/env bash
+#
+# scripts/nvim.sh — install / configure / manage Neovim (and its config + plugins) on Ubuntu.
+#
+# Two layers, like the kit's other component managers (ghostty / tmux / rime):
+#
+#   1) The Neovim BINARY (system-level, escalated per-command via sudo_run) — installed by a
+#      best-channel + version-gate policy: apt when its candidate is new enough, otherwise the
+#      official stable tarball into /opt (sha256-verified against the GitHub release API), and
+#      finally a snap fallback. Tarball ranks ABOVE snap because the official tarball is the
+#      always-latest stable with a full API checksum (snap lags upstream).
+#
+#   2) CONFIG + PLUGINS (user-space, never sudo) — a "distro installer": curated starters
+#      (LazyVim / kickstart / AstroNvim / NvChad, plus any git-url) are git-cloned, isolated via
+#      NVIM_APPNAME so they never clobber your own ~/.config/nvim (smart default: take over an
+#      empty default, else isolate to ~/.config/nvim-<name> + a managed shell alias), tracked in
+#      a manifest for exact removal, and their bundled lazy.nvim is driven headless for plugin
+#      sync. The kit does NOT parse or rewrite a distro's Lua — it drives lazy.nvim only.
+#
+# Plus: external deps a distro needs (git/curl/compiler/ripgrep/fd + a Nerd Font), and a
+# default-editor toggle (EDITOR/VISUAL in your shell rc + best-effort update-alternatives).
+#
+# Honesty: Neovim is a TUI (not a GUI), so SSH/headless use is perfect — no "desktop only"
+# caveat. Nerd Font glyphs render in your LOCAL/client terminal (fonts.sh prints that guidance).
+#
+# Run it as:  nvim.sh install|remove|configure|update|update-plugins|status|meta|ui|help
+#             plus install-distro <name> [appname] / remove-distro <name|appname> /
+#                  add-distro <name> <git-url> / sync-plugins [appname] / clean-plugins [appname] /
+#                  set-default-editor [off] / ensure-deps        (or via `swkit`).
+
+set -Eeuo pipefail
+
+# Locate and load the shared library (scripts/ sits next to lib/ under the kit root).
+_kit_here="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# shellcheck source=../lib/common.sh
+source "$_kit_here/lib/common.sh"
+
+# The apt version gate: install via apt only when its candidate is >= this. Below it, fall back to
+# the official stable tarball. 0.11.2 satisfies every curated distro (see prd.md's verified facts).
+readonly NVIM_MIN_VERSION="0.11.2"
+
+# GitHub release API for the rolling `stable` tag (tarball channel). `stable` rolls forward, so we
+# NEVER hard-code a version or sha256 — both are resolved live from the API at install time.
+readonly NVIM_RELEASE_API="https://api.github.com/repos/neovim/neovim/releases/tags/stable"
+
+# --- Curated distros (name -> git repo) ----------------------------------------
+# Opt-in starters/distros. lazyvim is the `--recommended` default. The name stays UNtranslated.
+declare -gA NVIM_DISTRO_REPO=(
+  [lazyvim]="https://github.com/LazyVim/starter"
+  [kickstart]="https://github.com/nvim-lua/kickstart.nvim"
+  [astronvim]="https://github.com/AstroNvim/template"
+  [nvchad]="https://github.com/NvChad/starter"
+)
+# Stable display order (associative arrays are unordered).
+readonly NVIM_DISTRO_ORDER="lazyvim kickstart astronvim nvchad"
+readonly NVIM_RECOMMENDED_DISTRO="lazyvim"
+
+# External deps a distro typically needs (apt packages). fd's binary is `fdfind` on Ubuntu.
+readonly NVIM_DEP_PKGS="git curl build-essential ripgrep fd-find unzip"
+
+# --- i18n (software-specific strings) ------------------------------------------
+# Same shape as lib/ui.sh's UI_MSG/ui_t, kept local. The product name "Neovim"/"nvim", distro
+# names (lazyvim, kickstart…) and package/command names stay UNtranslated; only descriptive
+# wording is localized. Resolve with _nvim_t KEY (fallback en -> key, like ui_t).
+declare -gA NVIM_I18N
+NVIM_I18N[en:distros]="Distros / starters (NVIM_APPNAME-isolated)"
+NVIM_I18N[en:plugins]="Plugins (lazy.nvim, headless)"
+NVIM_I18N[en:ext_deps]="External deps"
+NVIM_I18N[en:default_editor]="Default editor (EDITOR/VISUAL)"
+NVIM_I18N[en:apply_recommended]="Apply recommended setup (Neovim + deps + LazyVim + editor)"
+NVIM_I18N[en:add_distro]="add a distro by git-url…"
+NVIM_I18N[en:install_deps]="Install external deps (git curl ripgrep fd + Nerd Font)"
+NVIM_I18N[en:sync_plugins]="Sync plugins"
+NVIM_I18N[en:update_plugins]="Update plugins"
+NVIM_I18N[en:clean_plugins]="Clean plugins"
+NVIM_I18N[en:confirm_remove]="Uninstall Neovim? (keeps your ~/.config/nvim* and distro data)"
+NVIM_I18N[en:confirm_remove_distro]="Remove this distro? (backs up the config dir, then deletes it + its data)"
+NVIM_I18N[en:not_installed_first]="Install Neovim first (swkit nvim install)."
+NVIM_I18N[en:foot_main]="up/down move   space toggle   enter select   esc/q close"
+NVIM_I18N[en:type_giturl]="Type a git URL to clone as a distro…"
+NVIM_I18N[en:prompt_giturl]="Distro git URL (https://github.com/owner/repo)"
+NVIM_I18N[en:prompt_name]="Short name for this distro (letters/digits/._-)"
+NVIM_I18N[en:nerd_font]="Nerd Font (MesloLGS NF)"
+NVIM_I18N[en:desc_lazyvim]="batteries-included, lazy.nvim-based config"
+NVIM_I18N[en:desc_kickstart]="single-file, minimal starting point to learn from"
+NVIM_I18N[en:desc_astronvim]="full UI/IDE distro on a template"
+NVIM_I18N[en:desc_nvchad]="fast, minimal, themeable distro"
+NVIM_I18N[zh:distros]="发行版 / starter(经 NVIM_APPNAME 隔离)"
+NVIM_I18N[zh:plugins]="插件(lazy.nvim,headless 驱动)"
+NVIM_I18N[zh:ext_deps]="外部依赖"
+NVIM_I18N[zh:default_editor]="默认编辑器(EDITOR/VISUAL)"
+NVIM_I18N[zh:apply_recommended]="应用推荐配置(Neovim + 依赖 + LazyVim + 编辑器)"
+NVIM_I18N[zh:add_distro]="按 git-url 添加发行版…"
+NVIM_I18N[zh:install_deps]="安装外部依赖(git curl ripgrep fd + Nerd Font)"
+NVIM_I18N[zh:sync_plugins]="同步插件"
+NVIM_I18N[zh:update_plugins]="更新插件"
+NVIM_I18N[zh:clean_plugins]="清理插件"
+NVIM_I18N[zh:confirm_remove]="卸载 Neovim?(保留你的 ~/.config/nvim* 与发行版数据)"
+NVIM_I18N[zh:confirm_remove_distro]="移除该发行版?(先备份配置目录,再删除它及其数据)"
+NVIM_I18N[zh:not_installed_first]="请先安装 Neovim(swkit nvim install)。"
+NVIM_I18N[zh:foot_main]="↑↓ 移动   space 勾选   ↵ 选择   esc/q 关闭"
+NVIM_I18N[zh:type_giturl]="输入要作为发行版克隆的 git URL…"
+NVIM_I18N[zh:prompt_giturl]="发行版 git URL(https://github.com/owner/repo)"
+NVIM_I18N[zh:prompt_name]="该发行版的短名(字母/数字/._-)"
+NVIM_I18N[zh:nerd_font]="Nerd Font(MesloLGS NF)"
+NVIM_I18N[zh:desc_lazyvim]="开箱即用、基于 lazy.nvim 的配置"
+NVIM_I18N[zh:desc_kickstart]="单文件、极简、用于学习的起点"
+NVIM_I18N[zh:desc_astronvim]="基于模板的完整 UI/IDE 发行版"
+NVIM_I18N[zh:desc_nvchad]="快速、极简、可换主题的发行版"
+NVIM_I18N[ja:distros]="ディストロ / starter(NVIM_APPNAME で分離)"
+NVIM_I18N[ja:plugins]="プラグイン(lazy.nvim、ヘッドレス)"
+NVIM_I18N[ja:ext_deps]="外部依存"
+NVIM_I18N[ja:default_editor]="デフォルトエディタ(EDITOR/VISUAL)"
+NVIM_I18N[ja:apply_recommended]="推奨セットアップを適用(Neovim + 依存 + LazyVim + エディタ)"
+NVIM_I18N[ja:add_distro]="git-url でディストロを追加…"
+NVIM_I18N[ja:install_deps]="外部依存をインストール(git curl ripgrep fd + Nerd Font)"
+NVIM_I18N[ja:sync_plugins]="プラグインを同期"
+NVIM_I18N[ja:update_plugins]="プラグインを更新"
+NVIM_I18N[ja:clean_plugins]="プラグインを整理"
+NVIM_I18N[ja:confirm_remove]="Neovim をアンインストールしますか?(~/.config/nvim* とディストロのデータは保持)"
+NVIM_I18N[ja:confirm_remove_distro]="このディストロを削除しますか?(設定ディレクトリをバックアップしてから削除)"
+NVIM_I18N[ja:not_installed_first]="先に Neovim をインストールしてください(swkit nvim install)。"
+NVIM_I18N[ja:foot_main]="↑↓ 移動   space 切替   ↵ 選択   esc/q 閉じる"
+NVIM_I18N[ja:type_giturl]="ディストロとして clone する git URL を入力…"
+NVIM_I18N[ja:prompt_giturl]="ディストロの git URL(https://github.com/owner/repo)"
+NVIM_I18N[ja:prompt_name]="このディストロの短い名前(英数/._-)"
+NVIM_I18N[ja:nerd_font]="Nerd Font(MesloLGS NF)"
+NVIM_I18N[ja:desc_lazyvim]="全部入り、lazy.nvim ベースの設定"
+NVIM_I18N[ja:desc_kickstart]="単一ファイル、学習向けの最小構成"
+NVIM_I18N[ja:desc_astronvim]="テンプレート方式の完全な UI/IDE ディストロ"
+NVIM_I18N[ja:desc_nvchad]="高速・最小・テーマ可能なディストロ"
+
+# _nvim_t KEY — localized Neovim string for $UI_LANG (en/zh/ja), fallback en -> key.
+_nvim_t() {
+  local lang; lang="$(ui_lang)"
+  printf '%s' "${NVIM_I18N[$lang:$1]:-${NVIM_I18N[en:$1]:-$1}}"
+}
+
+# Localized one-line description for distro NAME (curated only; empty for an extra git-url distro).
+_nvim_distro_desc() {
+  [[ -n "${NVIM_DISTRO_REPO[$1]:-}" ]] || return 0
+  _nvim_t "desc_$1"
+}
+
+meta() {
+  cat <<'META'
+key=nvim
+name=Neovim
+category=common
+ops=install,remove,configure,update,update-plugins
+desc=Neovim editor — best-channel install (apt/tarball/snap), curated distros (LazyVim/kickstart…), lazy.nvim plugin sync
+META
+}
+
+# --- Install probe -------------------------------------------------------------
+# Exit 0 iff nvim is installed. KIT_PROBE_ONLY: boolean only (skip version/channel spawns).
+# Read-only; both paths return the same exit code. Does NOT resolve home (must work under the
+# catalog probe), so distro count uses $HOME best-effort.
+status() {
+  have_cmd nvim || return 1
+  [[ -n "${KIT_PROBE_ONLY:-}" ]] && return 0
+  local ver path chan="?"
+  ver="$(nvim --version 2>/dev/null | head -n1)"
+  path="$(command -v nvim 2>/dev/null || true)"
+  if [[ "$(readlink -f "$path" 2>/dev/null)" == /opt/nvim-linux-* ]]; then chan="tarball"
+  elif [[ "$path" == /snap/* ]] || { have_cmd snap && snap list nvim >/dev/null 2>&1; }; then chan="snap"
+  elif pkg_installed neovim; then chan="apt"; fi
+  local mf="${XDG_CONFIG_HOME:-${HOME:-}/.config}/ubuntu-setup/nvim-distros.manifest" ndistro=0
+  [[ -f "$mf" ]] && ndistro="$(grep -c . "$mf" 2>/dev/null || echo 0)"
+  printf '%s  ·  channel:%s  ·  distros:%s\n' "${ver:-nvim installed}" "$chan" "$ndistro"
+  # Warn only on *genuinely distinct* nvim binaries (e.g. apt + tarball + snap). Dedup by real
+  # target so usrmerge aliases (/bin -> /usr/bin) don't look like duplicates on a clean install.
+  local p real cnt=0; local -A seen=()
+  while IFS= read -r p; do
+    [[ -n "$p" ]] || continue
+    real="$(readlink -f "$p" 2>/dev/null || printf '%s' "$p")"
+    [[ -n "${seen[$real]:-}" ]] && continue
+    seen[$real]=1; cnt=$(( cnt + 1 ))
+  done < <(type -aP nvim 2>/dev/null || true)
+  if (( cnt > 1 )); then
+    log_warn "Multiple distinct nvim on PATH (see 'type -a nvim') — the first wins; remove stale ones to avoid version confusion."
+  fi
+  return 0
+}
+
+# --- Home / paths / preferences (user-space; refuses a sudo-wrapped run) --------
+_nvim_resolve_home() {
+  if [[ $EUID -eq 0 && -n "${SUDO_USER:-}" ]]; then
+    log_err "Run nvim.sh as your normal user, not via sudo — its config/data live in your \$HOME"
+    log_err "(~/.config, ~/.local). The apt/snap/opt steps escalate per-command on their own."
+    log_err "    (re-run as '$SUDO_USER' without sudo)"
+    return 1
+  fi
+  local user; user="${SUDO_USER:-$(id -un)}"
+  _NV_HOME="${HOME:-}"
+  [[ -n "$_NV_HOME" ]] || _NV_HOME="$(getent passwd "$user" | cut -d: -f6 || true)"
+  [[ -n "$_NV_HOME" ]] || { log_err "Could not resolve the home directory for '$user'."; return 1; }
+  _NV_CFG="${XDG_CONFIG_HOME:-$_NV_HOME/.config}"
+  _NV_DATA="${XDG_DATA_HOME:-$_NV_HOME/.local/share}"
+  _NV_STATE="${XDG_STATE_HOME:-$_NV_HOME/.local/state}"
+  _NV_CACHE="${XDG_CACHE_HOME:-$_NV_HOME/.cache}"
+  _NV_PREF_DIR="$_NV_CFG/ubuntu-setup"
+  _NV_PREF="$_NV_PREF_DIR/nvim.conf"
+  _NV_MANIFEST="$_NV_PREF_DIR/nvim-distros.manifest"
+}
+
+# The user's shell rc (honors SUDO_USER's real home; never edits another user's dotfile).
+_nvim_rc_file() {
+  case "${SHELL:-}" in */zsh) printf '%s/.zshrc' "$_NV_HOME" ;; *) printf '%s/.bashrc' "$_NV_HOME" ;; esac
+}
+
+# nvim.conf: a tiny KEY=VALUE store, parsed with grep (never sourced). A getter: a missing key
+# is normal, NOT an error — so always exit 0 (the `|| true` keeps grep's empty-match non-zero from
+# tripping `set -e` at a bare `x="$(_nvim_conf_get …)"` call site). Convention: see mattpocock-skills.sh.
+_nvim_conf_get() {
+  [[ -f "${_NV_PREF:-}" ]] || return 0
+  grep -E "^$1=" "$_NV_PREF" 2>/dev/null | tail -n1 | cut -d= -f2- || true
+}
+_nvim_conf_set() {
+  local key="$1" val="$2" tmp
+  mkdir -p "$_NV_PREF_DIR"
+  tmp="$(mktemp)"
+  if [[ -f "$_NV_PREF" ]]; then grep -vE "^$key=" "$_NV_PREF" >"$tmp" 2>/dev/null || true; fi
+  printf '%s=%s\n' "$key" "$val" >>"$tmp"
+  mv "$tmp" "$_NV_PREF" || { rm -f "$tmp"; return 1; }
+}
+
+# --- Distro manifest (one line per kit-managed appname: appname<TAB>name<TAB>repo) ---
+_nvim_manifest_add() {
+  local app="$1" name="$2" repo="$3" tmp
+  mkdir -p "$_NV_PREF_DIR"
+  tmp="$(mktemp)"
+  if [[ -f "$_NV_MANIFEST" ]]; then awk -F'\t' -v a="$app" '$1!=a' "$_NV_MANIFEST" >"$tmp" 2>/dev/null || true; fi
+  printf '%s\t%s\t%s\n' "$app" "$name" "$repo" >>"$tmp"
+  mv "$tmp" "$_NV_MANIFEST" || { rm -f "$tmp"; return 1; }
+}
+_nvim_manifest_remove() {
+  local app="$1" tmp
+  [[ -f "${_NV_MANIFEST:-}" ]] || return 0
+  tmp="$(mktemp)"
+  awk -F'\t' -v a="$app" '$1!=a' "$_NV_MANIFEST" >"$tmp" 2>/dev/null || true
+  mv "$tmp" "$_NV_MANIFEST" || { rm -f "$tmp"; return 1; }
+}
+_nvim_manifest_has() {
+  [[ -f "${_NV_MANIFEST:-}" ]] || return 1
+  awk -F'\t' -v a="$1" '$1==a{f=1} END{exit f?0:1}' "$_NV_MANIFEST"
+}
+# Echo the appname kit-managed for distro NAME (empty + nonzero if none).
+_nvim_distro_appname() {
+  [[ -f "${_NV_MANIFEST:-}" ]] || return 1
+  local a n
+  while IFS=$'\t' read -r a n _; do
+    [[ -n "$a" ]] || continue
+    [[ "$n" == "$1" ]] && { printf '%s' "$a"; return 0; }
+  done < "$_NV_MANIFEST"
+  return 1
+}
+
+# --- Version helpers -----------------------------------------------------------
+# dpkg arch -> the token in the official release asset name. Nonzero on an unsupported arch.
+_nvim_arch() {
+  case "$(dpkg --print-architecture 2>/dev/null)" in
+    amd64) printf 'x86_64' ;;
+    arm64) printf 'arm64' ;;
+    *) return 1 ;;
+  esac
+}
+# Normalize a Debian/PPA version (0.11.3-0.1ubuntu2, 0.12.0~ubuntu1+git) to bare X.Y.Z. No match
+# is normal (no nvim / unparseable --version) → echo empty + exit 0 so a bare `x="$(_nvim_norm_ver …)"`
+# assignment never trips `set -e` (grep's empty-match is non-zero under pipefail).
+_nvim_norm_ver() { printf '%s' "$1" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -n1 || true; }
+# True iff $1 >= $2 (after normalization). Numeric per-segment compare (not `sort -V`).
+_nvim_vercmp_ge() {
+  local a b; a="$(_nvim_norm_ver "$1")"; b="$(_nvim_norm_ver "$2")"
+  [[ -n "$a" ]] || return 1
+  local -a aa bb; local i x y
+  IFS=. read -ra aa <<<"$a"
+  IFS=. read -ra bb <<<"$b"
+  for i in 0 1 2; do
+    x="${aa[i]:-0}"; y="${bb[i]:-0}"
+    if (( 10#$x > 10#$y )); then return 0; fi
+    if (( 10#$x < 10#$y )); then return 1; fi
+  done
+  return 0
+}
+# The running nvim's bare X.Y.Z (empty if not installed).
+_nvim_running_ver() { _nvim_norm_ver "$(nvim --version 2>/dev/null | head -n1)"; }
+
+# Is apt's neovim candidate present AND new enough? (No sudo; reads existing apt lists.)
+# LC_ALL=C keeps apt-cache's field labels in English on a localized system (same rule as
+# rime/android: decide on stable text, never on text that gets translated).
+_nvim_apt_ok() {
+  local cand
+  cand="$(LC_ALL=C apt-cache policy neovim 2>/dev/null | awk '/Candidate:/{print $2; exit}')"
+  [[ -n "$cand" && "$cand" != "(none)" ]] || return 1
+  _nvim_vercmp_ge "$cand" "$NVIM_MIN_VERSION"
+}
+
+# --- SSH / where-it-applies notes ----------------------------------------------
+# Neovim is a TUI, so SSH use is perfect (no desktop caveat). The only honest note is that Nerd
+# Font glyphs are drawn by the CLIENT terminal — relevant only when external deps include a font.
+
+# --- Binary channel: tarball (official stable, sha256-verified) ----------------
+# Resolve the stable release asset (nvim-linux-<arch>.tar.gz) URL + sha256 from the GitHub API,
+# download it, VERIFY the checksum (the trust boundary — this archive is unpacked + executed), and
+# install into /opt with a /usr/local/bin/nvim symlink. No jq: parse the JSON with grep/sed anchored
+# on the asset name. API/parse/verify failure is fail-fast — we NEVER unpack an unverified download.
+_nvim_install_tarball() {
+  local arch asset json url digest hex
+  arch="$(_nvim_arch)" || { log_err "Neovim official tarballs target amd64/arm64 only (this host is $(dpkg --print-architecture 2>/dev/null || uname -m))."; return 1; }
+  asset="nvim-linux-${arch}.tar.gz"
+  have_cmd curl || apt_install curl ca-certificates
+  log_info "Resolving the latest Neovim stable release ($asset) from GitHub…"
+  json="$(curl -fsSL --max-time 30 "$NVIM_RELEASE_API" 2>/dev/null || true)"
+  [[ -n "$json" ]] || { log_err "Could not reach the Neovim release API ($NVIM_RELEASE_API)."; return 1; }
+
+  # The GitHub assets array gives, per asset, a "name", a "digest":"sha256:<hex>" and a
+  # "browser_download_url". Collapse to one item per line, keep only the line carrying our exact
+  # asset name, then pull the url + digest from THAT line (so we bind the checksum to the file).
+  local line
+  line="$(printf '%s' "$json" | tr '{' '\n' | grep -F "\"name\":\"$asset\"" | head -n1 || true)"
+  [[ -n "$line" ]] || { log_err "The release payload has no asset named $asset."; return 1; }
+  url="$(printf '%s' "$line" | grep -oE "https://[^\"]+/${asset}" | head -n1 || true)"
+  digest="$(printf '%s' "$line" | grep -oE '"digest":"sha256:[0-9a-f]+"' | head -n1 | sed -E 's/.*sha256:([0-9a-f]+)".*/\1/' || true)"
+  [[ -n "$url" ]]    || { log_err "Could not resolve the download URL for $asset."; return 1; }
+  [[ -n "$digest" ]] || { log_err "Could not resolve the sha256 digest for $asset — refusing to install an unverified tarball."; return 1; }
+  hex="$digest"
+
+  log_info "Channel: official Neovim stable tarball ($asset)."
+  log_info "Downloading: $url"
+  local tmp tarball rc=0
+  tmp="$(mktemp -d)"
+  tarball="$tmp/$asset"
+  if ! curl -fSL --connect-timeout 30 --retry 3 --retry-delay 5 --retry-all-errors -C - "$url" -o "$tarball"; then
+    rm -rf "$tmp"; log_err "Failed to download $asset."; return 1
+  fi
+  # Verify BEFORE unpacking — the trust boundary.
+  if ! printf '%s  %s\n' "$hex" "$tarball" | sha256sum -c - >/dev/null 2>&1; then
+    rm -rf "$tmp"; log_err "sha256 verification FAILED for $asset — refusing to install."; return 1
+  fi
+  log_info "sha256 OK ($hex)."
+
+  local root="/opt/nvim-linux-${arch}"
+  sudo_run rm -rf "$root" || rc=$?
+  if (( rc == 0 )); then sudo_run tar -C /opt -xzf "$tarball" || rc=$?; fi
+  if (( rc == 0 )); then sudo_run ln -sfn "$root/bin/nvim" /usr/local/bin/nvim || rc=$?; fi
+  rm -rf "$tmp"
+  (( rc == 0 )) || { log_err "Failed to install the Neovim tarball into /opt."; return "$rc"; }
+
+  # Old glibc machines can't run the supported tarball; tell the truth, don't auto-fall-back.
+  if ! /usr/local/bin/nvim --version >/dev/null 2>&1; then
+    log_warn "Installed to $root but 'nvim --version' failed — likely a glibc too old for the"
+    log_warn "supported build. See the unsupported (older-glibc) builds at:"
+    log_warn "    https://github.com/neovim/neovim-releases/releases"
+  fi
+  return 0
+}
+
+# --- Binary: install / remove / update -----------------------------------------
+
+# do_install — best channel + version gate. Prints the channel actually used. Idempotent.
+do_install() {
+  _nvim_resolve_home || return 1
+  if status >/dev/null 2>&1; then
+    log_info "Neovim is already installed ($(status 2>/dev/null)) — to refresh a tarball install, run: ${0##*/} update"
+    log_info "For distros / plugins / deps, run:  swkit nvim configure --recommended   (or: swkit nvim)"
+    return 0
+  fi
+  if _nvim_apt_ok; then
+    log_info "Channel: apt (neovim — candidate >= ${NVIM_MIN_VERSION})."
+    apt_install neovim
+    _nvim_conf_set CHANNEL apt
+  elif _nvim_install_tarball; then
+    _nvim_conf_set CHANNEL tarball
+  else
+    log_warn "apt is too old and the tarball channel failed — falling back to snap (lags upstream)."
+    have_cmd snap || { log_err "snap is not available; cannot install Neovim."; return 1; }
+    log_info "Channel: snap (nvim --classic)."
+    sudo_run snap install nvim --classic
+    _nvim_conf_set CHANNEL snap
+  fi
+  log_info "Installed Neovim ($(status 2>/dev/null))."
+  log_info "Add a distro + plugins with:  swkit nvim configure --recommended   (or open: swkit nvim)"
+}
+
+# do_remove — conservative: pick the source and uninstall the binary, keeping ~/.config/nvim* and
+# distro data (user config is precious). Prints how to wipe data fully.
+do_remove() {
+  _nvim_resolve_home || return 1
+  if ! status >/dev/null 2>&1; then
+    log_info "Neovim is not installed — nothing to remove."
+    return 0
+  fi
+  local path; path="$(command -v nvim 2>/dev/null || true)"
+  if pkg_installed neovim; then
+    apt_remove neovim
+    log_info "Removed the apt neovim package."
+  elif [[ "$path" == /snap/* ]] || { have_cmd snap && snap list nvim >/dev/null 2>&1; }; then
+    sudo_run snap remove nvim
+    log_info "Removed the nvim snap."
+  elif [[ "$(readlink -f "$path" 2>/dev/null)" == /opt/nvim-linux-* ]]; then
+    local arch root; arch="$(_nvim_arch || true)"; root="/opt/nvim-linux-${arch:-x86_64}"
+    sudo_run rm -f /usr/local/bin/nvim
+    [[ -n "$arch" ]] && sudo_run rm -rf "$root"
+    log_info "Removed the tarball install ($root) and the /usr/local/bin/nvim symlink."
+  else
+    log_warn "nvim is on PATH but its install source is unrecognized — remove it the way you installed it."
+    return 1
+  fi
+  log_info "Kept your ~/.config/nvim* and distro data. To wipe a distro fully, run: ${0##*/} remove-distro <name>."
+}
+
+# do_update — meaningful only for the tarball channel (apt/snap track the system). Re-resolves the
+# latest stable and reinstalls over /opt. Installs first if Neovim is absent.
+do_update() {
+  _nvim_resolve_home || return 1
+  if ! status >/dev/null 2>&1; then
+    log_info "Neovim is not installed — installing the latest instead."
+    do_install
+    return $?
+  fi
+  local path; path="$(command -v nvim 2>/dev/null || true)"
+  if pkg_installed neovim; then
+    log_info "Neovim was installed via apt — update it with your system: sudo apt update && sudo apt upgrade."
+    return 0
+  fi
+  if [[ "$path" == /snap/* ]] || { have_cmd snap && snap list nvim >/dev/null 2>&1; }; then
+    log_info "Neovim was installed via snap — update it with: sudo snap refresh nvim."
+    return 0
+  fi
+  local cur; cur="$(_nvim_running_ver)"
+  _nvim_install_tarball || return 1
+  _nvim_conf_set CHANNEL tarball
+  log_info "Neovim is now $(status 2>/dev/null) (was ${cur:-unknown})."
+}
+
+# --- Distro installer ----------------------------------------------------------
+
+# Validate a distro short name / appname (no path-injection metacharacters).
+_nvim_name_valid() { [[ "$1" =~ ^[A-Za-z0-9._-]+$ ]]; }
+# Validate a git URL: accept the common https/ssh/git forms with a conservative charset, barring
+# shell metacharacters ($ ` & ; ' " ( ) * | < > space) even though the URL is only ever passed
+# quoted to git — defense in depth, per the "loosen but block injection metacharacters" rule.
+_nvim_giturl_valid() { [[ "$1" =~ ^(https?://|git@|ssh://|git://)[A-Za-z0-9._~:/?#@!+,=%-]+$ ]]; }
+
+# Back up a NON-EMPTY config directory before we take it over: rename it aside with a timestamp
+# (directory-level — backup_file only handles single files). No-op if the dir is absent/empty.
+_nvim_backup_dir() {
+  local d="$1" bak
+  [[ -d "$d" ]] || return 0
+  # Empty (no entries)? nothing to preserve.
+  [[ -n "$(ls -A "$d" 2>/dev/null || true)" ]] || return 0
+  bak="${d}.bak.$(date +%s)"
+  mv "$d" "$bak"
+  log_info "Backed up $d -> $bak"
+}
+
+# Path guard for a managed config dir: must be a non-empty path strictly under ~/.config, with no
+# `..` escape and not equal to ~/.config itself. (Mirrors rime/android removal guards.)
+_nvim_path_under_config() {
+  local p="$1" real cfgreal
+  [[ -n "$p" ]] || return 1
+  case "$p" in *..*) return 1 ;; esac
+  real="$(realpath -m "$p" 2>/dev/null || true)"
+  cfgreal="$(realpath -m "$_NV_CFG" 2>/dev/null || true)"
+  [[ -n "$real" && -n "$cfgreal" ]] || return 1
+  [[ "$real" != "$cfgreal" ]] || return 1
+  [[ "$real" == "$cfgreal"/* ]]
+}
+
+# Add ($1=alias for appname) or remove the managed `nvim-<name>` alias line in the shell rc.
+readonly NVIM_ALIAS_MARKER="# ubuntu-setup (nvim distro alias)"
+_nvim_alias_add() {
+  local name="$1" appname="$2" rc line
+  rc="$(_nvim_rc_file)"
+  line="alias nvim-${name}='NVIM_APPNAME=${appname} nvim' $NVIM_ALIAS_MARKER"
+  if [[ -f "$rc" ]] && grep -qxF "$line" "$rc"; then return 0; fi
+  [[ -s "$rc" ]] && backup_file "$rc"
+  # Drop any stale alias for the same name first, then append the fresh one.
+  if [[ -f "$rc" ]] && grep -qF "alias nvim-${name}=" "$rc"; then
+    local tmp; tmp="$(mktemp)"
+    grep -vF "alias nvim-${name}=" "$rc" >"$tmp" || true
+    mv "$tmp" "$rc" || { rm -f "$tmp"; return 1; }
+  fi
+  printf '%s\n' "$line" >>"$rc"
+  log_info "Added alias 'nvim-${name}' (NVIM_APPNAME=${appname}) to $rc — open a new shell or 'source $rc'."
+}
+_nvim_alias_remove() {
+  local name="$1" rc
+  rc="$(_nvim_rc_file)"
+  [[ -f "$rc" ]] && grep -qF "alias nvim-${name}=" "$rc" || return 0
+  backup_file "$rc"
+  local tmp; tmp="$(mktemp)"
+  grep -vF "alias nvim-${name}=" "$rc" >"$tmp" || true
+  mv "$tmp" "$rc" || { rm -f "$tmp"; return 1; }
+  log_info "Removed the managed 'nvim-${name}' alias from $rc."
+}
+
+# Resolve the repo URL for a distro name: curated table, else an extra git-url in nvim.conf
+# (EXTRA_DISTRO_<name>). Echoes the URL; nonzero if unknown.
+_nvim_distro_repo() {
+  local name="$1" url
+  url="${NVIM_DISTRO_REPO[$name]:-}"
+  [[ -n "$url" ]] || url="$(_nvim_conf_get "EXTRA_DISTRO_${name}")"
+  [[ -n "$url" ]] || return 1
+  printf '%s' "$url"
+}
+
+# Drive a distro's bundled lazy.nvim headless: sync | update | clean. Bounded by `timeout` so a
+# stuck/offline run never hangs the script. Needs a working nvim.
+_nvim_sync() {
+  local appname="$1" op="${2:-sync}" cmd
+  have_cmd nvim || { log_err "$(_nvim_t not_installed_first)"; return 1; }
+  case "$op" in
+    sync)   cmd='+Lazy! sync' ;;
+    update) cmd='+Lazy! update' ;;
+    clean)  cmd='+Lazy! clean' ;;
+    *) log_err "Unknown plugin op: $op"; return 2 ;;
+  esac
+  log_info "Driving lazy.nvim ($op) for NVIM_APPNAME=${appname} (headless)…"
+  if have_cmd timeout; then
+    NVIM_APPNAME="$appname" timeout 600 nvim --headless "$cmd" +qa
+  else
+    NVIM_APPNAME="$appname" nvim --headless "$cmd" +qa
+  fi
+}
+
+# install-distro <name> [appname] — clone a curated/extra distro, isolate via NVIM_APPNAME (smart
+# default: take over an empty ~/.config/nvim, else nvim-<name>), manifest it, alias if isolated,
+# then headless-sync its plugins.
+do_install_distro() {
+  _nvim_resolve_home || return 1
+  local name="${1:-}" appname="${2:-}"
+  [[ -n "$name" ]] || { log_err "Usage: ${0##*/} install-distro <${NVIM_DISTRO_ORDER// /|}|name> [appname]"; return 2; }
+  _nvim_name_valid "$name" || { log_err "Invalid distro name: $name (letters/digits/._- only)."; return 2; }
+  local repo; repo="$(_nvim_distro_repo "$name")" || { log_err "Unknown distro: $name (curated: ${NVIM_DISTRO_ORDER}; add others with: ${0##*/} add-distro <name> <git-url>)."; return 2; }
+
+  have_cmd git || { log_err "git is required to clone a distro — install it with: swkit git install (or: ${0##*/} ensure-deps)."; return 1; }
+
+  # Smart default appname: explicit wins; else take over an empty/absent default nvim, else isolate.
+  if [[ -z "$appname" ]]; then
+    if [[ ! -d "$_NV_CFG/nvim" ]] || [[ -z "$(ls -A "$_NV_CFG/nvim" 2>/dev/null || true)" ]]; then
+      appname="nvim"
+    else
+      appname="nvim-${name}"
+    fi
+  fi
+  _nvim_name_valid "$appname" || { log_err "Invalid appname: $appname."; return 2; }
+  local dest="$_NV_CFG/$appname"
+  log_info "Installing distro '$name' into $dest (NVIM_APPNAME=${appname})."
+
+  _nvim_path_under_config "$dest" || { log_err "Refusing to write outside ~/.config: $dest"; return 1; }
+  _nvim_backup_dir "$dest"
+  git clone --depth 1 "$repo" "$dest"
+
+  _nvim_manifest_add "$appname" "$name" "$repo"
+  # Isolated configs get a convenience alias; the default `nvim` does not need one.
+  if [[ "$appname" != "nvim" ]]; then _nvim_alias_add "$name" "$appname"; fi
+
+  # Sync plugins now when nvim is present and new enough; otherwise tell the user to install it.
+  if have_cmd nvim && _nvim_vercmp_ge "$(_nvim_running_ver)" "$NVIM_MIN_VERSION"; then
+    _nvim_sync "$appname" sync || log_warn "Plugin sync did not complete — re-run: ${0##*/} sync-plugins ${appname}."
+  else
+    log_warn "Neovim is missing or older than ${NVIM_MIN_VERSION} — install it first (swkit nvim install),"
+    log_warn "then sync this distro's plugins with: ${0##*/} sync-plugins ${appname}."
+  fi
+  if [[ "$appname" == "nvim" ]]; then
+    log_info "Launch it with:  nvim"
+  else
+    log_info "Launch it with:  nvim-${name}   (NVIM_APPNAME=${appname} nvim)"
+  fi
+}
+
+# remove-distro <name|appname> — resolve the appname from the manifest, guard the path, back up
+# the config dir, then delete it + its data/state/cache and the managed alias.
+do_remove_distro() {
+  _nvim_resolve_home || return 1
+  local arg="${1:-}"
+  [[ -n "$arg" ]] || { log_err "Usage: ${0##*/} remove-distro <name|appname>"; return 2; }
+  _nvim_name_valid "$arg" || { log_err "Invalid argument: $arg."; return 2; }
+
+  # Resolve appname + name from the manifest (accept either a distro name or an appname).
+  local appname="" name=""
+  if appname="$(_nvim_distro_appname "$arg")" && [[ -n "$appname" ]]; then
+    name="$arg"
+  elif _nvim_manifest_has "$arg"; then
+    appname="$arg"
+    name="$(awk -F'\t' -v a="$arg" '$1==a{print $2; exit}' "$_NV_MANIFEST" 2>/dev/null || true)"
+  else
+    log_info "No kit-managed distro '$arg' found in the manifest — nothing to remove."
+    return 0
+  fi
+
+  # Defense in depth: the appname came from the manifest (a user could hand-corrupt it), so
+  # re-validate it just like the install path before it becomes part of any rm target. The
+  # path guard below is the real backstop, but a clean name keeps every derived path sane.
+  _nvim_name_valid "$appname" || { log_err "Manifest holds an invalid appname for '$arg': $appname (refusing to remove)."; return 1; }
+  local dest="$_NV_CFG/$appname"
+  _nvim_path_under_config "$dest" || { log_err "Refusing to remove a path outside ~/.config: $dest"; return 1; }
+
+  if [[ -d "$dest" ]]; then
+    _nvim_backup_dir "$dest"
+    rm -rf "${dest:?}"
+    log_info "Removed $dest (a timestamped backup was kept)."
+  else
+    log_info "$dest is already gone."
+  fi
+  # Runtime products (no precious user data) — safe to delete.
+  rm -rf "${_NV_DATA:?}/$appname" "${_NV_STATE:?}/$appname" "${_NV_CACHE:?}/$appname"
+  [[ -n "$name" ]] && _nvim_alias_remove "$name"
+  _nvim_manifest_remove "$appname"
+  log_info "Removed distro '${name:-$appname}' (appname ${appname})."
+}
+
+# add-distro <name> <git-url> — record an extra (non-curated) distro so install-distro can use it.
+do_add_distro() {
+  _nvim_resolve_home || return 1
+  local name="${1:-}" url="${2:-}"
+  [[ -n "$name" && -n "$url" ]] || { log_err "Usage: ${0##*/} add-distro <name> <git-url>"; return 2; }
+  _nvim_name_valid "$name" || { log_err "Invalid distro name: $name (letters/digits/._- only)."; return 2; }
+  [[ -z "${NVIM_DISTRO_REPO[$name]:-}" ]] || { log_err "'$name' is a curated distro already — pick another name."; return 2; }
+  _nvim_giturl_valid "$url" || { log_err "Invalid git URL: $url"; return 2; }
+  _nvim_conf_set "EXTRA_DISTRO_${name}" "$url"
+  log_info "Registered distro '$name' -> $url. Install it with: ${0##*/} install-distro $name"
+}
+
+# --- Plugin sync ops (parametric; ui-reachable) --------------------------------
+do_sync_plugins()   { _nvim_resolve_home || return 1; _nvim_sync "${1:-nvim}" sync; }
+do_update_plugins() { _nvim_resolve_home || return 1; _nvim_sync "${1:-nvim}" update; }
+do_clean_plugins()  { _nvim_resolve_home || return 1; _nvim_sync "${1:-nvim}" clean; }
+
+# --- External deps -------------------------------------------------------------
+# Install the apt packages a distro typically needs + a Nerd Font (best-effort, via fonts.sh).
+# Clipboard helpers are best-effort and only matter with a display (SSH note printed). NEVER Node:
+# Mason's LSP runtime is opt-in — if absent we point at `swkit node install`, we never auto-install.
+_nvim_ensure_deps() {
+  # shellcheck disable=SC2086  # word-splitting NVIM_DEP_PKGS into separate package args is intended
+  apt_install $NVIM_DEP_PKGS
+
+  # Nerd Font (user-space, never sudo). Glyphs render in the LOCAL/client terminal.
+  local fonts="$KIT_SCRIPTS_DIR/fonts.sh"
+  if [[ -x "$fonts" ]]; then
+    if "$fonts" status >/dev/null 2>&1; then
+      log_info "Recommended Nerd Font (MesloLGS NF) already installed."
+    else
+      log_info "Installing the recommended Nerd Font (MesloLGS NF) via fonts.sh…"
+      "$fonts" install meslolgs || log_warn "Could not install the Nerd Font automatically — run 'swkit fonts install' yourself."
+    fi
+  else
+    log_warn "fonts.sh not found; install a Nerd Font with 'swkit fonts install' for theme/icon glyphs."
+  fi
+  log_warn "Nerd Font glyphs render in your LOCAL terminal — over SSH, also install/select MesloLGS NF on your client."
+
+  # Clipboard providers (best-effort; only useful with a display).
+  if [[ -n "${WAYLAND_DISPLAY:-}" ]]; then
+    apt_install wl-clipboard || log_warn "Could not install wl-clipboard (clipboard provider)."
+  elif [[ -n "${DISPLAY:-}" ]]; then
+    apt_install xclip || log_warn "Could not install xclip (clipboard provider)."
+  else
+    log_info "No display detected — skipping a clipboard provider (Neovim can use OSC52 over SSH)."
+  fi
+
+  # Node is opt-in (Mason LSP runtime); never auto-installed.
+  if ! have_cmd node; then
+    log_info "Node is not installed. For Mason-managed LSP/tools that need it, run: swkit node install (opt-in)."
+  fi
+}
+do_ensure_deps() { _nvim_resolve_home || return 1; _nvim_ensure_deps; }
+
+# --- Default editor ------------------------------------------------------------
+readonly NVIM_EDITOR_MARKER="# ubuntu-setup (nvim as default editor)"
+
+# set-default-editor [off] — user-space: write/remove managed EDITOR/VISUAL=nvim lines in the
+# shell rc; best-effort system: register/set (or auto) update-alternatives `editor`.
+do_set_default_editor() {
+  _nvim_resolve_home || return 1
+  local mode="${1:-on}" rc
+  rc="$(_nvim_rc_file)"
+  case "$mode" in
+    on|"")
+      have_cmd nvim || { log_err "$(_nvim_t not_installed_first)"; return 1; }
+      local line_e="export EDITOR=nvim $NVIM_EDITOR_MARKER"
+      local line_v="export VISUAL=nvim $NVIM_EDITOR_MARKER"
+      export EDITOR=nvim VISUAL=nvim
+      if [[ -f "$rc" ]] && grep -qxF "$line_e" "$rc" && grep -qxF "$line_v" "$rc"; then
+        log_info "EDITOR/VISUAL already set to nvim via $rc."
+      else
+        [[ -s "$rc" ]] && backup_file "$rc"
+        grep -qxF "$line_e" "$rc" 2>/dev/null || printf '%s\n' "$line_e" >>"$rc"
+        grep -qxF "$line_v" "$rc" 2>/dev/null || printf '%s\n' "$line_v" >>"$rc"
+        log_info "Set EDITOR/VISUAL=nvim in $rc — open a new shell or 'source $rc'."
+      fi
+      # Best-effort system alternative (tarball installs need --install first; apt's neovim
+      # self-registers). RC_NEED_SUDO / any failure only warns — never aborts.
+      local path; path="$(command -v nvim 2>/dev/null || true)"
+      if [[ -n "$path" ]]; then
+        sudo_run update-alternatives --install /usr/bin/editor editor "$path" 60 >/dev/null 2>&1 \
+          || log_warn "Could not register nvim as the system 'editor' alternative (needs sudo) — the shell EDITOR/VISUAL still apply."
+        sudo_run update-alternatives --set editor "$path" >/dev/null 2>&1 \
+          || log_warn "Could not set the system 'editor' alternative to nvim (needs sudo)."
+      fi
+      _nvim_conf_set DEFAULT_EDITOR on
+      ;;
+    off)
+      if [[ -f "$rc" ]] && grep -qF "$NVIM_EDITOR_MARKER" "$rc"; then
+        backup_file "$rc"
+        local tmp; tmp="$(mktemp)"
+        grep -vF "$NVIM_EDITOR_MARKER" "$rc" >"$tmp" || true
+        mv "$tmp" "$rc" || { rm -f "$tmp"; return 1; }
+        log_info "Removed the managed EDITOR/VISUAL=nvim lines from $rc."
+      else
+        log_info "No managed EDITOR/VISUAL lines in $rc — nothing to remove."
+      fi
+      sudo_run update-alternatives --auto editor >/dev/null 2>&1 \
+        || log_warn "Could not reset the system 'editor' alternative to auto (needs sudo)."
+      _nvim_conf_set DEFAULT_EDITOR off
+      ;;
+    *) log_err "set-default-editor takes nothing (on) or 'off'."; return 2 ;;
+  esac
+}
+
+# --- Configure -----------------------------------------------------------------
+# With NO flags: the conservative baseline = just ensure the Neovim binary is present (no distro,
+# no editor change, no extra deps). Flags layer on; --recommended is the one-shot full setup.
+do_configure() {
+  _nvim_resolve_home || return 1
+  if [[ $# -eq 0 ]]; then
+    status >/dev/null 2>&1 || do_install
+    return 0
+  fi
+  while (( $# > 0 )); do
+    case "$1" in
+      --recommended)
+        status >/dev/null 2>&1 || do_install
+        _nvim_ensure_deps
+        do_install_distro "$NVIM_RECOMMENDED_DISTRO"
+        do_set_default_editor on
+        shift ;;
+      --distro)   [[ $# -ge 2 ]] || { log_err "--distro needs a name."; return 2; }; do_install_distro "$2"; shift 2 ;;
+      --distro=*) do_install_distro "${1#--distro=}"; shift ;;
+      --editor)   [[ $# -ge 2 ]] || { log_err "--editor needs on|off."; return 2; }; do_set_default_editor "$2"; shift 2 ;;
+      --editor=*) do_set_default_editor "${1#--editor=}"; shift ;;
+      --deps)     _nvim_ensure_deps; shift ;;
+      -h|--help)  usage; return 0 ;;
+      *) log_err "Unknown configure option: $1"; usage; return 2 ;;
+    esac
+  done
+}
+
+# --- Interactive management screen (the script's own UI) -----------------------
+# A component manager: install/update/remove the binary; curated distros as a checklist (installed
+# marked, space toggles install/remove, `a` adds any git-url); per-appname plugin sync/update/clean;
+# external deps + Nerd Font; a default-editor toggle; an "Apply recommended" action. State is read
+# live each pass; every change shells out via ui_run (visible + logged) then the screen reloads.
+# Non-selectable rows (headers, spacers) are skipped during navigation. `ui` is an entry mode.
+ui() {
+  if ! ui_supported; then ui_default_menu; return 0; fi
+  ui_begin || { ui_default_menu; return 0; }
+  _nvim_resolve_home || { ui_end; ui_default_menu; return 0; }
+
+  local sel=0 g d
+  while true; do
+    [[ "${_UI_WINCH:-0}" == 1 ]] && { _UI_WINCH=0; ui_size; }
+
+    # ---- live state ----
+    local installed=0 ver="" editor_on=0
+    if status >/dev/null 2>&1; then installed=1; ver="$(status 2>/dev/null)"; fi
+    [[ "$(_nvim_conf_get DEFAULT_EDITOR)" == on ]] && editor_on=1
+
+    # ---- build display rows (parallel arrays: kind / id / label) ----
+    local -a dkind=() did=() dlabel=()
+    if (( ! installed )); then
+      dkind+=(install); did+=(install); dlabel+=("$(ui_badge missing) $(ui_t install) Neovim")
+    else
+      dkind+=(update); did+=(update); dlabel+=("$(ui_badge check) Update Neovim (tarball channel)")
+      dkind+=(spacer); did+=(""); dlabel+=("")
+      dkind+=(header); did+=(""); dlabel+=("$(_nvim_t distros)")
+      for d in $NVIM_DISTRO_ORDER; do
+        local badge app
+        if app="$(_nvim_distro_appname "$d")" && [[ -n "$app" ]]; then
+          badge="$(ui_badge installed)"
+        else badge="$(ui_badge missing)"; app=""; fi
+        dkind+=(distro); did+=("$d"); dlabel+=("$badge $(printf '%-10s' "$d")${app:+ ${UI_INFO}[$app]${UI_OFF}} ${UI_MUTED}$(_nvim_distro_desc "$d")${UI_OFF}")
+      done
+      dkind+=(add-distro); did+=(add-distro); dlabel+=("$UI_ARROW $(_nvim_t add_distro)")
+      dkind+=(spacer); did+=(""); dlabel+=("")
+      dkind+=(header); did+=(""); dlabel+=("$(_nvim_t plugins)")
+      dkind+=(sync);   did+=(sync);   dlabel+=("  $(_nvim_t sync_plugins)")
+      dkind+=(pupdate); did+=(pupdate); dlabel+=("  $(_nvim_t update_plugins)")
+      dkind+=(pclean); did+=(pclean); dlabel+=("  $(_nvim_t clean_plugins)")
+      dkind+=(spacer); did+=(""); dlabel+=("")
+      dkind+=(header); did+=(""); dlabel+=("$(_nvim_t ext_deps)")
+      dkind+=(deps); did+=(deps); dlabel+=("  $(_nvim_t install_deps)")
+      dkind+=(spacer); did+=(""); dlabel+=("")
+      local ebadge; if (( editor_on )); then ebadge="$(ui_badge on)"; else ebadge="$(ui_badge off)"; fi
+      dkind+=(editor); did+=(editor); dlabel+=("$ebadge $(_nvim_t default_editor)")
+      dkind+=(spacer); did+=(""); dlabel+=("")
+      dkind+=(recommended); did+=(recommended); dlabel+=("$(ui_badge check) $(_nvim_t apply_recommended)")
+      dkind+=(remove); did+=(remove); dlabel+=("${UI_ERR}${UI_CROSS}${UI_OFF} $(ui_t remove) Neovim")
+    fi
+    local n=${#dkind[@]}
+    (( sel < 0 )) && sel=0; (( sel >= n )) && sel=$(( n - 1 ))
+    case "${dkind[$sel]}" in spacer|header)
+      for (( g=0; g<n; g++ )); do sel=$(( (sel+1)%n )); case "${dkind[$sel]}" in spacer|header) ;; *) break ;; esac; done ;;
+    esac
+
+    # ---- render ----
+    printf '\033[2J' >&"$_UI_FD"
+    if (( installed )); then ui_header "Neovim" "$ver $(ui_badge installed)"
+    else ui_header "Neovim" "$(ui_badge missing) $(ui_t not_installed)"; fi
+    local i row=3
+    for (( i=0; i<n; i++ )); do
+      case "${dkind[$i]}" in
+        spacer) : ;;
+        header) ui_move "$row" 2; printf '\033[K%s%s%s' "$UI_ACCENT$UI_BOLD" "${dlabel[$i]}" "$UI_OFF" >&"$_UI_FD" ;;
+        *)      ui_row "$row" "$i" "$sel" "${dlabel[$i]}" ;;
+      esac
+      (( row++ ))
+    done
+    ui_footer "$(_nvim_t foot_main)"
+
+    # ---- input ----
+    ui_read_key
+    case "$UI_KEY" in
+      up|k)   for (( g=0; g<n; g++ )); do sel=$(( (sel-1+n)%n )); case "${dkind[$sel]}" in spacer|header) ;; *) break ;; esac; done ;;
+      down|j) for (( g=0; g<n; g++ )); do sel=$(( (sel+1)%n ));   case "${dkind[$sel]}" in spacer|header) ;; *) break ;; esac; done ;;
+      enter|space)
+        case "${dkind[$sel]}" in
+          install)     ui_run "$(ui_t install) Neovim" -- "$0" install ;;
+          update)      ui_run "Update Neovim" -- "$0" update ;;
+          distro)
+            local dn="${did[$sel]}" dapp
+            if dapp="$(_nvim_distro_appname "$dn")" && [[ -n "$dapp" ]]; then
+              ui_confirm "$(_nvim_t confirm_remove_distro)" n && ui_run "remove-distro $dn" -- "$0" remove-distro "$dn"
+            else
+              ui_run "install-distro $dn" -- "$0" install-distro "$dn"
+            fi ;;
+          add-distro)
+            if ui_input "$(_nvim_t prompt_name)" "" && _nvim_name_valid "$UI_INPUT"; then
+              local addname="$UI_INPUT"
+              if ui_input "$(_nvim_t prompt_giturl)" "" && [[ -n "$UI_INPUT" ]]; then
+                ui_run "add-distro $addname" -- "$0" add-distro "$addname" "$UI_INPUT"
+              fi
+            fi ;;
+          sync)    ui_run "sync-plugins" -- "$0" sync-plugins ;;
+          pupdate) ui_run "update-plugins" -- "$0" update-plugins ;;
+          pclean)  ui_run "clean-plugins" -- "$0" clean-plugins ;;
+          deps)    ui_run "$(_nvim_t install_deps)" -- "$0" ensure-deps ;;
+          editor)
+            if (( editor_on )); then ui_run "default editor off" -- "$0" set-default-editor off
+            else ui_run "default editor on" -- "$0" set-default-editor; fi ;;
+          recommended) ui_run "$(_nvim_t apply_recommended)" -- "$0" configure --recommended ;;
+          remove)      ui_confirm "$(_nvim_t confirm_remove)" n && ui_run "$(ui_t remove) Neovim" -- "$0" remove ;;
+        esac ;;
+      q|Q|esc|backspace) break ;;
+    esac
+  done
+  ui_end
+  return 0
+}
+
+usage() {
+  cat <<EOF
+Usage: ${0##*/} <command>
+
+Commands:
+  install                 Install Neovim — best channel + version gate (apt >= ${NVIM_MIN_VERSION},
+                            else the official stable tarball into /opt, else snap). Idempotent.
+  remove                  Uninstall the Neovim binary (keeps your ~/.config/nvim* and distro data)
+  update                  Re-fetch + reinstall the latest stable tarball (apt/snap track the system)
+  configure [opts]        With no flags: ensure the binary is installed. Flags layer on:
+                            --recommended         binary + deps + Nerd Font + LazyVim + editor=on
+                            --distro <name>       install a curated/extra distro
+                            --editor on|off       set/unset nvim as EDITOR/VISUAL
+                            --deps                install external deps only
+  update-plugins [app]    lazy.nvim update for NVIM_APPNAME (default: nvim)
+  install-distro <name> [app]   Clone a distro (curated: ${NVIM_DISTRO_ORDER// /, }; or an added name);
+                            smart default appname (take over an empty ~/.config/nvim, else nvim-<name>)
+  remove-distro <name|app>      Remove a kit-managed distro (backs up its config dir, then deletes it)
+  add-distro <name> <url> Register an extra distro git-url for install-distro
+  sync-plugins [app]      lazy.nvim sync for NVIM_APPNAME (default: nvim)
+  clean-plugins [app]     lazy.nvim clean for NVIM_APPNAME (default: nvim)
+  set-default-editor [off]      Set (or, with 'off', unset) nvim as EDITOR/VISUAL + system editor
+  ensure-deps             Install external deps (git curl build-essential ripgrep fd-find + Nerd Font)
+  status                  Print version + channel + distro count; exit code 0 iff Neovim installed
+  ui                      Open the interactive manager (needs a terminal)
+  meta                    Print machine-readable metadata
+  help                    Show this help
+
+Notes: distros / plugins / deps-config / the editor toggle run AS YOU (never sudo) — they touch
+your ~/.config/nvim*, ~/.local and shell rc. Only the binary install/remove escalates per-command.
+Neovim is a TUI, so SSH works perfectly; Nerd Font glyphs render in your LOCAL/client terminal.
+EOF
+}
+
+kit_dispatch "$@"
