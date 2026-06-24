@@ -296,6 +296,14 @@ _nvim_apt_ok() {
   _nvim_vercmp_ge "$cand" "$NVIM_MIN_VERSION"
 }
 
+# Exit 0 iff nvim is installed AND new enough (>= NVIM_MIN_VERSION) for the curated distros. This
+# is the install/upgrade gate — UNLIKE status(), which only checks presence. Spawns nvim, so it
+# runs in real ops only (never under the KIT_PROBE_ONLY catalog probe).
+_nvim_installed_ok() {
+  have_cmd nvim || return 1
+  _nvim_vercmp_ge "$(_nvim_running_ver)" "$NVIM_MIN_VERSION"
+}
+
 # --- SSH / where-it-applies notes ----------------------------------------------
 # Neovim is a TUI, so SSH use is perfect (no desktop caveat). The only honest note is that Nerd
 # Font glyphs are drawn by the CLIENT terminal — relevant only when external deps include a font.
@@ -314,15 +322,22 @@ _nvim_install_tarball() {
   json="$(curl -fsSL --max-time 30 "$NVIM_RELEASE_API" 2>/dev/null || true)"
   [[ -n "$json" ]] || { log_err "Could not reach the Neovim release API ($NVIM_RELEASE_API)."; return 1; }
 
-  # The GitHub assets array gives, per asset, a "name", a "digest":"sha256:<hex>" and a
-  # "browser_download_url". Collapse to one item per line, keep only the line carrying our exact
-  # asset name, then pull the url + digest from THAT line (so we bind the checksum to the file).
-  local line
-  line="$(printf '%s' "$json" | tr '{' '\n' | grep -F "\"name\":\"$asset\"" | head -n1 || true)"
-  [[ -n "$line" ]] || { log_err "The release payload has no asset named $asset."; return 1; }
-  url="$(printf '%s' "$line" | grep -oE "https://[^\"]+/${asset}" | head -n1 || true)"
-  digest="$(printf '%s' "$line" | grep -oE '"digest":"sha256:[0-9a-f]+"' | head -n1 | sed -E 's/.*sha256:([0-9a-f]+)".*/\1/' || true)"
-  [[ -n "$url" ]]    || { log_err "Could not resolve the download URL for $asset."; return 1; }
+  # Parse the assets array (no jq). Two pitfalls make a naive "one asset per { line" split wrong:
+  # GitHub emits "name": "…" WITH a space after the colon, and each asset carries a nested
+  # "uploader": {…} object — so `tr '{' '\n'` scatters an asset's name and its digest/url into
+  # different segments. Instead: split on commas (no comma appears inside the name/url/digest
+  # values) and run a tiny awk state machine. Each "name" line flips an in-our-asset flag (the
+  # uploader object has a "login" key, NOT "name", so it can't pollute the flag); while the flag is
+  # set we capture the browser_download_url + the sha256 digest — binding the checksum to the file.
+  local fields
+  fields="$(printf '%s' "$json" | tr ',' '\n')"
+  url="$(printf '%s\n' "$fields" | awk -v a="$asset" '
+    /"name":[[:space:]]*"/ { cur = (index($0, "\"" a "\"") > 0) ? 1 : 0 }
+    cur && /"browser_download_url":[[:space:]]*"/ { v=$0; sub(/.*"browser_download_url":[[:space:]]*"/,"",v); sub(/".*/,"",v); print v; exit }' || true)"
+  digest="$(printf '%s\n' "$fields" | awk -v a="$asset" '
+    /"name":[[:space:]]*"/ { cur = (index($0, "\"" a "\"") > 0) ? 1 : 0 }
+    cur && /"digest":[[:space:]]*"sha256:/ { v=$0; sub(/.*"digest":[[:space:]]*"sha256:/,"",v); sub(/".*/,"",v); print v; exit }' || true)"
+  [[ -n "$url" ]]    || { log_err "Could not resolve the download URL for $asset (asset missing or the release API format changed)."; return 1; }
   [[ -n "$digest" ]] || { log_err "Could not resolve the sha256 digest for $asset — refusing to install an unverified tarball."; return 1; }
   hex="$digest"
 
@@ -361,10 +376,20 @@ _nvim_install_tarball() {
 # do_install — best channel + version gate. Prints the channel actually used. Idempotent.
 do_install() {
   _nvim_resolve_home || return 1
-  if status >/dev/null 2>&1; then
-    log_info "Neovim is already installed ($(status 2>/dev/null)) — to refresh a tarball install, run: ${0##*/} update"
+  if _nvim_installed_ok; then
+    log_info "Neovim is already installed and new enough ($(status 2>/dev/null)) — to refresh a tarball install, run: ${0##*/} update"
     log_info "For distros / plugins / deps, run:  swkit nvim configure --recommended   (or: swkit nvim)"
     return 0
+  fi
+  # Already present but older than the curated-distro floor? Upgrade it. A leftover apt /usr/bin/nvim
+  # is the classic "LazyVim requires >= 0.11.2" trap, so clear it — but only AFTER the new binary
+  # lands (deferred), so a failed download never leaves you with no nvim at all. The tarball's
+  # /usr/local/bin/nvim outranks apt's /usr/bin/nvim on PATH, so the stale apt copy is hygiene, not
+  # a blocker. NON-apt stale installs (manual tarball/snap) are left for their own channel.
+  local drop_apt=0
+  if have_cmd nvim; then
+    log_info "Installed Neovim ($(_nvim_running_ver)) is older than ${NVIM_MIN_VERSION} — upgrading."
+    if pkg_installed neovim && ! _nvim_apt_ok; then drop_apt=1; fi
   fi
   if _nvim_apt_ok; then
     log_info "Channel: apt (neovim — candidate >= ${NVIM_MIN_VERSION})."
@@ -372,12 +397,14 @@ do_install() {
     _nvim_conf_set CHANNEL apt
   elif _nvim_install_tarball; then
     _nvim_conf_set CHANNEL tarball
+    if (( drop_apt )); then log_info "Removing the now-shadowed outdated apt 'neovim'…"; apt_remove neovim; fi
   else
     log_warn "apt is too old and the tarball channel failed — falling back to snap (lags upstream)."
     have_cmd snap || { log_err "snap is not available; cannot install Neovim."; return 1; }
     log_info "Channel: snap (nvim --classic)."
     sudo_run snap install nvim --classic
     _nvim_conf_set CHANNEL snap
+    if (( drop_apt )); then log_info "Removing the now-shadowed outdated apt 'neovim'…"; apt_remove neovim; fi
   fi
   log_info "Installed Neovim ($(status 2>/dev/null))."
   log_info "Add a distro + plugins with:  swkit nvim configure --recommended   (or open: swkit nvim)"
@@ -421,8 +448,15 @@ do_update() {
   fi
   local path; path="$(command -v nvim 2>/dev/null || true)"
   if pkg_installed neovim; then
-    log_info "Neovim was installed via apt — update it with your system: sudo apt update && sudo apt upgrade."
-    return 0
+    if _nvim_apt_ok; then
+      log_info "Neovim was installed via apt — update it with your system: sudo apt update && sudo apt upgrade."
+      return 0
+    fi
+    # apt's candidate is too old for the curated distros — `apt upgrade` can't help. Reuse the
+    # install path: it upgrades to the official tarball and clears the now-shadowed apt package.
+    log_info "The apt 'neovim' candidate is older than ${NVIM_MIN_VERSION} — upgrading to the official tarball instead."
+    do_install
+    return $?
   fi
   if [[ "$path" == /snap/* ]] || { have_cmd snap && snap list nvim >/dev/null 2>&1; }; then
     log_info "Neovim was installed via snap — update it with: sudo snap refresh nvim."
@@ -557,12 +591,20 @@ do_install_distro() {
   # Isolated configs get a convenience alias; the default `nvim` does not need one.
   if [[ "$appname" != "nvim" ]]; then _nvim_alias_add "$name" "$appname"; fi
 
-  # Sync plugins now when nvim is present and new enough; otherwise tell the user to install it.
-  if have_cmd nvim && _nvim_vercmp_ge "$(_nvim_running_ver)" "$NVIM_MIN_VERSION"; then
+  # Sync plugins now when nvim is present and new enough; otherwise install/upgrade it first (the
+  # user opted into auto-upgrade) and then sync — so a freshly cloned distro is never left in a
+  # state where launching it just errors out ("requires Neovim >= …"). do_install is idempotent,
+  # so calling it here is safe even when --recommended already ran it.
+  if _nvim_installed_ok; then
     _nvim_sync "$appname" sync || log_warn "Plugin sync did not complete — re-run: ${0##*/} sync-plugins ${appname}."
   else
-    log_warn "Neovim is missing or older than ${NVIM_MIN_VERSION} — install it first (swkit nvim install),"
-    log_warn "then sync this distro's plugins with: ${0##*/} sync-plugins ${appname}."
+    log_info "Neovim is missing or older than ${NVIM_MIN_VERSION} — installing/upgrading it first…"
+    do_install
+    if _nvim_installed_ok; then
+      _nvim_sync "$appname" sync || log_warn "Plugin sync did not complete — re-run: ${0##*/} sync-plugins ${appname}."
+    else
+      log_warn "Could not get Neovim >= ${NVIM_MIN_VERSION} automatically — sync later with: ${0##*/} sync-plugins ${appname}."
+    fi
   fi
   if [[ "$appname" == "nvim" ]]; then
     log_info "Launch it with:  nvim"
@@ -731,7 +773,7 @@ do_configure() {
   while (( $# > 0 )); do
     case "$1" in
       --recommended)
-        status >/dev/null 2>&1 || do_install
+        _nvim_installed_ok || do_install
         _nvim_ensure_deps
         do_install_distro "$NVIM_RECOMMENDED_DISTRO"
         do_set_default_editor on
