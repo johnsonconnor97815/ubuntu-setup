@@ -58,6 +58,40 @@ readonly NVIM_RECOMMENDED_DISTRO="lazyvim"
 # External deps a distro typically needs (apt packages). fd's binary is `fdfind` on Ubuntu.
 readonly NVIM_DEP_PKGS="git curl build-essential ripgrep fd-find unzip"
 
+# --- Managed config layer (the third layer on top of binary + distro installer) -
+# A component manager for Neovim's ACTUAL config (options / keymaps / colorscheme / plugins),
+# like tmux.sh / ghostty.sh / rime.sh. Two modes, auto-detected (see _nvim_cfg_mode):
+#   - takeover : an empty/absent ~/.config/nvim → kit OWNS init.lua (leader early + options +
+#                keymaps + lazy.nvim bootstrap + curated plugins + colorscheme).
+#   - overlay  : a non-empty config (a distro or the user's own) → kit only drops a managed
+#                ~/.config/<appname>/after/plugin/ubuntu-setup.lua (options + keymaps[no leader] +
+#                colorscheme; NO plugins). after/plugin is sourced LAST even under lazy.nvim/LazyVim
+#                (verified: lazy keeps stdpath('config')/after on rtp), so kit never touches distro Lua.
+# Marker on the first line claims kit ownership of a managed file (refuse to clobber user files).
+readonly NVIM_CFG_MARKER="-- >>> ubuntu-setup nvim config (managed) >>>"
+readonly NVIM_CFG_MARKER_END="-- <<< ubuntu-setup nvim config (managed) <<<"
+
+# Curated plugins for the TAKEOVER (bare-nvim) scenario only — each independently toggleable, plus
+# `add-plugin <owner/repo|git-url>` for anything else. Name == key; repos stay UNtranslated. The LSP
+# group (mason + mason-lspconfig + lspconfig + blink.cmp) is gated separately by CFG_LSP. Verified
+# minimal specs for nvim 0.11+ (mason moved to mason-org/; mason-lspconfig auto-enables servers via
+# vim.lsp.enable; blink version 1.*; treesitter master configs API) — see the task research note.
+declare -gA NVIM_PLUGIN_REPO=(
+  [treesitter]="nvim-treesitter/nvim-treesitter"
+  [telescope]="nvim-telescope/telescope.nvim"
+  [gitsigns]="lewis6991/gitsigns.nvim"
+  [which-key]="folke/which-key.nvim"
+  [lualine]="nvim-lualine/lualine.nvim"
+)
+readonly NVIM_PLUGIN_ORDER="treesitter telescope gitsigns which-key lualine"
+# Default curated plugin set for --config-recommended / "Apply recommended config".
+readonly NVIM_PLUGIN_RECOMMENDED="treesitter telescope gitsigns which-key lualine"
+
+# Built-in colorschemes shipped with Neovim (no plugin needed) — the curated picks for the UI
+# selector. `set-colorscheme` accepts any name matching _nvim_colorscheme_valid (not just these).
+readonly NVIM_BUILTIN_COLORS="default habamax retrobox slate sorbet desert evening koehler quiet wildcharm"
+readonly NVIM_CFG_RECOMMENDED_COLOR="habamax"
+
 # --- i18n (software-specific strings) ------------------------------------------
 # Same shape as lib/ui.sh's UI_MSG/ui_t, kept local. The product name "Neovim"/"nvim", distro
 # names (lazyvim, kickstart…) and package/command names stay UNtranslated; only descriptive
@@ -85,6 +119,24 @@ NVIM_I18N[en:desc_lazyvim]="batteries-included, lazy.nvim-based config"
 NVIM_I18N[en:desc_kickstart]="single-file, minimal starting point to learn from"
 NVIM_I18N[en:desc_astronvim]="full UI/IDE distro on a template"
 NVIM_I18N[en:desc_nvchad]="fast, minimal, themeable distro"
+NVIM_I18N[en:managed_config]="Managed config (options / keymaps / colorscheme / plugins)"
+NVIM_I18N[en:mc_options]="Editor options (best-practice baseline)"
+NVIM_I18N[en:mc_keymaps]="Keymaps (leader + quality-of-life)"
+NVIM_I18N[en:mc_leader]="Leader key"
+NVIM_I18N[en:mc_colorscheme]="Colorscheme (built-in)"
+NVIM_I18N[en:mc_plugins]="Plugins (curated; bare-nvim takeover only)"
+NVIM_I18N[en:mc_lsp]="LSP (lspconfig + Mason + blink.cmp)"
+NVIM_I18N[en:mc_apply_recommended]="Apply recommended config (options + keymaps + colorscheme + plugins)"
+NVIM_I18N[en:mc_reset]="Reset managed config"
+NVIM_I18N[en:mc_confirm_reset]="Reset the managed Neovim config? (backs up, then removes kit-managed files)"
+NVIM_I18N[en:mc_mode_takeover]="mode: takeover — kit owns this config"
+NVIM_I18N[en:mc_mode_overlay]="mode: overlay — after/plugin"
+NVIM_I18N[en:mc_plugins_distro_only]="A distro/your config owns plugins here — kit overlays only options/keymaps/colorscheme."
+NVIM_I18N[en:mc_add_plugin]="add a plugin (owner/repo or git-url)…"
+NVIM_I18N[en:mc_prompt_plugin]="Plugin (owner/repo or https git URL)"
+NVIM_I18N[en:mc_prompt_leader]="Leader key (a single char, or the word 'space')"
+NVIM_I18N[en:mc_pick_colorscheme]="Pick a built-in colorscheme"
+NVIM_I18N[en:mc_node_hint]="Node not found — for Mason LSP servers that need it: swkit node install"
 NVIM_I18N[zh:distros]="发行版 / starter(经 NVIM_APPNAME 隔离)"
 NVIM_I18N[zh:plugins]="插件(lazy.nvim,headless 驱动)"
 NVIM_I18N[zh:ext_deps]="外部依赖"
@@ -107,6 +159,24 @@ NVIM_I18N[zh:desc_lazyvim]="开箱即用、基于 lazy.nvim 的配置"
 NVIM_I18N[zh:desc_kickstart]="单文件、极简、用于学习的起点"
 NVIM_I18N[zh:desc_astronvim]="基于模板的完整 UI/IDE 发行版"
 NVIM_I18N[zh:desc_nvchad]="快速、极简、可换主题的发行版"
+NVIM_I18N[zh:managed_config]="受管配置(options / keymaps / colorscheme / 插件)"
+NVIM_I18N[zh:mc_options]="编辑器 options(最佳实践基线)"
+NVIM_I18N[zh:mc_keymaps]="keymaps(leader + 便捷键)"
+NVIM_I18N[zh:mc_leader]="leader 键"
+NVIM_I18N[zh:mc_colorscheme]="colorscheme(内置主题)"
+NVIM_I18N[zh:mc_plugins]="插件(curated;仅裸 nvim 接管)"
+NVIM_I18N[zh:mc_lsp]="LSP(lspconfig + Mason + blink.cmp)"
+NVIM_I18N[zh:mc_apply_recommended]="应用推荐配置(options + keymaps + colorscheme + 插件)"
+NVIM_I18N[zh:mc_reset]="重置受管配置"
+NVIM_I18N[zh:mc_confirm_reset]="重置受管 Neovim 配置?(先备份,再移除 kit 受管文件)"
+NVIM_I18N[zh:mc_mode_takeover]="模式:takeover —— kit 拥有此配置"
+NVIM_I18N[zh:mc_mode_overlay]="模式:overlay —— after/plugin"
+NVIM_I18N[zh:mc_plugins_distro_only]="此处插件由 distro/你的配置拥有 —— kit 只叠加 options/keymaps/colorscheme。"
+NVIM_I18N[zh:mc_add_plugin]="添加插件(owner/repo 或 git-url)…"
+NVIM_I18N[zh:mc_prompt_plugin]="插件(owner/repo 或 https git URL)"
+NVIM_I18N[zh:mc_prompt_leader]="leader 键(单个字符,或单词 'space')"
+NVIM_I18N[zh:mc_pick_colorscheme]="选择一个内置 colorscheme"
+NVIM_I18N[zh:mc_node_hint]="未找到 Node —— Mason 的 Node 系 LSP server 需要:swkit node install"
 NVIM_I18N[ja:distros]="ディストロ / starter(NVIM_APPNAME で分離)"
 NVIM_I18N[ja:plugins]="プラグイン(lazy.nvim、ヘッドレス)"
 NVIM_I18N[ja:ext_deps]="外部依存"
@@ -129,6 +199,24 @@ NVIM_I18N[ja:desc_lazyvim]="全部入り、lazy.nvim ベースの設定"
 NVIM_I18N[ja:desc_kickstart]="単一ファイル、学習向けの最小構成"
 NVIM_I18N[ja:desc_astronvim]="テンプレート方式の完全な UI/IDE ディストロ"
 NVIM_I18N[ja:desc_nvchad]="高速・最小・テーマ可能なディストロ"
+NVIM_I18N[ja:managed_config]="管理対象の設定(options / keymaps / colorscheme / プラグイン)"
+NVIM_I18N[ja:mc_options]="エディタ options(ベストプラクティス基準)"
+NVIM_I18N[ja:mc_keymaps]="keymaps(leader + 便利キー)"
+NVIM_I18N[ja:mc_leader]="leader キー"
+NVIM_I18N[ja:mc_colorscheme]="colorscheme(内蔵テーマ)"
+NVIM_I18N[ja:mc_plugins]="プラグイン(curated;素の nvim 引き継ぎ時のみ)"
+NVIM_I18N[ja:mc_lsp]="LSP(lspconfig + Mason + blink.cmp)"
+NVIM_I18N[ja:mc_apply_recommended]="推奨設定を適用(options + keymaps + colorscheme + プラグイン)"
+NVIM_I18N[ja:mc_reset]="管理設定をリセット"
+NVIM_I18N[ja:mc_confirm_reset]="管理対象の Neovim 設定をリセットしますか?(バックアップ後、kit 管理ファイルを削除)"
+NVIM_I18N[ja:mc_mode_takeover]="モード:takeover — kit がこの設定を所有"
+NVIM_I18N[ja:mc_mode_overlay]="モード:overlay — after/plugin"
+NVIM_I18N[ja:mc_plugins_distro_only]="ここのプラグインは distro/あなたの設定が所有 — kit は options/keymaps/colorscheme のみ重ねます。"
+NVIM_I18N[ja:mc_add_plugin]="プラグインを追加(owner/repo か git-url)…"
+NVIM_I18N[ja:mc_prompt_plugin]="プラグイン(owner/repo か https git URL)"
+NVIM_I18N[ja:mc_prompt_leader]="leader キー(1 文字、または 'space')"
+NVIM_I18N[ja:mc_pick_colorscheme]="内蔵 colorscheme を選択"
+NVIM_I18N[ja:mc_node_hint]="Node が見つかりません — Node が必要な Mason LSP server には:swkit node install"
 
 # _nvim_t KEY — localized Neovim string for $UI_LANG (en/zh/ja), fallback en -> key.
 _nvim_t() {
@@ -148,7 +236,7 @@ key=nvim
 name=Neovim
 category=common
 ops=install,remove,configure,update,update-plugins
-desc=Neovim editor — best-channel install (apt/tarball/snap), curated distros (LazyVim/kickstart…), lazy.nvim plugin sync
+desc=Neovim editor — best-channel install (apt/tarball/snap), curated distros (LazyVim/kickstart…), lazy.nvim plugin sync, and a managed config layer (options/keymaps/colorscheme/plugins)
 META
 }
 
@@ -761,6 +849,423 @@ do_set_default_editor() {
   esac
 }
 
+# --- Managed config layer: helpers + generators + ops --------------------------
+# All user-space (no sudo). nvim.conf keys: CFG_OPTIONS/CFG_KEYMAPS (on|off), CFG_LEADER,
+# CFG_COLORSCHEME, CFG_PLUGINS (space list of curated keys), CFG_LSP (on|off), EXTRA_PLUGIN_<slug>,
+# MANAGED_MODE_<appname> (takeover|overlay — the mode lock).
+
+# Remove a key from nvim.conf (a missing file/key is a no-op).
+_nvim_conf_unset() {
+  local key="$1" tmp
+  [[ -f "${_NV_PREF:-}" ]] || return 0
+  tmp="$(mktemp)"
+  grep -vE "^$key=" "$_NV_PREF" >"$tmp" 2>/dev/null || true
+  mv "$tmp" "$_NV_PREF" || { rm -f "$tmp"; return 1; }
+}
+# Add / remove a token in a space-separated list value (idempotent).
+_nvim_cfg_list_add() {
+  local key="$1" tok="$2" cur new w
+  cur="$(_nvim_conf_get "$key")"
+  for w in $cur; do [[ "$w" == "$tok" ]] && return 0; done
+  new="${cur:+$cur }$tok"
+  _nvim_conf_set "$key" "$new"
+}
+_nvim_cfg_list_remove() {
+  local key="$1" tok="$2" cur new="" w
+  cur="$(_nvim_conf_get "$key")"
+  for w in $cur; do [[ "$w" == "$tok" ]] || new="${new:+$new }$w"; done
+  _nvim_conf_set "$key" "$new"
+}
+
+# --- Validators (block injection into the generated Lua / conf keys) ------------
+# Leader: the word 'space' or a single safe char (excludes " \ $ ` ( ) * | & ; < > and whitespace).
+_nvim_leader_valid() {
+  [[ "$1" == space ]] && return 0
+  local re='^[A-Za-z0-9,:./_-]$'
+  [[ "$1" =~ $re ]]
+}
+# Built-in colorscheme name (loose; emitted into a Lua double-quoted string).
+_nvim_colorscheme_valid() { [[ "$1" =~ ^[A-Za-z0-9_-]+$ ]]; }
+# A conf-key-safe slug for an arbitrary plugin spec (owner/repo or git URL).
+_nvim_plugin_slug() { printf '%s' "$1" | tr -c 'A-Za-z0-9' '_'; }
+# Echo non-curated plugin specs recorded as EXTRA_PLUGIN_<slug>=<owner/repo|giturl>, one per line.
+_nvim_extra_plugins() {
+  [[ -f "${_NV_PREF:-}" ]] || return 0
+  grep -E '^EXTRA_PLUGIN_[A-Za-z0-9_]+=' "$_NV_PREF" 2>/dev/null | cut -d= -f2- || true
+}
+# True iff the takeover config should bootstrap lazy.nvim (any plugin requested).
+_nvim_has_plugins() {
+  [[ -n "$(_nvim_conf_get CFG_PLUGINS)" ]] && return 0
+  [[ "$(_nvim_conf_get CFG_LSP)" == on ]] && return 0
+  [[ -n "$(_nvim_extra_plugins)" ]] && return 0
+  return 1
+}
+
+# --- Config paths + mode detection ---------------------------------------------
+# The managed overlay file lives in the TOP-LEVEL after/plugin of the appname's config dir — verified
+# to be sourced last even under lazy.nvim/LazyVim (NOT lua/after/, which would need require()).
+_nvim_cfg_overlay_file() { printf '%s/%s/after/plugin/ubuntu-setup.lua' "$_NV_CFG" "$1"; }
+
+# True iff $1 is a kit-managed file (first line is our marker). Uses an exact string compare, not
+# grep — the marker begins with "--", which grep would parse as an option.
+_nvim_cfg_is_managed() {
+  local first
+  [[ -f "$1" ]] || return 1
+  IFS= read -r first <"$1" || true
+  [[ "$first" == "$NVIM_CFG_MARKER" ]]
+}
+
+# Echo 'takeover' or 'overlay' for an appname. Priority: conf lock (so a takeover never flips to
+# overlay once its init.lua makes the dir non-empty) -> kit distro (a distro owns it) -> empty
+# default nvim (eligible for takeover) -> otherwise overlay. Only the default `nvim` can take over.
+_nvim_cfg_mode() {
+  local app="${1:-nvim}" locked
+  locked="$(_nvim_conf_get "MANAGED_MODE_${app}")"
+  [[ -n "$locked" ]] && { printf '%s' "$locked"; return 0; }
+  _nvim_manifest_has "$app" && { printf 'overlay'; return 0; }
+  if [[ "$app" == nvim ]]; then
+    local d="$_NV_CFG/nvim"
+    if [[ ! -d "$d" ]] || [[ -z "$(ls -A "$d" 2>/dev/null || true)" ]]; then printf 'takeover'; return 0; fi
+  fi
+  printf 'overlay'
+}
+
+# --- Lua generators (pure; stdout only) ----------------------------------------
+_nvim_gen_options() {
+  [[ "$(_nvim_conf_get CFG_OPTIONS)" == on ]] || return 0
+  cat <<'LUA'
+-- options (ubuntu-setup best-practice baseline)
+vim.opt.number = true
+vim.opt.relativenumber = true
+vim.opt.expandtab = true
+vim.opt.shiftwidth = 2
+vim.opt.tabstop = 2
+vim.opt.smartindent = true
+vim.opt.ignorecase = true
+vim.opt.smartcase = true
+vim.opt.termguicolors = true
+vim.opt.scrolloff = 4
+vim.opt.signcolumn = "yes"
+vim.opt.undofile = true
+vim.opt.mouse = "a"
+vim.opt.cursorline = true
+vim.opt.clipboard = "unnamedplus"
+vim.opt.splitright = true
+vim.opt.splitbelow = true
+vim.opt.wrap = false
+LUA
+}
+_nvim_gen_keymaps() {
+  [[ "$(_nvim_conf_get CFG_KEYMAPS)" == on ]] || return 0
+  cat <<'LUA'
+-- keymaps (ubuntu-setup quality-of-life; best-effort under a distro's lazy-loaded maps)
+vim.keymap.set("n", "<leader>w", "<cmd>write<cr>", { desc = "Save" })
+vim.keymap.set("n", "<leader>q", "<cmd>quit<cr>", { desc = "Quit window" })
+vim.keymap.set("n", "<Esc>", "<cmd>nohlsearch<cr>", { desc = "Clear search highlight" })
+vim.keymap.set("n", "<C-h>", "<C-w>h", { desc = "Window left" })
+vim.keymap.set("n", "<C-j>", "<C-w>j", { desc = "Window down" })
+vim.keymap.set("n", "<C-k>", "<C-w>k", { desc = "Window up" })
+vim.keymap.set("n", "<C-l>", "<C-w>l", { desc = "Window right" })
+vim.keymap.set("n", "<S-h>", "<cmd>bprevious<cr>", { desc = "Prev buffer" })
+vim.keymap.set("n", "<S-l>", "<cmd>bnext<cr>", { desc = "Next buffer" })
+LUA
+}
+# Leader (takeover only; localleader is always backslash). Validated upstream.
+_nvim_gen_leader() {
+  local l; l="$(_nvim_conf_get CFG_LEADER)"; [[ -n "$l" ]] || l="space"
+  [[ "$l" == space ]] && l=" "
+  printf 'vim.g.mapleader = "%s"\n' "$l"
+  printf 'vim.g.maplocalleader = "\\\\"\n'
+}
+_nvim_gen_colorscheme() {
+  local c; c="$(_nvim_conf_get CFG_COLORSCHEME)"
+  [[ -n "$c" ]] || return 0
+  printf 'pcall(vim.cmd.colorscheme, "%s")\n' "$c"
+}
+# lazy.nvim plugin specs from CFG_PLUGINS + CFG_LSP + EXTRA_PLUGIN_* (takeover only).
+_nvim_gen_plugin_spec() {
+  local key plugins val
+  plugins="$(_nvim_conf_get CFG_PLUGINS)"
+  for key in $plugins; do
+    case "$key" in
+      treesitter) cat <<'LUA'
+  { "nvim-treesitter/nvim-treesitter", build = ":TSUpdate", config = function()
+      require("nvim-treesitter.configs").setup({ ensure_installed = { "lua", "vim", "vimdoc", "bash" }, highlight = { enable = true }, indent = { enable = true } })
+    end },
+LUA
+        ;;
+      telescope) printf '  { "nvim-telescope/telescope.nvim", dependencies = { "nvim-lua/plenary.nvim" }, opts = {} },\n' ;;
+      gitsigns)  printf '  { "lewis6991/gitsigns.nvim", opts = {} },\n' ;;
+      which-key) printf '  { "folke/which-key.nvim", event = "VeryLazy", opts = {} },\n' ;;
+      lualine)   printf '  { "nvim-lualine/lualine.nvim", opts = {} },\n' ;;
+    esac
+  done
+  if [[ "$(_nvim_conf_get CFG_LSP)" == on ]]; then
+    cat <<'LUA'
+  { "mason-org/mason.nvim", opts = {} },
+  { "mason-org/mason-lspconfig.nvim", opts = {}, dependencies = { "mason-org/mason.nvim", "neovim/nvim-lspconfig" } },
+  { "neovim/nvim-lspconfig" },
+  { "saghen/blink.cmp", version = "1.*", opts = {} },
+LUA
+  fi
+  while IFS= read -r val; do
+    [[ -n "$val" ]] || continue
+    if [[ "$val" == *://* || "$val" == git@* ]]; then printf '  { url = "%s" },\n' "$val"
+    else printf '  { "%s" },\n' "$val"; fi
+  done < <(_nvim_extra_plugins)
+}
+
+# --- Renderers (assemble the full managed file to stdout) -----------------------
+_nvim_render_overlay() {
+  printf '%s\n' "$NVIM_CFG_MARKER"
+  cat <<'LUA'
+-- Generated by `swkit nvim` — sourced LAST (after/plugin), overriding distro/your options &
+-- colorscheme. Do NOT edit (regenerated on every change); put your own config elsewhere.
+LUA
+  _nvim_gen_options
+  _nvim_gen_keymaps
+  _nvim_gen_colorscheme
+  printf '%s\n' "$NVIM_CFG_MARKER_END"
+}
+_nvim_render_takeover() {
+  printf '%s\n' "$NVIM_CFG_MARKER"
+  cat <<'LUA'
+-- Generated by `swkit nvim` (kit owns this init.lua; regenerated on every change).
+-- Put your own customizations under ~/.config/nvim/lua/ and require them at the end.
+LUA
+  _nvim_gen_leader
+  _nvim_gen_options
+  _nvim_gen_keymaps
+  if _nvim_has_plugins; then
+    local color; color="$(_nvim_conf_get CFG_COLORSCHEME)"; [[ -n "$color" ]] || color="$NVIM_CFG_RECOMMENDED_COLOR"
+    cat <<'LUA'
+-- bootstrap lazy.nvim
+local lazypath = vim.fn.stdpath("data") .. "/lazy/lazy.nvim"
+if not (vim.uv or vim.loop).fs_stat(lazypath) then
+  local out = vim.fn.system({ "git", "clone", "--filter=blob:none", "--branch=stable", "https://github.com/folke/lazy.nvim.git", lazypath })
+  if vim.v.shell_error ~= 0 then error("Failed to clone lazy.nvim:\n" .. out) end
+end
+vim.opt.rtp:prepend(lazypath)
+require("lazy").setup({
+  spec = {
+LUA
+    _nvim_gen_plugin_spec
+    printf '  },\n  install = { colorscheme = { "%s" } },\n  checker = { enabled = false },\n})\n' "$color"
+  fi
+  _nvim_gen_colorscheme
+  printf '%s\n' "$NVIM_CFG_MARKER_END"
+}
+
+# --- Apply / reset -------------------------------------------------------------
+_nvim_apply_overlay() {
+  local app="$1" file dir tmp
+  file="$(_nvim_cfg_overlay_file "$app")"
+  dir="$(dirname "$file")"
+  _nvim_path_under_config "$file" || { log_err "Refusing to write outside ~/.config: $file"; return 1; }
+  if [[ -f "$file" ]] && ! _nvim_cfg_is_managed "$file"; then
+    log_err "$file exists but is not kit-managed — refusing to overwrite (move it aside first)."; return 1
+  fi
+  mkdir -p "$dir"
+  [[ -f "$file" ]] && backup_file "$file"
+  tmp="$(mktemp)"
+  _nvim_render_overlay >"$tmp"
+  mv "$tmp" "$file" || { rm -f "$tmp"; return 1; }
+  _nvim_conf_set "MANAGED_MODE_${app}" overlay
+  log_info "Wrote managed overlay: $file"
+  log_info "Sourced after all plugins; restart nvim${app:+ (NVIM_APPNAME=$app)} to apply."
+  _nvim_has_plugins && log_warn "Plugins/LSP are configured but IGNORED in overlay mode — a distro/your config owns plugins here."
+  return 0
+}
+_nvim_apply_takeover() {
+  local dir="$_NV_CFG/nvim" file="$_NV_CFG/nvim/init.lua" tmp
+  _nvim_path_under_config "$dir" || { log_err "Refusing to write outside ~/.config: $dir"; return 1; }
+  if [[ -f "$file" ]] && ! _nvim_cfg_is_managed "$file"; then
+    log_err "$file exists and is not kit-managed — refusing to take it over (use an isolated appname or move it aside)."; return 1
+  fi
+  # Defensive: a non-empty, non-managed dir would normally be detected as overlay; back it up if we
+  # somehow reach takeover here.
+  if [[ ! -f "$file" ]] && [[ -d "$dir" ]] && [[ -n "$(ls -A "$dir" 2>/dev/null || true)" ]]; then
+    _nvim_backup_dir "$dir"
+  fi
+  mkdir -p "$dir"
+  [[ -f "$file" ]] && backup_file "$file"
+  tmp="$(mktemp)"
+  _nvim_render_takeover >"$tmp"
+  mv "$tmp" "$file" || { rm -f "$tmp"; return 1; }
+  _nvim_conf_set MANAGED_MODE_nvim takeover
+  log_info "Wrote kit-managed init.lua: $file"
+  if _nvim_has_plugins; then
+    if _nvim_installed_ok; then
+      _nvim_sync nvim sync || log_warn "Plugin sync did not complete — re-run: ${0##*/} sync-plugins."
+    else
+      log_info "Neovim is missing or older than ${NVIM_MIN_VERSION} — installing/upgrading it first…"
+      do_install
+      if _nvim_installed_ok; then
+        _nvim_sync nvim sync || log_warn "Plugin sync did not complete — re-run: ${0##*/} sync-plugins."
+      else
+        log_warn "Could not get Neovim >= ${NVIM_MIN_VERSION} automatically — sync later with: ${0##*/} sync-plugins."
+      fi
+    fi
+    have_cmd node || log_info "$(_nvim_t mc_node_hint)"
+    if ! { have_cmd cc || have_cmd gcc; } || ! have_cmd rg; then
+      log_warn "Curated plugins need external deps (a C compiler for treesitter, ripgrep/fd for telescope). Run: ${0##*/} ensure-deps"
+    fi
+  fi
+  log_info "Launch it with:  nvim"
+  return 0
+}
+
+# Worker: regenerate the managed file for appname $1 in its detected mode. Setters call this with
+# an explicit appname; the config-apply op parses --app then delegates here.
+_nvim_config_apply() {
+  local app="${1:-nvim}"
+  _nvim_resolve_home || return 1
+  _nvim_name_valid "$app" || { log_err "Invalid appname: $app (letters/digits/._- only)."; return 2; }
+  if [[ "$(_nvim_cfg_mode "$app")" == takeover ]]; then _nvim_apply_takeover; else _nvim_apply_overlay "$app"; fi
+}
+# config-apply [--app <name>] — regenerate the managed file for the appname's detected mode.
+do_config_apply() {
+  local app="nvim"
+  while (( $# > 0 )); do
+    case "$1" in
+      --app)   [[ $# -ge 2 ]] || { log_err "--app needs a name."; return 2; }; app="$2"; shift 2 ;;
+      --app=*) app="${1#--app=}"; shift ;;
+      *) log_err "Unknown config-apply option: $1"; return 2 ;;
+    esac
+  done
+  _nvim_config_apply "$app"
+}
+
+# config-reset [--app <name>] — remove kit-managed files + clear the component state (keeps backups).
+do_config_reset() {
+  _nvim_resolve_home || return 1
+  local app="nvim"
+  while (( $# > 0 )); do
+    case "$1" in
+      --app)   [[ $# -ge 2 ]] || { log_err "--app needs a name."; return 2; }; app="$2"; shift 2 ;;
+      --app=*) app="${1#--app=}"; shift ;;
+      *) log_err "Unknown config-reset option: $1"; return 2 ;;
+    esac
+  done
+  _nvim_name_valid "$app" || { log_err "Invalid appname: $app."; return 2; }
+  if [[ "$(_nvim_cfg_mode "$app")" == takeover ]]; then
+    local dir="$_NV_CFG/nvim" file="$_NV_CFG/nvim/init.lua"
+    if _nvim_cfg_is_managed "$file"; then
+      _nvim_path_under_config "$dir" || { log_err "Refusing to touch outside ~/.config: $dir"; return 1; }
+      _nvim_backup_dir "$dir"
+      rm -rf "${_NV_DATA:?}/nvim/lazy" 2>/dev/null || true
+      log_info "Removed kit-managed init.lua (backed up the config dir aside)."
+    else
+      log_info "No kit-managed init.lua at $file — nothing to reset."
+    fi
+  else
+    local file; file="$(_nvim_cfg_overlay_file "$app")"
+    if _nvim_cfg_is_managed "$file"; then
+      _nvim_path_under_config "$file" || { log_err "Refusing to remove outside ~/.config: $file"; return 1; }
+      backup_file "$file"; rm -f "$file"
+      log_info "Removed managed overlay: $file (a backup was kept)."
+    else
+      log_info "No kit-managed overlay for appname '$app' — nothing to reset."
+    fi
+  fi
+  _nvim_conf_unset "MANAGED_MODE_${app}"
+  # Clear the component prefs for a clean slate.
+  local k
+  for k in CFG_OPTIONS CFG_KEYMAPS CFG_LEADER CFG_COLORSCHEME CFG_PLUGINS CFG_LSP; do _nvim_conf_unset "$k"; done
+  if [[ -f "${_NV_PREF:-}" ]]; then
+    local tmp; tmp="$(mktemp)"
+    grep -vE '^EXTRA_PLUGIN_' "$_NV_PREF" >"$tmp" 2>/dev/null || true
+    mv "$tmp" "$_NV_PREF" || rm -f "$tmp"
+  fi
+}
+
+# --- Component setters (each persists state, then re-applies) -------------------
+do_set_options() {
+  _nvim_resolve_home || return 1
+  local v="${1:-on}"; case "$v" in on|off) ;; *) log_err "set-options takes on|off."; return 2 ;; esac
+  _nvim_conf_set CFG_OPTIONS "$v"; _nvim_config_apply nvim
+}
+do_set_keymaps() {
+  _nvim_resolve_home || return 1
+  local v="${1:-on}"; case "$v" in on|off) ;; *) log_err "set-keymaps takes on|off."; return 2 ;; esac
+  _nvim_conf_set CFG_KEYMAPS "$v"; _nvim_config_apply nvim
+}
+do_set_leader() {
+  _nvim_resolve_home || return 1
+  local l="${1:-}"; [[ -n "$l" ]] || { log_err "Usage: ${0##*/} set-leader <char|space>"; return 2; }
+  _nvim_leader_valid "$l" || { log_err "Invalid leader: $l (a single safe char, or the word 'space')."; return 2; }
+  _nvim_conf_set CFG_LEADER "$l"
+  log_info "Leader set to '${l}' — takes effect in kit-owned (takeover) configs; a distro keeps its own leader."
+  _nvim_config_apply nvim
+}
+do_set_colorscheme() {
+  _nvim_resolve_home || return 1
+  local c="${1-}"
+  [[ -z "$c" ]] || _nvim_colorscheme_valid "$c" || { log_err "Invalid colorscheme name: $c (letters/digits/_-)."; return 2; }
+  _nvim_conf_set CFG_COLORSCHEME "$c"; _nvim_config_apply nvim
+}
+# set-cfg-plugins "<space list of curated keys>" — replace the curated set (takeover only).
+do_set_cfg_plugins() {
+  _nvim_resolve_home || return 1
+  [[ "$(_nvim_cfg_mode nvim)" == takeover ]] || { log_err "Plugins are only managed for a kit-owned (bare-nvim) config — a distro owns plugins here."; return 1; }
+  local list="${1-}" k clean=""
+  for k in $list; do
+    [[ -n "${NVIM_PLUGIN_REPO[$k]:-}" ]] || { log_err "Unknown curated plugin: $k (curated: ${NVIM_PLUGIN_ORDER}; add others with add-plugin)."; return 2; }
+    clean="${clean:+$clean }$k"
+  done
+  _nvim_conf_set CFG_PLUGINS "$clean"; _nvim_config_apply nvim
+}
+do_add_plugin() {
+  _nvim_resolve_home || return 1
+  local arg="${1:-}"; [[ -n "$arg" ]] || { log_err "Usage: ${0##*/} add-plugin <key|owner/repo|git-url>"; return 2; }
+  [[ "$(_nvim_cfg_mode nvim)" == takeover ]] || { log_err "Plugins are only managed for a kit-owned (bare-nvim) config. A distro owns plugins here — add it the distro's way, or 'swkit nvim install-distro'."; return 1; }
+  if [[ -n "${NVIM_PLUGIN_REPO[$arg]:-}" ]]; then
+    _nvim_cfg_list_add CFG_PLUGINS "$arg"
+  elif [[ "$arg" =~ ^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$ ]] || _nvim_giturl_valid "$arg"; then
+    _nvim_conf_set "EXTRA_PLUGIN_$(_nvim_plugin_slug "$arg")" "$arg"
+  else
+    log_err "Invalid plugin: $arg (use a curated key, owner/repo, or an https/ssh git URL)."; return 2
+  fi
+  _nvim_config_apply nvim
+}
+do_remove_plugin() {
+  _nvim_resolve_home || return 1
+  local arg="${1:-}"; [[ -n "$arg" ]] || { log_err "Usage: ${0##*/} remove-plugin <key|owner/repo|git-url>"; return 2; }
+  [[ "$(_nvim_cfg_mode nvim)" == takeover ]] || { log_err "Plugins are only managed for a kit-owned (bare-nvim) config here."; return 1; }
+  if [[ -n "${NVIM_PLUGIN_REPO[$arg]:-}" ]]; then
+    _nvim_cfg_list_remove CFG_PLUGINS "$arg"
+  else
+    _nvim_conf_unset "EXTRA_PLUGIN_$(_nvim_plugin_slug "$arg")"
+  fi
+  _nvim_config_apply nvim
+}
+do_enable_lsp() {
+  _nvim_resolve_home || return 1
+  local v="${1:-on}"; case "$v" in on|off) ;; *) log_err "enable-lsp takes on|off."; return 2 ;; esac
+  [[ "$(_nvim_cfg_mode nvim)" == takeover ]] || { log_err "LSP plugins are only managed for a kit-owned (bare-nvim) config — a distro owns LSP here."; return 1; }
+  _nvim_conf_set CFG_LSP "$v"
+  [[ "$v" == on ]] && ! have_cmd node && log_info "$(_nvim_t mc_node_hint)"
+  _nvim_config_apply nvim
+}
+
+# config --config-recommended: enable options+keymaps+colorscheme; if takeover, add curated plugins
+# + LSP + deps. Independent of `--recommended` (which installs LazyVim, untouched).
+_nvim_config_recommended() {
+  _nvim_resolve_home || return 1
+  _nvim_conf_set CFG_OPTIONS on
+  _nvim_conf_set CFG_KEYMAPS on
+  [[ -n "$(_nvim_conf_get CFG_COLORSCHEME)" ]] || _nvim_conf_set CFG_COLORSCHEME "$NVIM_CFG_RECOMMENDED_COLOR"
+  if [[ "$(_nvim_cfg_mode nvim)" == takeover ]]; then
+    _nvim_conf_set CFG_PLUGINS "$NVIM_PLUGIN_RECOMMENDED"
+    _nvim_conf_set CFG_LSP on
+    _nvim_installed_ok || do_install
+    _nvim_ensure_deps
+  else
+    log_info "A distro/your config owns plugins here — applying the options/keymaps/colorscheme overlay only."
+  fi
+  _nvim_config_apply nvim
+}
+
 # --- Configure -----------------------------------------------------------------
 # With NO flags: the conservative baseline = just ensure the Neovim binary is present (no distro,
 # no editor change, no extra deps). Flags layer on; --recommended is the one-shot full setup.
@@ -783,6 +1288,20 @@ do_configure() {
       --editor)   [[ $# -ge 2 ]] || { log_err "--editor needs on|off."; return 2; }; do_set_default_editor "$2"; shift 2 ;;
       --editor=*) do_set_default_editor "${1#--editor=}"; shift ;;
       --deps)     _nvim_ensure_deps; shift ;;
+      # --- Managed config layer (independent of --recommended / distros) ---
+      --config-recommended) _nvim_config_recommended; shift ;;
+      --options)      [[ $# -ge 2 ]] || { log_err "--options needs on|off."; return 2; }; do_set_options "$2"; shift 2 ;;
+      --options=*)    do_set_options "${1#--options=}"; shift ;;
+      --keymaps)      [[ $# -ge 2 ]] || { log_err "--keymaps needs on|off."; return 2; }; do_set_keymaps "$2"; shift 2 ;;
+      --keymaps=*)    do_set_keymaps "${1#--keymaps=}"; shift ;;
+      --leader)       [[ $# -ge 2 ]] || { log_err "--leader needs a key."; return 2; }; do_set_leader "$2"; shift 2 ;;
+      --leader=*)     do_set_leader "${1#--leader=}"; shift ;;
+      --colorscheme)  [[ $# -ge 2 ]] || { log_err "--colorscheme needs a name."; return 2; }; do_set_colorscheme "$2"; shift 2 ;;
+      --colorscheme=*) do_set_colorscheme "${1#--colorscheme=}"; shift ;;
+      --cfg-plugins)  [[ $# -ge 2 ]] || { log_err "--cfg-plugins needs a space list."; return 2; }; do_set_cfg_plugins "$2"; shift 2 ;;
+      --cfg-plugins=*) do_set_cfg_plugins "${1#--cfg-plugins=}"; shift ;;
+      --lsp)          [[ $# -ge 2 ]] || { log_err "--lsp needs on|off."; return 2; }; do_enable_lsp "$2"; shift 2 ;;
+      --lsp=*)        do_enable_lsp "${1#--lsp=}"; shift ;;
       -h|--help)  usage; return 0 ;;
       *) log_err "Unknown configure option: $1"; usage; return 2 ;;
     esac
@@ -837,13 +1356,49 @@ ui() {
       local ebadge; if (( editor_on )); then ebadge="$(ui_badge on)"; else ebadge="$(ui_badge off)"; fi
       dkind+=(editor); did+=(editor); dlabel+=("$ebadge $(_nvim_t default_editor)")
       dkind+=(spacer); did+=(""); dlabel+=("")
+
+      # ---- Managed config layer (options / keymaps / colorscheme / plugins) ----
+      local cfgmode opt_on=0 km_on=0 lsp_on=0 cfg_color cfg_leader cfg_plugins w
+      cfgmode="$(_nvim_cfg_mode nvim)"
+      [[ "$(_nvim_conf_get CFG_OPTIONS)" == on ]] && opt_on=1
+      [[ "$(_nvim_conf_get CFG_KEYMAPS)" == on ]] && km_on=1
+      [[ "$(_nvim_conf_get CFG_LSP)" == on ]] && lsp_on=1
+      cfg_color="$(_nvim_conf_get CFG_COLORSCHEME)"
+      cfg_leader="$(_nvim_conf_get CFG_LEADER)"; [[ -n "$cfg_leader" ]] || cfg_leader="space"
+      cfg_plugins="$(_nvim_conf_get CFG_PLUGINS)"
+      dkind+=(header); did+=(""); dlabel+=("$(_nvim_t managed_config)")
+      local modetxt; if [[ "$cfgmode" == takeover ]]; then modetxt="$(_nvim_t mc_mode_takeover)"; else modetxt="$(_nvim_t mc_mode_overlay)"; fi
+      dkind+=(info); did+=(""); dlabel+=("  ${UI_MUTED}${modetxt}${UI_OFF}")
+      local ob; if (( opt_on )); then ob="$(ui_badge on)"; else ob="$(ui_badge off)"; fi
+      dkind+=(mcopts); did+=(mcopts); dlabel+=("$ob $(_nvim_t mc_options)")
+      local kb; if (( km_on )); then kb="$(ui_badge on)"; else kb="$(ui_badge off)"; fi
+      dkind+=(mckeys); did+=(mckeys); dlabel+=("$kb $(_nvim_t mc_keymaps)")
+      dkind+=(mcleader); did+=(mcleader); dlabel+=("  $(_nvim_t mc_leader): ${UI_INFO}${cfg_leader}${UI_OFF}")
+      dkind+=(mccolor); did+=(mccolor); dlabel+=("  $(_nvim_t mc_colorscheme): ${UI_INFO}${cfg_color:-—}${UI_OFF}")
+      if [[ "$cfgmode" == takeover ]]; then
+        local cp pb instok
+        for cp in $NVIM_PLUGIN_ORDER; do
+          instok=0; for w in $cfg_plugins; do [[ "$w" == "$cp" ]] && { instok=1; break; }; done
+          if (( instok )); then pb="$(ui_badge installed)"; else pb="$(ui_badge missing)"; fi
+          dkind+=(cfgplugin); did+=("$cp"); dlabel+=("$pb $cp")
+        done
+        local lb; if (( lsp_on )); then lb="$(ui_badge on)"; else lb="$(ui_badge off)"; fi
+        dkind+=(mclsp); did+=(mclsp); dlabel+=("$lb $(_nvim_t mc_lsp)")
+        dkind+=(mcaddplugin); did+=(mcaddplugin); dlabel+=("$UI_ARROW $(_nvim_t mc_add_plugin)")
+      else
+        dkind+=(info); did+=(""); dlabel+=("  ${UI_MUTED}$(_nvim_t mc_plugins_distro_only)${UI_OFF}")
+      fi
+      dkind+=(mcapply); did+=(mcapply); dlabel+=("$(ui_badge check) $(_nvim_t mc_apply_recommended)")
+      dkind+=(mcreset); did+=(mcreset); dlabel+=("${UI_ERR}${UI_CROSS}${UI_OFF} $(_nvim_t mc_reset)")
+      dkind+=(spacer); did+=(""); dlabel+=("")
+
       dkind+=(recommended); did+=(recommended); dlabel+=("$(ui_badge check) $(_nvim_t apply_recommended)")
       dkind+=(remove); did+=(remove); dlabel+=("${UI_ERR}${UI_CROSS}${UI_OFF} $(ui_t remove) Neovim")
     fi
     local n=${#dkind[@]}
     (( sel < 0 )) && sel=0; (( sel >= n )) && sel=$(( n - 1 ))
-    case "${dkind[$sel]}" in spacer|header)
-      for (( g=0; g<n; g++ )); do sel=$(( (sel+1)%n )); case "${dkind[$sel]}" in spacer|header) ;; *) break ;; esac; done ;;
+    case "${dkind[$sel]}" in spacer|header|info)
+      for (( g=0; g<n; g++ )); do sel=$(( (sel+1)%n )); case "${dkind[$sel]}" in spacer|header|info) ;; *) break ;; esac; done ;;
     esac
 
     # ---- render ----
@@ -855,6 +1410,7 @@ ui() {
       case "${dkind[$i]}" in
         spacer) : ;;
         header) ui_move "$row" 2; printf '\033[K%s%s%s' "$UI_ACCENT$UI_BOLD" "${dlabel[$i]}" "$UI_OFF" >&"$_UI_FD" ;;
+        info)   ui_move "$row" 2; printf '\033[K%s' "${dlabel[$i]}" >&"$_UI_FD" ;;
         *)      ui_row "$row" "$i" "$sel" "${dlabel[$i]}" ;;
       esac
       (( row++ ))
@@ -864,8 +1420,8 @@ ui() {
     # ---- input ----
     ui_read_key
     case "$UI_KEY" in
-      up|k)   for (( g=0; g<n; g++ )); do sel=$(( (sel-1+n)%n )); case "${dkind[$sel]}" in spacer|header) ;; *) break ;; esac; done ;;
-      down|j) for (( g=0; g<n; g++ )); do sel=$(( (sel+1)%n ));   case "${dkind[$sel]}" in spacer|header) ;; *) break ;; esac; done ;;
+      up|k)   for (( g=0; g<n; g++ )); do sel=$(( (sel-1+n)%n )); case "${dkind[$sel]}" in spacer|header|info) ;; *) break ;; esac; done ;;
+      down|j) for (( g=0; g<n; g++ )); do sel=$(( (sel+1)%n ));   case "${dkind[$sel]}" in spacer|header|info) ;; *) break ;; esac; done ;;
       enter|space)
         case "${dkind[$sel]}" in
           install)     ui_run "$(ui_t install) Neovim" -- "$0" install ;;
@@ -891,6 +1447,31 @@ ui() {
           editor)
             if (( editor_on )); then ui_run "default editor off" -- "$0" set-default-editor off
             else ui_run "default editor on" -- "$0" set-default-editor; fi ;;
+          mcopts)  if (( opt_on )); then ui_run "options off" -- "$0" set-options off; else ui_run "options on" -- "$0" set-options on; fi ;;
+          mckeys)  if (( km_on )); then ui_run "keymaps off" -- "$0" set-keymaps off; else ui_run "keymaps on" -- "$0" set-keymaps on; fi ;;
+          mcleader)
+            if ui_input "$(_nvim_t mc_prompt_leader)" "$cfg_leader" && [[ -n "$UI_INPUT" ]]; then
+              ui_run "set-leader $UI_INPUT" -- "$0" set-leader "$UI_INPUT"
+            fi ;;
+          mccolor)
+            local -a copts=() cc
+            for cc in $NVIM_BUILTIN_COLORS; do copts+=("$cc" "$cc"); done
+            copts+=("" "(none / clear)")
+            if ui_pick "$(_nvim_t mc_pick_colorscheme)" "" "" -- "${copts[@]}"; then
+              ui_run "set-colorscheme ${UI_PICK:-clear}" -- "$0" set-colorscheme "$UI_PICK"
+            fi ;;
+          cfgplugin)
+            local pk="${did[$sel]}" has=0
+            for w in $cfg_plugins; do [[ "$w" == "$pk" ]] && { has=1; break; }; done
+            if (( has )); then ui_run "remove-plugin $pk" -- "$0" remove-plugin "$pk"
+            else ui_run "add-plugin $pk" -- "$0" add-plugin "$pk"; fi ;;
+          mclsp)   if (( lsp_on )); then ui_run "lsp off" -- "$0" enable-lsp off; else ui_run "lsp on" -- "$0" enable-lsp on; fi ;;
+          mcaddplugin)
+            if ui_input "$(_nvim_t mc_prompt_plugin)" "" && [[ -n "$UI_INPUT" ]]; then
+              ui_run "add-plugin $UI_INPUT" -- "$0" add-plugin "$UI_INPUT"
+            fi ;;
+          mcapply) ui_run "$(_nvim_t mc_apply_recommended)" -- "$0" configure --config-recommended ;;
+          mcreset) ui_confirm "$(_nvim_t mc_confirm_reset)" n && ui_run "$(_nvim_t mc_reset)" -- "$0" config-reset ;;
           recommended) ui_run "$(_nvim_t apply_recommended)" -- "$0" configure --recommended ;;
           remove)      ui_confirm "$(_nvim_t confirm_remove)" n && ui_run "$(ui_t remove) Neovim" -- "$0" remove ;;
         esac ;;
@@ -915,6 +1496,14 @@ Commands:
                             --distro <name>       install a curated/extra distro
                             --editor on|off       set/unset nvim as EDITOR/VISUAL
                             --deps                install external deps only
+                            --- managed config layer (independent of --recommended / distros) ---
+                            --config-recommended  options+keymaps+colorscheme (+ bare-nvim: plugins+LSP)
+                            --options on|off      best-practice editor options baseline
+                            --keymaps on|off      leader + quality-of-life keymaps
+                            --leader <char|space> leader key (takeover only; a distro keeps its own)
+                            --colorscheme <name>  a built-in colorscheme ("" clears)
+                            --cfg-plugins "<keys>" curated plugins (bare-nvim only): ${NVIM_PLUGIN_ORDER// /, }
+                            --lsp on|off          LSP group (lspconfig+Mason+blink.cmp; bare-nvim only)
   update-plugins [app]    lazy.nvim update for NVIM_APPNAME (default: nvim)
   install-distro <name> [app]   Clone a distro (curated: ${NVIM_DISTRO_ORDER// /, }; or an added name);
                             smart default appname (take over an empty ~/.config/nvim, else nvim-<name>)
@@ -922,6 +1511,19 @@ Commands:
   add-distro <name> <url> Register an extra distro git-url for install-distro
   sync-plugins [app]      lazy.nvim sync for NVIM_APPNAME (default: nvim)
   clean-plugins [app]     lazy.nvim clean for NVIM_APPNAME (default: nvim)
+  --- managed config layer (the kit's own options/keymaps/colorscheme/plugins) ---
+  config-apply [--app N]  (Re)generate the managed config: a takeover init.lua for an empty
+                            ~/.config/nvim, else an after/plugin overlay (sourced last, never edits
+                            distro Lua). --app targets an isolated distro (e.g. nvim-lazyvim).
+  config-reset [--app N]  Remove the kit-managed config files + state (keeps timestamped backups)
+  set-options on|off      Toggle the editor options baseline, then re-apply
+  set-keymaps on|off      Toggle the keymaps, then re-apply
+  set-leader <char|space> Set the leader key (takeover only), then re-apply
+  set-colorscheme <name>  Set a built-in colorscheme ("" clears), then re-apply
+  set-cfg-plugins "<keys>"      Replace the curated plugin set (bare-nvim takeover only)
+  add-plugin <key|owner/repo|git-url>   Add a curated/any plugin (bare-nvim takeover only)
+  remove-plugin <key|...> Remove a plugin (bare-nvim takeover only)
+  enable-lsp on|off       Toggle the LSP group (bare-nvim takeover only)
   set-default-editor [off]      Set (or, with 'off', unset) nvim as EDITOR/VISUAL + system editor
   ensure-deps             Install external deps (git curl build-essential ripgrep fd-find + Nerd Font)
   status                  Print version + channel + distro count; exit code 0 iff Neovim installed

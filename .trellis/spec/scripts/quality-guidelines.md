@@ -49,6 +49,21 @@ _where_note() { if _in_ssh; then log_warn "$(_t ssh_note)"; fi; }  # 非 SSH 返
 
 规则:**任何可能为假的条件式,若会落在某 `do_*` 函数末尾,用 `if…then…fi`(或显式 `return 0`),绝不用裸 `&&`。** 见 `cursor.sh`/`obsidian.sh` 的 `_*_where_note`。
 
+## Gotcha:`grep -F "$marker"` 当 marker 以 `-`/`--` 开头(注释式受管标记)
+
+写受管文件时常用「首行 marker + `grep -qF "$marker"` 判归属」。但若 marker 是**注释**且注释符以 `-` 开头(lua `--`、sql `--`),`grep -qF "$marker"` 会把整串当**选项**解析 → `grep: unrecognized option '-- >>> …'` 报错(退出码 2)。这在 `bash -n`/`shellcheck`/单次写入(文件尚不存在、grep 分支没跑)下**全绿**,只在**二次写入/复位**(文件已存在、走 grep 分支)才暴露——典型「静态过、真跑挂」。本仓 `nvim.sh` 的 lua marker `-- >>> ubuntu-setup …` 踩过:首次 takeover 写成功,但 `enable-lsp`/`set-colorscheme` 的二次 apply 与 `config-reset` 的 grep 全部静默失败。
+
+规则:**判归属用精确首行比较,别 grep**(marker 可能以 `-` 开头时尤其):
+
+```bash
+# Wrong: marker 以 -- 开头 → grep 当选项 → 报错
+head -n1 "$f" | grep -qF "$MARKER"
+# Correct: 读首行精确比较(零 grep)
+_is_managed() { local first; [[ -f "$1" ]] || return 1; IFS= read -r first <"$1" || true; [[ "$first" == "$MARKER" ]]; }
+```
+
+若非用 grep 不可,加 `--` 终止选项:`grep -qF -- "$MARKER"`(或 `grep -qFe "$MARKER"`)。同理 zsh/go 等写 `export`/`alias` 开头的 rc 行不受影响(不以 `-` 开头),改用 `--` 注释符语言的受管块时要警惕。见 `nvim.sh` 的 `_nvim_cfg_is_managed`。
+
 ## 贡献者工作流
 
 1. `cp scripts/TEMPLATE.sh scripts/<key>.sh`,保留结构。
