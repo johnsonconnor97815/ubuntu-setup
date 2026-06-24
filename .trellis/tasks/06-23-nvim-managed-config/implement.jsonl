@@ -1,0 +1,5 @@
+{"file": ".trellis/tasks/06-23-nvim-managed-config/research/after-plugin-load-order.md", "reason": "承重机制查证:lazy.nvim/LazyVim 下 after/plugin 仍被 source、rtp.reset 保留 config/after、leader 须早设、blink bootstrap 片段——overlay 与 takeover 设计直接依据"}
+{"file": ".trellis/spec/scripts/unified-interface.md", "reason": "统一接口契约:meta/ops、kit_dispatch 路由带参 op、渠道优先级——新 op 必须遵守"}
+{"file": ".trellis/spec/scripts/idempotency.md", "reason": "幂等纪律:status 闸门、改前 backup、收敛重写、重跑安全——config-apply/reset 须满足"}
+{"file": ".trellis/spec/scripts/ui-conventions.md", "reason": "ui() 约定:入口模式非 op、三档降级、ui_run 跑状态变更——新增 Managed config 分组须遵守"}
+{"file": ".trellis/spec/lib/safety-contract.md", "reason": "5 条不可妥协项:用户态/拒 sudo 包裹、不自动装 Node、不 sudo npm、fail-fast"}

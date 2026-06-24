@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/scripts/quality-guidelines.md", "reason": "校验门:bash -n、shellcheck -x、脚本自测、伪终端冒烟、set -e 退出码 gotcha——check 阶段据此核查"}
+{"file": ".trellis/spec/scripts/unified-interface.md", "reason": "核查 meta.ops 与实现一致、ui 非 op、带参 op 不进 ops"}
+{"file": ".trellis/spec/scripts/idempotency.md", "reason": "核查幂等:重跑零变化、改前 backup、无参 configure 不写受管文件"}
+{"file": ".trellis/spec/lib/safety-contract.md", "reason": "核查 5 条不可妥协项:无 sudo、不自动 Node、不 sudo npm、路径护栏、fail-fast"}
+{"file": ".trellis/tasks/06-23-nvim-managed-config/research/after-plugin-load-order.md", "reason": "核查 overlay/takeover 是否符合查证的加载机制(after/plugin 顶层、leader 早设、appname 路径)"}
