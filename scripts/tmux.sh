@@ -648,6 +648,62 @@ _tmux_run_clean_plugins() {
   "$_TPM_DIR/bin/clean_plugins" || log_warn "TPM clean reported a problem (see above)."
 }
 
+# Delete a single plugin clone directory under $_TPLUGDIR — kit-owned, deterministic, needs NO
+# running tmux server (TPM's clean_plugins resolves the plugin dir from a server env var and uses
+# substring matching; both bite us — see do_remove_plugin / do_theme). Path guard mirrors
+# android.sh _android_path_safe_under_home / nvim.sh _nvim_path_under_config, anchored at the
+# plugin dir: non-empty; not a symlink (rm wouldn't follow it but realpath could escape); no '..';
+# canonical, strictly UNDER $_TPLUGDIR, never the dir itself, never 'tpm'. Absent dir = idempotent
+# no-op. A refusal/failure only warns (fail-safe) and returns non-zero; never aborts the caller.
+_tmux_remove_clone_dir() {
+  local path="${1:-}" target base
+  [[ -n "$path" ]] || { log_warn "Refusing to remove an empty plugin path."; return 1; }
+  [[ -n "${_TPLUGDIR:-}" ]] || { log_warn "Plugin dir unresolved — refusing to remove."; return 1; }
+  [[ -d "$path" ]] || return 0
+  if [[ -L "$path" ]]; then log_warn "Refusing to remove a symlinked plugin path: $path"; return 1; fi
+  case "$path" in *..*) log_warn "Refusing to remove a path containing '..': $path"; return 1 ;; esac
+  target="$(realpath -m "$path" 2>/dev/null || true)"
+  base="$(realpath -m "$_TPLUGDIR" 2>/dev/null || true)"
+  [[ -n "$target" && -n "$base" ]] || { log_warn "Refusing to remove: could not canonicalize $path."; return 1; }
+  [[ "$target" != "$base" ]] || { log_warn "Refusing to remove the plugin directory itself: $base"; return 1; }
+  case "$target" in "$base"/*) ;; *) log_warn "Refusing to remove a path outside the plugin dir: $target"; return 1 ;; esac
+  [[ "${target##*/}" != tpm ]] || { log_warn "Refusing to remove TPM itself."; return 1; }
+  rm -rf "${target:?}" && log_info "Removed plugin clone: $target"
+}
+
+# The set of clone basenames currently DECLARED by any `set -g @plugin '...'` line in the target
+# config — kit's managed block AND the user's own declarations outside it (oh-my-tmux users keep
+# their own @plugin lines). This is the authoritative "still in use" set, so a removal never wipes
+# a clone the user still declares elsewhere. Same line-anchored match TPM uses (comment '#' lines
+# never match); strip surrounding quotes, take the spec, drop a trailing .git, print its basename.
+_tmux_declared_basenames() {
+  [[ -f "$_TCONF" ]] || return 0
+  awk '/^[ \t]*set(-option)?[ \t]+-g[ \t]+@plugin/ { gsub(/["'\'']/, ""); print $4 }' "$_TCONF" \
+    | while IFS= read -r spec; do spec="${spec%.git}"; printf '%s\n' "${spec##*/}"; done
+}
+
+# Remove the clone for one spec (curated name resolves earlier to owner/repo; arbitrary owner/repo
+# or git URL passed through), but ONLY when its basename is no longer declared anywhere in $_TCONF.
+# EXACT (whole-basename) match — this is the fix for TPM's substring false-positive where the
+# catppuccin/dracula clone dir 'tmux' matches every 'tmux-plugins/tmux-*' entry and so is never
+# cleaned. Caller must run _tmux_apply first so $_TCONF already reflects the new declared set.
+_tmux_remove_clone_if_undeclared() {
+  local spec="${1:-}" base declared
+  [[ -n "$spec" ]] || return 0
+  base="${spec##*/}"; base="${base%.git}"
+  [[ -n "$base" && "$base" != tpm ]] || return 0
+  # Capture the declared set, then test membership with a pure-bash newline-anchored case — NOT
+  # `… | grep -qxF`: under `set -o pipefail`, grep -q closes the pipe on its first match, the
+  # upstream dies with SIGPIPE (141), and pipefail makes the whole pipeline non-zero, so an early
+  # match would be misread as "not declared" and wrongly delete the clone. "$base" is quoted in
+  # the pattern so it matches literally (no glob).
+  declared="$(_tmux_declared_basenames)"
+  case $'\n'"$declared"$'\n' in
+    *$'\n'"$base"$'\n'*) return 0 ;;   # still declared somewhere — keep the clone
+  esac
+  _tmux_remove_clone_dir "$_TPLUGDIR/$base"
+}
+
 # --- Managed block generation --------------------------------------------------
 
 # Build the status-right fragment for the enabled status-bar widget plugins — the #{...}
@@ -1323,11 +1379,23 @@ do_remove_plugin() {
     log_info "Plugin '$key' is not enabled — nothing to remove."
     return 0
   fi
+  # continuum needs resurrect (see _tmux_imply_resurrect, which re-adds it on every apply). Removing
+  # resurrect while continuum is enabled would be silently undone — refuse with a clear next step
+  # instead of pretending to remove it.
+  if [[ "$key" == resurrect ]] && _tmux_list_has continuum "$PLUGINS"; then
+    log_err "'resurrect' is required by 'continuum' and would be re-enabled automatically."
+    log_err "Remove 'continuum' first:  ${0##*/} remove-plugin continuum"
+    return 2
+  fi
   local p new=""
   for p in $PLUGINS; do [[ "$p" == "$key" ]] || new="${new:+$new }$p"; done
   PLUGINS="$new"
   _tmux_apply
-  _tmux_run_clean_plugins   # drop the now-undeclared clone from ~/.tmux/plugins
+  # Precisely drop this plugin's clone (kit-owned, server-independent, exact basename match — see
+  # _tmux_remove_clone_if_undeclared). Runs after _tmux_apply so $_TCONF reflects the new declared
+  # set. Then a best-effort TPM sweep for any other stragglers (kept; non-regressive).
+  _tmux_remove_clone_if_undeclared "$(_tmux_plugin_spec "$key")"
+  _tmux_run_clean_plugins
 }
 
 do_theme() {
@@ -1337,9 +1405,19 @@ do_theme() {
   _tmux_valid_theme "$name" || { log_err "Unknown theme '$name' (none|catppuccin|dracula|themepack)."; return 2; }
   _tmux_resolve_paths || return 1
   _tmux_load_state
+  local old_theme="$THEME"
   THEME="$name"
   [[ -n "$flavor" ]] && THEME_FLAVOR="$flavor"
   _tmux_apply
+  # Drop the previous theme's clone when we actually switched away from it (do_theme never cleaned
+  # before, so theme clones piled up). _tmux_remove_clone_if_undeclared is exact + config-aware:
+  # catppuccin->none removes the 'tmux' clone, but catppuccin->dracula keeps it (both clone into a
+  # dir named 'tmux' and the new theme still declares that basename), so the just-installed theme
+  # is never wiped. _tmux_theme_spec none returns non-zero, so switching FROM none removes nothing.
+  if [[ "$old_theme" != "$name" ]]; then
+    local ospec
+    ospec="$(_tmux_theme_spec "$old_theme")" && _tmux_remove_clone_if_undeclared "$ospec"
+  fi
 }
 
 # --- UI helpers ----------------------------------------------------------------
