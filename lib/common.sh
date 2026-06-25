@@ -189,6 +189,32 @@ ensure_npm_global_bin_on_path() {
   _ensure_dir_on_path "$bin" "$line"
 }
 
+# --- Path guard (delete-before-rm safety; shared by android/nvim/tmux) ----------
+# kit_path_safe_under <path> <anchor>
+# 删除前的通用路径护栏:<path> 必须安全地位于 <anchor> 目录"严格之下"才返回 0,否则 log_warn + 返回非 0。
+# 不做任何删除;调用方在它返回 0 后再 rm。各调用方可保留自己的额外检查(如 tmux 的 basename != tpm)。
+#
+# Unifies the near-identical pre-deletion guards that lived in three scripts:
+# android.sh (_android_path_safe_under_home, anchor=$HOME), nvim.sh (_nvim_path_under_config,
+# anchor=~/.config) and tmux.sh (_tmux_remove_clone_dir, anchor=the plugin dir). Each step:
+# non-empty path/anchor; reject a symlinked path (rm wouldn't follow it, but realpath could
+# escape via a symlinked parent); reject any '..'; canonicalize both with `realpath -m`; refuse
+# the anchor itself; require the path to live STRICTLY UNDER the canonical anchor. Returns 0
+# only when safe; callers should still keep a "${VAR:?}" belt on the rm itself.
+kit_path_safe_under() {
+  local path="${1:-}" anchor="${2:-}" target base
+  [[ -n "$path" ]]   || { log_warn "Refusing to delete an empty path."; return 1; }
+  [[ -n "$anchor" ]] || { log_warn "Refusing to delete: anchor directory unresolved."; return 1; }
+  if [[ -L "$path" ]]; then log_warn "Refusing to delete a symlinked path: $path"; return 1; fi
+  case "$path" in *..*) log_warn "Refusing to delete a path containing '..': $path"; return 1 ;; esac
+  target="$(realpath -m "$path"   2>/dev/null || true)"
+  base="$(realpath -m "$anchor" 2>/dev/null || true)"
+  [[ -n "$target" && -n "$base" ]] || { log_warn "Refusing to delete: could not canonicalize $path."; return 1; }
+  [[ "$target" != "$base" ]] || { log_warn "Refusing to delete the anchor directory itself: $base"; return 1; }
+  case "$target" in "$base"/*) ;; *) log_warn "Refusing to delete a path outside $base: $target"; return 1 ;; esac
+  return 0
+}
+
 # --- Vendor apt channel (channel priority; NEVER apt-key) ----------------------
 # Helpers for scripts that need a current version from a vendor's official apt repo:
 # put the dearmored key in /etc/apt/keyrings and reference it with signed-by= in a

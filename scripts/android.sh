@@ -251,27 +251,14 @@ _android_licenses_accepted() {
 # != / ; != the real $HOME ; strictly UNDER the real $HOME. Exit 0 when safe, non-zero (with a log)
 # otherwise. Callers still keep the ${VAR:?} belt-and-suspenders on the rm itself.
 _android_path_safe_under_home() {
-  local path="$1" real_home target
+  local path="$1" real_home
   real_home="$(_android_real_home)"
-  [[ -n "$path" ]] || { log_err "Refusing to delete an empty path."; return 1; }
-  [[ -n "$real_home" ]] || { log_err "Could not resolve your home directory — refusing to delete."; return 1; }
-  # Reject a symlinked path (rm -rf would not follow it, but realpath could escape elsewhere).
-  if [[ -L "$path" ]]; then
-    log_err "Refusing to delete: $path is a symlink. Inspect and remove it manually if intended."
-    return 1
-  fi
-  target="$(realpath -m "$path" 2>/dev/null || true)"
-  [[ -n "$target" ]] || { log_err "Refusing to delete: could not canonicalize $path."; return 1; }
-  case "$target" in
-    /) log_err "Refusing to delete '/' — aborting."; return 1 ;;
-    /*) ;;
-    *) log_err "Refusing to delete a non-absolute path: $target"; return 1 ;;
-  esac
-  [[ "$target" == "$real_home" ]] && { log_err "Refusing to delete your home directory itself ($real_home)."; return 1; }
-  case "$target" in
-    "$real_home"/*) ;;   # must live strictly under the real home
-    *) log_err "Refusing to delete a path outside your home ($real_home): $target"; return 1 ;;
-  esac
+  [[ -n "$real_home" ]] || { log_warn "Could not resolve your home directory — refusing to delete."; return 1; }
+  # Delegate the rest to the shared pre-deletion guard (anchor = the real HOME): it covers
+  # non-empty path, symlinked-path rejection, '..' rejection, realpath -m canonicalization,
+  # absolute (always true under an absolute anchor), != $HOME, and strictly-UNDER $HOME — i.e.
+  # the full set android used to spell out inline. Callers keep the ${VAR:?} belt on the rm.
+  kit_path_safe_under "$path" "$real_home"
 }
 
 # --- Environment / arch probes (best-effort; honest disclosure) ----------------

@@ -580,17 +580,14 @@ _nvim_backup_dir() {
   log_info "Backed up $d -> $bak"
 }
 
-# Path guard for a managed config dir: must be a non-empty path strictly under ~/.config, with no
-# `..` escape and not equal to ~/.config itself. (Mirrors rime/android removal guards.)
+# Path guard for a managed config dir: must be a non-empty, non-symlinked path strictly under
+# ~/.config, with no `..` escape and not equal to ~/.config itself. Delegates to the shared
+# kit_path_safe_under (anchor=$_NV_CFG) so the pre-deletion guard is identical across scripts; the
+# shared version also rejects symlinks (kit's targets are real git-cloned dirs / real managed files)
+# and log_warn's on refusal. Every call site already wraps this with its own log_err+return, so the
+# extra warning only ever appears on an actual refusal, not in normal control flow.
 _nvim_path_under_config() {
-  local p="$1" real cfgreal
-  [[ -n "$p" ]] || return 1
-  case "$p" in *..*) return 1 ;; esac
-  real="$(realpath -m "$p" 2>/dev/null || true)"
-  cfgreal="$(realpath -m "$_NV_CFG" 2>/dev/null || true)"
-  [[ -n "$real" && -n "$cfgreal" ]] || return 1
-  [[ "$real" != "$cfgreal" ]] || return 1
-  [[ "$real" == "$cfgreal"/* ]]
+  kit_path_safe_under "$1" "$_NV_CFG"
 }
 
 # Add ($1=alias for appname) or remove the managed `nvim-<name>` alias line in the shell rc.

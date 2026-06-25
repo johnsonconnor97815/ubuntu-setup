@@ -650,23 +650,20 @@ _tmux_run_clean_plugins() {
 
 # Delete a single plugin clone directory under $_TPLUGDIR — kit-owned, deterministic, needs NO
 # running tmux server (TPM's clean_plugins resolves the plugin dir from a server env var and uses
-# substring matching; both bite us — see do_remove_plugin / do_theme). Path guard mirrors
-# android.sh _android_path_safe_under_home / nvim.sh _nvim_path_under_config, anchored at the
-# plugin dir: non-empty; not a symlink (rm wouldn't follow it but realpath could escape); no '..';
-# canonical, strictly UNDER $_TPLUGDIR, never the dir itself, never 'tpm'. Absent dir = idempotent
-# no-op. A refusal/failure only warns (fail-safe) and returns non-zero; never aborts the caller.
+# substring matching; both bite us — see do_remove_plugin / do_theme). Path guard = the shared
+# kit_path_safe_under (lib/common.sh), anchored at the plugin dir: non-empty; not a symlink (rm
+# wouldn't follow it but realpath could escape); no '..'; canonical, strictly UNDER $_TPLUGDIR,
+# never the dir itself — plus a local 'tpm' refusal here. Absent dir = idempotent no-op. A
+# refusal/failure only warns (fail-safe) and returns non-zero; never aborts the caller.
 _tmux_remove_clone_dir() {
-  local path="${1:-}" target base
-  [[ -n "$path" ]] || { log_warn "Refusing to remove an empty plugin path."; return 1; }
+  local path="${1:-}" target
+  [[ -d "$path" ]] || return 0   # idempotent: absent dir = no-op
   [[ -n "${_TPLUGDIR:-}" ]] || { log_warn "Plugin dir unresolved — refusing to remove."; return 1; }
-  [[ -d "$path" ]] || return 0
-  if [[ -L "$path" ]]; then log_warn "Refusing to remove a symlinked plugin path: $path"; return 1; fi
-  case "$path" in *..*) log_warn "Refusing to remove a path containing '..': $path"; return 1 ;; esac
+  # Shared pre-deletion guard (lib/common.sh): non-empty path/anchor, not a symlink, no '..',
+  # canonical and strictly under $_TPLUGDIR, never the anchor itself. A refusal only warns.
+  kit_path_safe_under "$path" "$_TPLUGDIR" || return 1
+  # Re-canonicalize for the rm and the 'tpm' check (kit_path_safe_under only returns a boolean).
   target="$(realpath -m "$path" 2>/dev/null || true)"
-  base="$(realpath -m "$_TPLUGDIR" 2>/dev/null || true)"
-  [[ -n "$target" && -n "$base" ]] || { log_warn "Refusing to remove: could not canonicalize $path."; return 1; }
-  [[ "$target" != "$base" ]] || { log_warn "Refusing to remove the plugin directory itself: $base"; return 1; }
-  case "$target" in "$base"/*) ;; *) log_warn "Refusing to remove a path outside the plugin dir: $target"; return 1 ;; esac
   [[ "${target##*/}" != tpm ]] || { log_warn "Refusing to remove TPM itself."; return 1; }
   rm -rf "${target:?}" && log_info "Removed plugin clone: $target"
 }
@@ -681,8 +678,13 @@ _tmux_remove_clone_dir() {
 # without it a pinned declaration records `repo#branch` and fails to protect the real `repo` clone.
 _tmux_declared_basenames() {
   [[ -f "$_TCONF" ]] || return 0
-  awk '/^[ \t]*set(-option)?[ \t]+-g[ \t]+@plugin/ { gsub(/["'\'']/, ""); print $4 }' "$_TCONF" \
-    | while IFS= read -r spec; do spec="${spec%%#*}"; spec="${spec%.git}"; printf '%s\n' "${spec##*/}"; done
+  # Single awk does the whole pipeline (no `| while read` subshell): strip quotes, take the spec
+  # ($4), then drop a trailing #branch FIRST, then .git, then take the basename — same order as
+  # _tmux_plugin_dir. (#branch must go before .git/basename, else a pinned `repo#branch` records
+  # `repo#branch` and fails to protect the real `repo` clone.)
+  awk '/^[ \t]*set(-option)?[ \t]+-g[ \t]+@plugin/ {
+         gsub(/["'\'']/, ""); s=$4; sub(/#.*/, "", s); sub(/\.git$/, "", s); sub(/.*\//, "", s); print s
+       }' "$_TCONF"
 }
 
 # Remove the clone for one spec (curated name resolves earlier to owner/repo; arbitrary owner/repo
@@ -708,6 +710,22 @@ _tmux_remove_clone_if_undeclared() {
     *$'\n'"$base"$'\n'*) return 0 ;;   # still declared somewhere — keep the clone
   esac
   _tmux_remove_clone_dir "$_TPLUGDIR/$base"
+}
+
+# When switching TO a theme whose clone directory already exists but holds a DIFFERENT repo
+# (catppuccin and dracula both clone into a dir named 'tmux', so they share a basename), TPM's
+# install_plugins sees the dir present and skips cloning — the new theme's code is never fetched.
+# Best-effort fix: if the existing clone's git remote isn't this theme's repo, remove the stale
+# dir so the following _tmux_apply -> TPM install_plugins re-clones the correct theme.
+_tmux_refresh_stale_theme_clone() {
+  local t="${1:-}" spec dir cur
+  spec="$(_tmux_theme_spec "$t")" || return 0   # 'none'/unknown has no clone
+  dir="$_TPLUGDIR/$(_tmux_plugin_dir "$spec")"
+  [[ -d "$dir/.git" ]] || return 0
+  cur="$(git -C "$dir" remote get-url origin 2>/dev/null || true)"
+  case "$cur" in *"$spec"*) return 0 ;; esac     # already the right repo — keep it
+  log_info "Theme clone $dir holds a different repo ($cur) — removing so TPM re-clones $spec."
+  _tmux_remove_clone_dir "$dir" || true
 }
 
 # --- Managed block generation --------------------------------------------------
@@ -1209,6 +1227,9 @@ do_configure() {
   if ! status >/dev/null 2>&1; then log_info "Install tmux first (swkit tmux install)."; return 0; fi
   _tmux_resolve_paths || return 1
   _tmux_load_state
+  # Snapshot the pre-change theme/plugins (still the OLD values here) so we can conservatively
+  # drop only the clones this configure run discards (see after _tmux_apply below).
+  local _cfg_old_theme="$THEME" _cfg_old_plugins="$PLUGINS"
 
   local want_plugins=1 plugins_set="" recommended=0 keys_preset=0
   while [[ $# -gt 0 ]]; do
@@ -1306,7 +1327,23 @@ do_configure() {
     done
   fi
 
+  # If the (possibly new) theme's clone dir already holds a different repo, drop it first so TPM
+  # re-clones the correct theme (catppuccin<->dracula share the 'tmux' dir name).
+  _tmux_refresh_stale_theme_clone "$THEME"
   _tmux_apply
+
+  # configure never cleaned up the clones it discarded (switching theme / narrowing plugins leaked
+  # them). Conservatively remove ONLY the items this run explicitly dropped, reusing the same exact
+  # deletion as do_remove_plugin/do_theme (it re-checks the whole config, so the user's own
+  # declarations are never wiped).
+  if [[ "$_cfg_old_theme" != "$THEME" ]]; then
+    local _ospec
+    if _ospec="$(_tmux_theme_spec "$_cfg_old_theme")"; then _tmux_remove_clone_if_undeclared "$_ospec" || true; fi
+  fi
+  local _op
+  for _op in $_cfg_old_plugins; do
+    _tmux_list_has "$_op" "$PLUGINS" || _tmux_remove_clone_if_undeclared "$(_tmux_plugin_spec "$_op")" || true
+  done
 }
 
 # --- TPM + plugin + theme actions ----------------------------------------------
@@ -1414,6 +1451,9 @@ do_theme() {
   local old_theme="$THEME"
   THEME="$name"
   [[ -n "$flavor" ]] && THEME_FLAVOR="$flavor"
+  # If the new theme's clone dir already holds a different repo, drop it first so TPM re-clones the
+  # correct theme (catppuccin<->dracula share the 'tmux' dir name).
+  _tmux_refresh_stale_theme_clone "$name"
   _tmux_apply
   # Drop the previous theme's clone when we actually switched away from it (do_theme never cleaned
   # before, so theme clones piled up). _tmux_remove_clone_if_undeclared is exact + config-aware:
