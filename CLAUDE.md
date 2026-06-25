@@ -97,9 +97,15 @@ shellcheck -x --source-path=SCRIPTDIR swkit scripts/*.sh lib/common.sh lib/cache
 
 ## 代码改动的 worktree 工作流
 
-**改 kit 代码(`scripts/`/`lib/`/`bootstrap.sh`/`swkit`)不在主 checkout 直接进行,先隔离进 git worktree、验证通过再合并回来。** 这条由 `.claude/hooks/worktree-guard.py`(PreToolUse,`matcher: Edit|Write|MultiEdit|NotebookEdit`)**强制**:在主树对上述代码文件发起 Edit/Write 会被 `deny`,理由文本即流程指引;文档/配置(`.md`、`.trellis/`、`.claude/`、`docs/`…)与 worktree 内改动一律放行。被拦后按此做:
+**改 kit 代码(`scripts/`/`lib/`/`bootstrap.sh`/`swkit`)不在主 checkout 直接进行,先隔离进 git worktree、验证通过再合并回来。** 隔离边界应落在**「确认这是改代码的任务」那一刻**、而非「即将写某个文件」那一刻——分两条路径,**以前置为主、hook 兜底为辅**:
 
-1. **建并切入** — 调用 `EnterWorktree` 工具(或 `claude --worktree <名>`),在 `.claude/worktrees/<名>/` 起隔离 checkout。worktree 从当前 HEAD 分支起(本机 `settings.local.json` 已设 `worktree.baseRef=head`,故基于 `dev` 而非 `main`;若要让 clone 也如此,把该项加进提交版 `.claude/settings.json`)。
+**① 前置隔离(首选,尤其经 Trellis 派子 agent 开发)** — 一旦判定本次要改上述代码,就在 `task.py start` / 派 `trellis-implement`·`trellis-check` 子 agent **之前**先 `EnterWorktree` 切入 `.claude/worktrees/<名>/`。**子 agent 继承主会话的 cwd**,故主会话先进 worktree、随后派的子 agent 写入天然落在隔离区,hook 全程不触发——这才是隔离的**主机制**。原因:**子 agent 不能自建 worktree**(`EnterWorktree` 的新建形式不向已固定工作目录的子 agent 提供,只能 `path` 切进已存在的),故 hook「被拒后请调 EnterWorktree」那条补救指令**对子 agent 不可执行**;而给子 agent 单独加 `isolation: worktree` 目前会泄漏(Edit/Write 仍按父 checkout 解析绝对路径、`git` 改父仓 HEAD——anthropics/claude-code#56137、#61232),且默认从 default 分支起,均不可靠。
+
+**② hook 兜底**(`.claude/hooks/worktree-guard.py`,PreToolUse `matcher: Edit|Write|MultiEdit|NotebookEdit`)— 在主树对上述代码文件发起 Edit/Write 会被 `deny`,理由文本即流程指引。它是 **write 层的最后防线**,只接「忘了先前置 / 子 agent 拼出了通向主树的绝对路径」这类事故,**不是主隔离机制**;文档/配置(`.md`、`.trellis/`、`.claude/`、`docs/`…)与 worktree 内改动一律放行。
+
+进入 worktree 后(主动前置、或被 hook 拦下补救)的执行步骤:
+
+1. **建并切入** — 调用 `EnterWorktree` 工具(或 `claude --worktree <名>`),在 `.claude/worktrees/<名>/` 起隔离 checkout(**前置路径下此步已在开工前完成**,直接进第 2 步)。worktree 从当前 HEAD 分支起(本机 `settings.local.json` 已设 `worktree.baseRef=head`,故基于 `dev` 而非 `main`;若要让 clone 也如此,把该项加进提交版 `.claude/settings.json`)。
 2. **在 worktree 内改** — 本次全部代码改动在该 worktree 完成。
 3. **验证** — 跑本仓校验(见「构建 / 校验命令」):`for f in bootstrap.sh lib/*.sh swkit scripts/*.sh; do bash -n "$f"; done` + `shellcheck -x --source-path=SCRIPTDIR ...` + 改动脚本的 `meta`/`status`/`help`/`ui` 契约自测(必要时伪终端冒烟、外部渠道真机端到端)。
 4. **合并回来** — 验证通过后回主树 `git merge worktree-<名>`(Claude Code **不自动 merge**,有意保持人工控制),解决冲突后在主树重跑校验。
@@ -107,7 +113,7 @@ shellcheck -x --source-path=SCRIPTDIR swkit scripts/*.sh lib/common.sh lib/cache
 
 **逃生阀**:设环境变量 `WORKTREE_GUARD=off`(或 `0`/`false`)整体放行——用于改 hook 自身、紧急小修、或确知不需隔离时。
 
-**已知边界(诚实)**:guard 只治 Edit/Write 系工具;经 Bash 的 `sed`/`tee`/`cat >` 写代码文件**不被拦**(常规不该这样改代码)。「合并前必须验证」靠本流程约定,非 hook 硬保证。`trellis init` 重装平台适配器可能覆盖 `.claude/settings.json`(会先备份到 `.trellis/.backup-*`),届时从 git 恢复 `Edit|Write|MultiEdit|NotebookEdit` 这一 PreToolUse 项即可。deny 生效依赖 **Claude Code ≥ v2.1.90**(更早版本会忽略 `permissionDecision:deny`、hook 静默失效——见 anthropics/claude-code#43407)。settings.json 改动**不热重载**,新增/改 hook 后须新开会话才被加载。
+**已知边界(诚实)**:guard 只治 Edit/Write 系工具;经 Bash 的 `sed`/`tee`/`cat >` 写代码文件**不被拦**(常规不该这样改代码)。「合并前必须验证」靠本流程约定,非 hook 硬保证。`trellis init` 重装平台适配器可能覆盖 `.claude/settings.json`(会先备份到 `.trellis/.backup-*`),届时从 git 恢复 `Edit|Write|MultiEdit|NotebookEdit` 这一 PreToolUse 项即可。deny 生效依赖 **Claude Code ≥ v2.1.90**(更早版本会忽略 `permissionDecision:deny`、hook 静默失效——见 anthropics/claude-code#43407)。settings.json 改动**不热重载**,新增/改 hook 后须新开会话才被加载。**hook 在 headless `-p` 模式不触发**(anthropics/claude-code#40506),且对**子 agent 工具调用**的 deny 历史上不稳定(#40580)——这两条正是「前置隔离优先、hook 仅兜底」的根因:别把 write 层兜底当成隔离保证,真正的隔离靠开工前那一次 `EnterWorktree`。
 
 ## 领域约束
 

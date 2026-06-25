@@ -4,6 +4,10 @@
 
 ---
 
+## 开工前:先进 worktree(前置隔离)
+
+改本层代码(`scripts/*.sh`、`bootstrap.sh`、`swkit`)前,若经 Trellis 开发:**先 `EnterWorktree`、再 `task.py start` / 派子 agent** —— 子 agent 继承主会话 cwd,写入才落进 `.claude/worktrees/`。`worktree-guard.py`(PreToolUse)只是 **write 层兜底**、不是主隔离机制(对子 agent、headless `-p` 都不可靠)。完整理由与步骤见仓库根 `CLAUDE.md`「代码改动的 worktree 工作流」。
+
 ## 这一层是什么
 
 每个软件一个 `scripts/<key>.sh`,统一接口、全部 `source` 共享库 `lib/common.sh`。三个入口(`bootstrap.sh` 的 TUI、薄启动器 `swkit`、LLM 经 skill)**地位等同**,都只是**调用**这些脚本。
