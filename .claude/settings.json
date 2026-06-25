@@ -55,6 +55,16 @@
             "timeout": 30
           }
         ]
+      },
+      {
+        "matcher": "Edit|Write|MultiEdit|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 .claude/hooks/worktree-guard.py",
+            "timeout": 10
+          }
+        ]
       }
     ],
     "UserPromptSubmit": [

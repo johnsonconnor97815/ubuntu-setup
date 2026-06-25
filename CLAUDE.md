@@ -95,6 +95,20 @@ shellcheck -x --source-path=SCRIPTDIR swkit scripts/*.sh lib/common.sh lib/cache
 
 `bootstrap.sh` 设计为可 `source`(末尾 `[[ "${BASH_SOURCE[0]}" == "$0" ]]` 守卫只在被执行时跑 `main`),便于对 `have_tty`、依赖检查等函数做函数级单测。`scripts/*.sh` 自身 `source` lib,所以脚本侧的静态检查走上面的 `shellcheck -x --source-path=SCRIPTDIR` 形式;脚本契约则用其自带子命令测(`<script> meta` 字段齐全且 `ops` 与实现一致、**`ops` 不含 `ui`**、`<script> status` 可独立运行、`<script> help` 不炸、**`<script> ui` 在无 TTY 下打印指引退 0**)。富屏渲染无法 headless 自动测,可用伪终端冒烟(`printf 'q' | TERM=xterm-256color script -qec '<script> ui' /dev/null`,确认渲染不崩、`q` 干净退出、终端复原)。**外部 API / 网络渠道**(GitHub release JSON 解析、tarball 下载校验、vendor `.deb`)同样静态+契约自测覆盖不到——`bash -n`/`shellcheck`/`status` 可全过、仍在运行时挂(本仓:nvim tarball 的 GitHub API 解析曾静态全绿、真跑才暴露 `"name": "…"` 冒号后空格 + `uploader` 嵌套使 `tr '{'`+`grep -F` 失配),故**涉及外部解析 / 下载 / 系统包变更的渠道必须真机端到端跑一次**(免密 sudo 下可代跑,破坏性 op 先征同意)。
 
+## 代码改动的 worktree 工作流
+
+**改 kit 代码(`scripts/`/`lib/`/`bootstrap.sh`/`swkit`)不在主 checkout 直接进行,先隔离进 git worktree、验证通过再合并回来。** 这条由 `.claude/hooks/worktree-guard.py`(PreToolUse,`matcher: Edit|Write|MultiEdit|NotebookEdit`)**强制**:在主树对上述代码文件发起 Edit/Write 会被 `deny`,理由文本即流程指引;文档/配置(`.md`、`.trellis/`、`.claude/`、`docs/`…)与 worktree 内改动一律放行。被拦后按此做:
+
+1. **建并切入** — 调用 `EnterWorktree` 工具(或 `claude --worktree <名>`),在 `.claude/worktrees/<名>/` 起隔离 checkout。worktree 从当前 HEAD 分支起(本机 `settings.local.json` 已设 `worktree.baseRef=head`,故基于 `dev` 而非 `main`;若要让 clone 也如此,把该项加进提交版 `.claude/settings.json`)。
+2. **在 worktree 内改** — 本次全部代码改动在该 worktree 完成。
+3. **验证** — 跑本仓校验(见「构建 / 校验命令」):`for f in bootstrap.sh lib/*.sh swkit scripts/*.sh; do bash -n "$f"; done` + `shellcheck -x --source-path=SCRIPTDIR ...` + 改动脚本的 `meta`/`status`/`help`/`ui` 契约自测(必要时伪终端冒烟、外部渠道真机端到端)。
+4. **合并回来** — 验证通过后回主树 `git merge worktree-<名>`(Claude Code **不自动 merge**,有意保持人工控制),解决冲突后在主树重跑校验。
+5. **收尾** — `ExitWorktree` 切回主树;无改动的 worktree 退出时自动清理,有改动的按提示保留/删除。
+
+**逃生阀**:设环境变量 `WORKTREE_GUARD=off`(或 `0`/`false`)整体放行——用于改 hook 自身、紧急小修、或确知不需隔离时。
+
+**已知边界(诚实)**:guard 只治 Edit/Write 系工具;经 Bash 的 `sed`/`tee`/`cat >` 写代码文件**不被拦**(常规不该这样改代码)。「合并前必须验证」靠本流程约定,非 hook 硬保证。`trellis init` 重装平台适配器可能覆盖 `.claude/settings.json`(会先备份到 `.trellis/.backup-*`),届时从 git 恢复 `Edit|Write|MultiEdit|NotebookEdit` 这一 PreToolUse 项即可。deny 生效依赖 **Claude Code ≥ v2.1.90**(更早版本会忽略 `permissionDecision:deny`、hook 静默失效——见 anthropics/claude-code#43407)。settings.json 改动**不热重载**,新增/改 hook 后须新开会话才被加载。
+
 ## 领域约束
 
 本项目特有、实现 `bootstrap.sh` / `lib/common.sh` / `lib/ui.sh` / `scripts/*.sh` / 两个 `SKILL.md` 时需贯彻的关键点;本节即唯一来源。
