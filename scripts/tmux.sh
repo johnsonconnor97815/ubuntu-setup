@@ -675,11 +675,14 @@ _tmux_remove_clone_dir() {
 # config — kit's managed block AND the user's own declarations outside it (oh-my-tmux users keep
 # their own @plugin lines). This is the authoritative "still in use" set, so a removal never wipes
 # a clone the user still declares elsewhere. Same line-anchored match TPM uses (comment '#' lines
-# never match); strip surrounding quotes, take the spec, drop a trailing .git, print its basename.
+# never match); strip surrounding quotes, take the spec, then derive the on-disk basename exactly
+# as _tmux_plugin_dir does — drop a trailing #branch FIRST, then .git, then the basename. The
+# #branch strip is essential: TPM clones `owner/repo#branch` into a dir named just `repo`, so
+# without it a pinned declaration records `repo#branch` and fails to protect the real `repo` clone.
 _tmux_declared_basenames() {
   [[ -f "$_TCONF" ]] || return 0
   awk '/^[ \t]*set(-option)?[ \t]+-g[ \t]+@plugin/ { gsub(/["'\'']/, ""); print $4 }' "$_TCONF" \
-    | while IFS= read -r spec; do spec="${spec%.git}"; printf '%s\n' "${spec##*/}"; done
+    | while IFS= read -r spec; do spec="${spec%%#*}"; spec="${spec%.git}"; printf '%s\n' "${spec##*/}"; done
 }
 
 # Remove the clone for one spec (curated name resolves earlier to owner/repo; arbitrary owner/repo
@@ -690,7 +693,10 @@ _tmux_declared_basenames() {
 _tmux_remove_clone_if_undeclared() {
   local spec="${1:-}" base declared
   [[ -n "$spec" ]] || return 0
-  base="${spec##*/}"; base="${base%.git}"
+  # Derive the on-disk clone basename exactly as _tmux_plugin_dir / TPM do: strip #branch, then
+  # .git, then take the basename. Stripping #branch is required — `owner/repo#branch` lands in a
+  # dir named `repo`, so without it we'd target a nonexistent `repo#branch` and the clone leaks.
+  base="${spec%%#*}"; base="${base%.git}"; base="${base##*/}"
   [[ -n "$base" && "$base" != tpm ]] || return 0
   # Capture the declared set, then test membership with a pure-bash newline-anchored case — NOT
   # `… | grep -qxF`: under `set -o pipefail`, grep -q closes the pipe on its first match, the
@@ -1416,7 +1422,13 @@ do_theme() {
   # is never wiped. _tmux_theme_spec none returns non-zero, so switching FROM none removes nothing.
   if [[ "$old_theme" != "$name" ]]; then
     local ospec
-    ospec="$(_tmux_theme_spec "$old_theme")" && _tmux_remove_clone_if_undeclared "$ospec"
+    # Use `if ospec=…; then` so a no-spec old theme (none -> X: _tmux_theme_spec returns non-zero)
+    # is consumed by the inner if and does NOT become do_theme's return value — otherwise this
+    # trailing assignment would make a SUCCESSFUL theme switch report failure. `|| true` keeps a
+    # clone-guard refusal from failing the (already-applied) switch either.
+    if ospec="$(_tmux_theme_spec "$old_theme")"; then
+      _tmux_remove_clone_if_undeclared "$ospec" || true
+    fi
   fi
 }
 
