@@ -1988,11 +1988,19 @@ ui() {
     esac
 
     # ---- render ----
+    # Viewport-window the row list so a menu taller than the terminal scrolls (the list spans
+    # 9 domains and easily exceeds one screen). Mirrors ui_pick/ui_catalog: render only the slice
+    # [top, top+avail) and shift `top` to keep the selected row visible — without this, rows past
+    # the screen height pile onto the last line and the bottom domains are unreachable.
     printf '\033[2J' >&"$_UI_FD"
     if (( installed )); then ui_header "Neovim + LazyVim" "$ver $(ui_badge installed)"
     else ui_header "Neovim + LazyVim" "$(ui_badge missing) $(ui_t not_installed)"; fi
-    local i row=3
-    for (( i=0; i<n; i++ )); do
+    local i row listrow=3 avail top=0
+    avail=$(( UI_ROWS - listrow - 1 )); (( avail < 1 )) && avail=1
+    (( sel < top )) && top=$sel
+    (( sel >= top + avail )) && top=$(( sel - avail + 1 ))
+    row=$listrow
+    for (( i=top; i<n && i<top+avail; i++ )); do
       case "${dkind[$i]}" in
         spacer) : ;;
         header) ui_move "$row" 2; printf '\033[K%s%s%s' "$UI_ACCENT$UI_BOLD" "${dlabel[$i]}" "$UI_OFF" >&"$_UI_FD" ;;
@@ -2001,7 +2009,10 @@ ui() {
       esac
       (( row++ ))
     done
-    ui_footer "$(_nvim_t foot_main)"
+    local foot; foot="$(_nvim_t foot_main)"
+    (( top > 0 ))          && foot="↑ $foot"
+    (( top + avail < n ))  && foot="$foot ↓"
+    ui_footer "$foot"
 
     # ---- input ----
     ui_read_key
