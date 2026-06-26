@@ -45,6 +45,7 @@ ui_run "$(ui_t install) git" -- "$0" install
 ## lib/ui.sh 原语
 
 - `ui_pick TITLE SUB FT -- id label …` 单选子菜单(设 `UI_PICK`)
+  - **可选详情行**:调用**前**填全局数组 `UI_PICK_DETAILS`(与 id/label **同序等长**),`ui_pick` 在列表下方画**当前高亮项**的详情(富 TTY);**消费即清**(进函数即读入局部副本后清空全局),故不填的调用(全 kit 多数 picker)零行为变化、无跨调用串味。详情文本须**纯文本**(`ui_row` 不截断,详情行自截到 `UI_COLS-N` 后再裹 `$UI_MUTED`/`$UI_OFF`,别把色码计进宽度)。受限 TTY 回退把详情附在编号行。样板:`nvim.sh` 的 colorscheme/font 选择器。
 - `ui_confirm "question?"` yes/no(返回 0/1)
 - `ui_input "prompt" [def]` 单行输入(设 `UI_INPUT`)
 - `ui_notify TITLE BODY` 模态信息框
