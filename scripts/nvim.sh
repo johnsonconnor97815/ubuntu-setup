@@ -327,10 +327,187 @@ NVIM_I18N[ja:prompt_mason]="Mason ツール名(英数/._-)"
 NVIM_I18N[ja:reset_config]="管理設定をリセット(プラグインファイル + 設定ブロック)"
 NVIM_I18N[ja:confirm_reset]="kit 管理の nvim 設定をリセットしますか?(バックアップ後、kit 産物を削除し状態をクリア)"
 
+# === Per-item descriptions for the curated lists ===============================================
+# "what it is + when to use", localized (en/zh/ja), for each curated colorscheme / font / extra /
+# option / autocmd entry, plus a one-line model note for the plugins (domain 3) and Mason (domain 9)
+# areas that have NO curated list. Keys: short = <kind>_<name>, full = <kind>_<name>_full
+# (kind ∈ cs/font/ex/opt/ac; the name's dots/dashes are normalized to '_'). Entry names
+# (tokyonight / lang.go / scrolloff / MesloLGS …) stay UNtranslated — only descriptive wording is.
+# A full form is omitted where it would just repeat the short one (the _nvim_item_desc fallback
+# supplies the short). ja descriptions exist where the verified copy does (options/extras); the rest
+# fall back to en, per design (copy-table.md). Wording verified against Neovim/LazyVim docs (R7).
+# -- options (kind=opt) — the most cryptic; plain language first --
+NVIM_I18N[en:opt_relativenumber]="line numbers relative to the cursor"
+NVIM_I18N[en:opt_relativenumber_full]="Show each line's distance from the cursor (current line = 0/absolute) — makes vertical jumps like 5j/3k easy. on/off"
+NVIM_I18N[zh:opt_relativenumber]="相对当前行的行号"
+NVIM_I18N[zh:opt_relativenumber_full]="显示各行到光标的距离(当前行为 0/绝对值),便于 5j/3k 这类纵向跳转。on/off"
+NVIM_I18N[ja:opt_relativenumber]="カーソルからの相対行番号"
+NVIM_I18N[en:opt_wrap]="wrap long lines onto the next row"
+NVIM_I18N[en:opt_wrap_full]="Long lines fold onto the next screen row instead of running off-screen — good for prose, usually off for code. on/off"
+NVIM_I18N[zh:opt_wrap]="长行折到下一屏幕行"
+NVIM_I18N[zh:opt_wrap_full]="长行折到下一屏幕行而非跑出屏幕;写文章好用,代码通常关。on/off"
+NVIM_I18N[ja:opt_wrap]="長い行を次の行へ折り返す"
+NVIM_I18N[en:opt_scrolloff]="keep N lines around the cursor"
+NVIM_I18N[en:opt_scrolloff_full]="Keep at least N lines visible above and below the cursor while scrolling (default 0; ~8 keeps context). integer"
+NVIM_I18N[zh:opt_scrolloff]="光标上下保留 N 行"
+NVIM_I18N[zh:opt_scrolloff_full]="滚动时光标上下至少保留 N 行可见(默认 0,设 ~8 留出上下文)。整数"
+NVIM_I18N[ja:opt_scrolloff]="カーソル上下に N 行確保"
+NVIM_I18N[en:opt_shiftwidth]="spaces per indent step"
+NVIM_I18N[en:opt_shiftwidth_full]="Number of spaces for each indent step (>>, <<, =, auto-indent). integer"
+NVIM_I18N[zh:opt_shiftwidth]="每级缩进的空格数"
+NVIM_I18N[zh:opt_shiftwidth_full]="每级缩进(>>/<</=/自动缩进)用的空格数。整数"
+NVIM_I18N[ja:opt_shiftwidth]="インデント1段の空白数"
+NVIM_I18N[en:opt_tabstop]="display width of a Tab"
+NVIM_I18N[en:opt_tabstop_full]="How many columns a Tab character occupies on screen. integer"
+NVIM_I18N[zh:opt_tabstop]="Tab 的显示宽度"
+NVIM_I18N[zh:opt_tabstop_full]="一个 Tab 字符在屏上占多少列。整数"
+NVIM_I18N[ja:opt_tabstop]="Tab の表示幅"
+NVIM_I18N[en:opt_conceallevel]="how concealed text shows"
+NVIM_I18N[en:opt_conceallevel_full]="How text marked \"conceal\" (e.g. markdown markup) renders: 0 show · 1 placeholder · 2 hide · 3 hide fully. Set 2 for cleaner markdown. 0–3"
+NVIM_I18N[zh:opt_conceallevel]="隐藏文本的显示方式"
+NVIM_I18N[zh:opt_conceallevel_full]="标记为 conceal 的文本(如 markdown 标记)如何显示:0 显示·1 占位符·2 隐藏·3 完全隐藏;markdown 设 2 更干净。0–3"
+NVIM_I18N[ja:opt_conceallevel]="conceal テキストの表示度"
+NVIM_I18N[en:opt_background]="tell nvim dark or light terminal"
+NVIM_I18N[en:opt_background_full]="Tells Neovim whether your terminal background is dark or light so colorschemes pick the matching variant. dark/light"
+NVIM_I18N[zh:opt_background]="告诉 nvim 终端是暗/亮底"
+NVIM_I18N[zh:opt_background_full]="告诉 Neovim 终端底色是暗还是亮,让主题选对应明暗变体。dark/light"
+NVIM_I18N[ja:opt_background]="端末が暗いか明るいか"
+NVIM_I18N[en:opt_spell]="spell checking"
+NVIM_I18N[en:opt_spell_full]="Highlight misspelled words — handy for prose/commit messages, off for code. on/off"
+NVIM_I18N[zh:opt_spell]="拼写检查"
+NVIM_I18N[zh:opt_spell_full]="高亮拼错的词;写文章/提交信息有用,代码关掉。on/off"
+NVIM_I18N[ja:opt_spell]="スペルチェック"
+# -- extras (kind=ex) — LazyVim language/feature packs --
+NVIM_I18N[en:ex_lang_python]="Python IDE layer"
+NVIM_I18N[en:ex_lang_python_full]="Python LSP (pyright/basedpyright), ruff, debugpy (DAP) + treesitter — enable for Python projects"
+NVIM_I18N[zh:ex_lang_python]="Python 开发层"
+NVIM_I18N[zh:ex_lang_python_full]="Python 的 LSP(pyright/basedpyright)、ruff、debugpy 调试 + treesitter;写 Python 时启用"
+NVIM_I18N[ja:ex_lang_python]="Python 開発レイヤ"
+NVIM_I18N[en:ex_lang_go]="Go IDE layer"
+NVIM_I18N[en:ex_lang_go_full]="gopls LSP, gofumpt/goimports, delve (DAP) + treesitter — enable for Go projects"
+NVIM_I18N[zh:ex_lang_go]="Go 开发层"
+NVIM_I18N[zh:ex_lang_go_full]="gopls LSP、gofumpt/goimports、delve 调试 + treesitter;写 Go 时启用"
+NVIM_I18N[ja:ex_lang_go]="Go 開発レイヤ"
+NVIM_I18N[en:ex_lang_rust]="Rust IDE layer"
+NVIM_I18N[en:ex_lang_rust_full]="rust-analyzer (rustaceanvim), formatting + debugging + treesitter — enable for Rust projects"
+NVIM_I18N[zh:ex_lang_rust]="Rust 开发层"
+NVIM_I18N[zh:ex_lang_rust_full]="rust-analyzer(rustaceanvim)、格式化、调试 + treesitter;写 Rust 时启用"
+NVIM_I18N[ja:ex_lang_rust]="Rust 開発レイヤ"
+NVIM_I18N[en:ex_lang_json]="JSON support"
+NVIM_I18N[en:ex_lang_json_full]="jsonls + SchemaStore (schema-aware completion) + treesitter"
+NVIM_I18N[zh:ex_lang_json]="JSON 支持"
+NVIM_I18N[zh:ex_lang_json_full]="jsonls + SchemaStore(带 schema 的补全)+ treesitter"
+NVIM_I18N[ja:ex_lang_json]="JSON サポート"
+NVIM_I18N[en:ex_lang_yaml]="YAML support"
+NVIM_I18N[en:ex_lang_yaml_full]="yamlls + SchemaStore + treesitter"
+NVIM_I18N[zh:ex_lang_yaml]="YAML 支持"
+NVIM_I18N[zh:ex_lang_yaml_full]="yamlls + SchemaStore + treesitter"
+NVIM_I18N[ja:ex_lang_yaml]="YAML サポート"
+NVIM_I18N[en:ex_lang_toml]="TOML support"
+NVIM_I18N[en:ex_lang_toml_full]="taplo LSP + treesitter"
+NVIM_I18N[zh:ex_lang_toml]="TOML 支持"
+NVIM_I18N[zh:ex_lang_toml_full]="taplo LSP + treesitter"
+NVIM_I18N[ja:ex_lang_toml]="TOML サポート"
+NVIM_I18N[en:ex_lang_markdown]="Markdown support"
+NVIM_I18N[en:ex_lang_markdown_full]="marksman LSP, markdownlint, prettier, rendering + treesitter"
+NVIM_I18N[zh:ex_lang_markdown]="Markdown 支持"
+NVIM_I18N[zh:ex_lang_markdown_full]="marksman LSP、markdownlint、prettier、渲染 + treesitter"
+NVIM_I18N[ja:ex_lang_markdown]="Markdown サポート"
+NVIM_I18N[en:ex_lang_docker]="Docker support"
+NVIM_I18N[en:ex_lang_docker_full]="dockerfile + docker-compose LSP + treesitter"
+NVIM_I18N[zh:ex_lang_docker]="Docker 支持"
+NVIM_I18N[zh:ex_lang_docker_full]="dockerfile + docker-compose LSP + treesitter"
+NVIM_I18N[ja:ex_lang_docker]="Docker サポート"
+NVIM_I18N[en:ex_lang_clangd]="C/C++ IDE layer"
+NVIM_I18N[en:ex_lang_clangd_full]="clangd LSP, formatting + debugging + treesitter — enable for C/C++ projects"
+NVIM_I18N[zh:ex_lang_clangd]="C/C++ 开发层"
+NVIM_I18N[zh:ex_lang_clangd_full]="clangd LSP、格式化、调试 + treesitter;写 C/C++ 时启用"
+NVIM_I18N[ja:ex_lang_clangd]="C/C++ 開発レイヤ"
+NVIM_I18N[en:ex_lang_java]="Java IDE layer"
+NVIM_I18N[en:ex_lang_java_full]="jdtls (nvim-jdtls), debugging + treesitter — enable for Java projects"
+NVIM_I18N[zh:ex_lang_java]="Java 开发层"
+NVIM_I18N[zh:ex_lang_java_full]="jdtls(nvim-jdtls)、调试 + treesitter;写 Java 时启用"
+NVIM_I18N[ja:ex_lang_java]="Java 開発レイヤ"
+# -- colorschemes (kind=cs) — subjective style words; light variant named, dark/light already tagged --
+NVIM_I18N[en:cs_tokyonight]="LazyVim's default; clean blue-tinted"
+NVIM_I18N[en:cs_tokyonight_full]="LazyVim's default — clean, blue-leaning palette (night/storm/moon dark, day light)"
+NVIM_I18N[zh:cs_tokyonight]="LazyVim 默认,偏蓝清爽"
+NVIM_I18N[zh:cs_tokyonight_full]="LazyVim 默认主题,偏蓝清爽(night/storm/moon 暗、day 亮)"
+NVIM_I18N[en:cs_catppuccin]="soft pastel, very popular"
+NVIM_I18N[en:cs_catppuccin_full]="Soft pastel palette, hugely popular (mocha…dark, latte…light)"
+NVIM_I18N[zh:cs_catppuccin]="柔和马卡龙色,超流行"
+NVIM_I18N[zh:cs_catppuccin_full]="柔和马卡龙配色,极流行(mocha 暗、latte 亮)"
+NVIM_I18N[en:cs_gruvbox]="warm retro earth tones"
+NVIM_I18N[en:cs_gruvbox_full]="Warm retro earth tones, higher contrast, easy on the eyes"
+NVIM_I18N[zh:cs_gruvbox]="暖色复古大地色"
+NVIM_I18N[zh:cs_gruvbox_full]="暖色复古大地色,对比较高,护眼"
+NVIM_I18N[en:cs_kanagawa]="muted, Hokusai-inspired"
+NVIM_I18N[en:cs_kanagawa_full]="Muted palette inspired by Hokusai's \"Great Wave\" (lotus = light)"
+NVIM_I18N[zh:cs_kanagawa]="低饱和,葛饰北斋风"
+NVIM_I18N[zh:cs_kanagawa_full]="取自葛饰北斋《神奈川冲浪里》的低饱和配色(lotus 为亮)"
+NVIM_I18N[en:cs_rose_pine]="low-saturation, cozy"
+NVIM_I18N[en:cs_rose_pine_full]="Low-saturation, cozy \"natural pine, faux fur\" aesthetic (dawn = light)"
+NVIM_I18N[zh:cs_rose_pine]="低饱和,温柔"
+NVIM_I18N[zh:cs_rose_pine_full]="低饱和的温柔「松木/绒毛」美学(dawn 为亮)"
+NVIM_I18N[en:cs_everforest]="green-based, low-contrast"
+NVIM_I18N[en:cs_everforest_full]="Green-based, comfortable low-contrast forest palette"
+NVIM_I18N[zh:cs_everforest]="绿调,低对比"
+NVIM_I18N[zh:cs_everforest_full]="绿调、舒适低对比的森林配色"
+# -- fonts (kind=font) — Nerd Fonts --
+NVIM_I18N[en:font_meslolgs]="MesloLGS NF — the flagship default"
+NVIM_I18N[en:font_meslolgs_full]="MesloLGS NF — the LazyVim/Powerlevel10k flagship; crisp with full icon coverage (default)"
+NVIM_I18N[zh:font_meslolgs]="MesloLGS NF,旗舰默认"
+NVIM_I18N[en:font_jetbrains_mono]="JetBrains Mono — built for code"
+NVIM_I18N[en:font_jetbrains_mono_full]="JetBrains Mono — tall x-height, ligatures, designed for reading code"
+NVIM_I18N[zh:font_jetbrains_mono]="JetBrains Mono,为代码而生"
+NVIM_I18N[en:font_firacode]="Fira Code — famous ligatures"
+NVIM_I18N[en:font_firacode_full]="Fira Code — well-known programming ligatures (!= → glyph, etc.)"
+NVIM_I18N[zh:font_firacode]="Fira Code,著名连字"
+NVIM_I18N[en:font_hack]="Hack — sturdy, no-nonsense"
+NVIM_I18N[en:font_hack_full]="Hack — sturdy, plain monospace tuned for source code"
+NVIM_I18N[zh:font_hack]="Hack,朴素耐看"
+# -- autocmds (kind=ac) — curated QoL / disable-default toggles (was NVIM_AUTOCMD_DESC) --
+NVIM_I18N[en:ac_trim_whitespace]="Trim trailing whitespace on save"
+NVIM_I18N[en:ac_trim_whitespace_full]="Remove trailing whitespace on save — keeps diffs clean"
+NVIM_I18N[zh:ac_trim_whitespace]="保存时去行尾空白"
+NVIM_I18N[zh:ac_trim_whitespace_full]="保存时删除行尾空白,保持 diff 干净"
+NVIM_I18N[en:ac_disable_wrap_spell]="Disable LazyVim's auto wrap+spell in text/markdown"
+NVIM_I18N[en:ac_disable_wrap_spell_full]="Turn off LazyVim's automatic wrap+spell in text/markdown filetypes — for those who find it distracting"
+NVIM_I18N[zh:ac_disable_wrap_spell]="关掉 text/markdown 的自动折行+拼写"
+NVIM_I18N[zh:ac_disable_wrap_spell_full]="关掉 LazyVim 在 text/markdown 文件类型里的自动折行+拼写,嫌干扰者用"
+NVIM_I18N[en:ac_disable_highlight_yank]="Disable LazyVim's highlight-on-yank flash"
+NVIM_I18N[en:ac_disable_highlight_yank_full]="Disable the brief flash that highlights text you just yanked"
+NVIM_I18N[zh:ac_disable_highlight_yank]="关掉 yank 高亮闪烁"
+NVIM_I18N[zh:ac_disable_highlight_yank_full]="关掉复制(yank)时那一下高亮闪烁"
+# -- model notes for the no-curated-list areas (domain 3 plugins / domain 9 Mason) --
+NVIM_I18N[en:plugins_model_note]="LazyVim already bundles the core plugins (treesitter, telescope, gitsigns, …); add EXTRA ones here by owner/repo."
+NVIM_I18N[zh:plugins_model_note]="LazyVim 已自带核心插件(treesitter、telescope、gitsigns…);这里按 owner/repo 加额外的。"
+NVIM_I18N[en:mason_model_note]="Mason installs LSP servers / formatters / linters; list tools here to auto-install (ensure_installed)."
+NVIM_I18N[zh:mason_model_note]="Mason 装 LSP server / 格式化器 / linter;在此列出要自动安装(ensure_installed)的工具。"
+
 # _nvim_t KEY — localized Neovim string for $UI_LANG (en/zh/ja), fallback en -> key.
 _nvim_t() {
   local lang; lang="$(ui_lang)"
   printf '%s' "${NVIM_I18N[$lang:$1]:-${NVIM_I18N[en:$1]:-$1}}"
+}
+
+# _nvim_item_desc <kind> <name> [full] — localized per-item description for a curated entry.
+# kind ∈ cs|font|ex|opt|ac; name is the entry name (its dots/dashes normalized to '_' for the key).
+# Without a third arg: the short "<kind>_<name>". With one (any value): the full "<kind>_<name>_full",
+# falling back per-language so a missing full never drops a user to another language: prefer
+# <lang> full → <lang> short → en full → en short → the bare key.
+_nvim_item_desc() {
+  local kind="$1" name="$2" full="${3:-}" safe base lang v
+  safe="${name//[.-]/_}"
+  base="${kind}_${safe}"
+  if [[ -z "$full" ]]; then _nvim_t "$base"; return 0; fi
+  lang="$(ui_lang)"
+  v="${NVIM_I18N[$lang:${base}_full]:-}"
+  [[ -n "$v" ]] || v="${NVIM_I18N[$lang:$base]:-}"
+  [[ -n "$v" ]] || v="${NVIM_I18N[en:${base}_full]:-}"
+  [[ -n "$v" ]] || v="${NVIM_I18N[en:$base]:-}"
+  [[ -n "$v" ]] || v="$base"
+  printf '%s' "$v"
 }
 
 meta() {
@@ -339,7 +516,7 @@ key=nvim
 name=Neovim
 category=common
 ops=install,remove,configure,update,update-plugins
-desc=nvim + LazyVim combo manager — best-channel binary (apt/tarball/snap) + LazyVim config, with full component config via LazyVim's official extension points (theme/font/plugins/extras/leader/keymaps/options/autocmds/Mason)
+desc=nvim + LazyVim combo manager — best-channel Neovim binary (apt/tarball/snap) + LazyVim, fully configurable via LazyVim's own extension points: theme/font/plugins/extras/leader/keymaps/options/autocmds/Mason
 META
 }
 
@@ -1355,12 +1532,11 @@ do_mason_remove() {
 
 # list-colorschemes — print the curated theme table (built-in vs plugin-backed). No state change.
 do_list_colorschemes() {
-  local name spec mode
+  local name mode
   printf 'Curated colorschemes (set with: %s set-colorscheme <name>):\n' "${0##*/}"
   for name in $NVIM_THEME_ORDER; do
-    spec="$(_nvim_theme_spec "$name")"; mode="$(_nvim_theme_mode "$name")"
-    if [[ -z "$spec" ]]; then printf '  %-12s  %-10s  built-in (ships with LazyVim)\n' "$name" "$mode"
-    else printf '  %-12s  %-10s  plugin: %s\n' "$name" "$mode" "$(printf '%s' "$spec" | sed -E 's/^\{ "([^"]+)".*/\1/')"; fi
+    mode="$(_nvim_theme_mode "$name")"
+    printf '  %-12s [%-10s] %s\n' "$name" "$mode" "$(_nvim_item_desc cs "$name" full)"
   done
   printf 'Any other name is accepted too (add-plugin its plugin if it is not built-in/installed).\n'
 }
@@ -1385,16 +1561,12 @@ do_list_colorschemes() {
 #   AUTOCMD_<name>=on   — a curated autocmd enabled (domain 8).
 
 # Curated, first-class autocmds (the ONLY ones add-autocmd accepts — arbitrary Lua autocmds are a
-# Lua-injection vector and stay the user's own territory). Each key maps to a fixed, hand-written
+# Lua-injection vector and stay the user's own territory). Each name maps to a fixed, hand-written
 # Lua snippet emitted by _nvim_gen_autocmds_block. Two kinds: additive QoL autocmds, and
 # "disable a LazyVim default" toggles that call nvim_del_augroup_by_name on a verified lazyvim_*
-# augroup (names from LazyVim's lua/lazyvim/config/autocmds.lua). Names stay UNtranslated.
-declare -gA NVIM_AUTOCMD_DESC=(
-  [trim_whitespace]="Trim trailing whitespace on save"
-  [disable_wrap_spell]="Disable LazyVim's auto wrap+spell in text/markdown filetypes"
-  [disable_highlight_yank]="Disable LazyVim's highlight-on-yank flash"
-)
-# Stable display order (associative arrays are unordered).
+# augroup (names from LazyVim's lua/lazyvim/config/autocmds.lua). Names stay UNtranslated; their
+# per-entry descriptions are localized in NVIM_I18N (ac_<name> / ac_<name>_full), read via
+# _nvim_item_desc. NVIM_AUTOCMD_ORDER is both the stable display order AND the valid-name set.
 readonly NVIM_AUTOCMD_ORDER="trim_whitespace disable_wrap_spell disable_highlight_yank"
 
 # --- Validators (block injection into the generated Lua) -----------------------
@@ -1587,8 +1759,8 @@ do_unset_option() {
 do_list_options() {
   local name
   printf 'Commonly-changed options (set with: %s set-option <name> <on|off|int|word>):\n' "${0##*/}"
-  for name in $NVIM_OPTION_CURATED; do printf '  %s\n' "$name"; done
-  printf '  autoformat   (special: on|off → vim.g.autoformat, format-on-save)\n'
+  for name in $NVIM_OPTION_CURATED; do printf '  %-14s — %s\n' "$name" "$(_nvim_item_desc opt "$name" full)"; done
+  printf '  %-14s — special: on|off → vim.g.autoformat (format-on-save)\n' "autoformat"
   printf 'Any other valid Neovim option name is accepted too.\n'
 }
 
@@ -1623,7 +1795,7 @@ do_remove_keymap() {
 do_add_autocmd() {
   _nvim_resolve_home || return 1
   local name="${1:-}"; [[ -n "$name" ]] || { log_err "Usage: ${0##*/} add-autocmd <name> (one of: ${NVIM_AUTOCMD_ORDER})"; return 2; }
-  [[ -n "${NVIM_AUTOCMD_DESC[$name]:-}" ]] || { log_err "Unknown autocmd: $name (curated: ${NVIM_AUTOCMD_ORDER})."; return 2; }
+  case " $NVIM_AUTOCMD_ORDER " in *" $name "*) ;; *) log_err "Unknown autocmd: $name (curated: ${NVIM_AUTOCMD_ORDER})."; return 2 ;; esac
   _nvim_conf_set "AUTOCMD_$name" on
   _nvim_apply_block autocmds
 }
@@ -1633,7 +1805,7 @@ do_add_autocmd() {
 do_remove_autocmd() {
   _nvim_resolve_home || return 1
   local name="${1:-}"; [[ -n "$name" ]] || { log_err "Usage: ${0##*/} remove-autocmd <name> (one of: ${NVIM_AUTOCMD_ORDER})"; return 2; }
-  [[ -n "${NVIM_AUTOCMD_DESC[$name]:-}" ]] || { log_err "Unknown autocmd: $name (curated: ${NVIM_AUTOCMD_ORDER})."; return 2; }
+  case " $NVIM_AUTOCMD_ORDER " in *" $name "*) ;; *) log_err "Unknown autocmd: $name (curated: ${NVIM_AUTOCMD_ORDER})."; return 2 ;; esac
   _nvim_conf_unset "AUTOCMD_$name"
   _nvim_apply_block autocmds
 }
@@ -1643,7 +1815,7 @@ do_list_autocmds() {
   local name
   printf 'Curated autocmds (toggle with: %s add-autocmd / remove-autocmd <name>):\n' "${0##*/}"
   for name in $NVIM_AUTOCMD_ORDER; do
-    printf '  %-24s  %s\n' "$name" "${NVIM_AUTOCMD_DESC[$name]}"
+    printf '  %-24s — %s\n' "$name" "$(_nvim_item_desc ac "$name" full)"
   done
 }
 
@@ -1802,7 +1974,7 @@ do_list_extras() {
   for id in $NVIM_EXTRAS_CURATED; do
     local mark="  "
     for w in $enabled; do [[ "$w" == "$id" ]] && { mark="✓ "; break; }; done
-    printf '  %s%s\n' "$mark" "$id"
+    printf '  %s%-14s — %s\n' "$mark" "$id" "$(_nvim_item_desc ex "$id" full)"
   done
   printf 'extra-add accepts ANY lazyvim.plugins.extras.<cat>.<name> module (e.g. editor.snacks_picker,\n'
   printf 'coding.nvim-cmp). Browse them all inside nvim with :LazyExtras.\n'
@@ -1912,6 +2084,7 @@ ui() {
       extra_urls="$(_nvim_extra_plugins | paste -sd' ' - || true)"
       disabled="$(_nvim_conf_get DISABLED_PLUGINS)"
       dkind+=(header); did+=(""); dlabel+=("$(_nvim_t sec_plugins)")
+      dkind+=(info); did+=(""); dlabel+=("  ${UI_MUTED}$(_nvim_t plugins_model_note)${UI_OFF}")
       if [[ -z "$plugins$extra_urls" ]]; then
         dkind+=(info); did+=(""); dlabel+=("  ${UI_MUTED}$(_nvim_t plugins_none)${UI_OFF}")
       else
@@ -1935,7 +2108,7 @@ ui() {
       dkind+=(header); did+=(""); dlabel+=("$(_nvim_t sec_extras)")
       for ex in $NVIM_EXTRAS_CURATED; do
         if _nvim_ui_has "$ex" "$extras_on"; then eb="$(ui_badge installed)"; else eb="$(ui_badge missing)"; fi
-        dkind+=(extra); did+=("$ex"); dlabel+=("$eb $ex")
+        dkind+=(extra); did+=("$ex"); dlabel+=("$eb $ex  ${UI_MUTED}$(_nvim_item_desc ex "$ex")${UI_OFF}")
       done
       dkind+=(add-extra); did+=(add-extra); dlabel+=("$UI_ARROW $(_nvim_t add_extra)")
       dkind+=(spacer); did+=(""); dlabel+=("")
@@ -1951,7 +2124,7 @@ ui() {
       local on oval
       for on in $NVIM_OPTION_CURATED; do
         oval="$(_nvim_conf_get "OPT_$on")"
-        dkind+=(option); did+=("$on"); dlabel+=("    $(printf '%-15s' "$on") ${UI_INFO}${oval:-—}${UI_OFF}")
+        dkind+=(option); did+=("$on"); dlabel+=("    $(printf '%-15s' "$on") ${UI_INFO}${oval:-—}${UI_OFF}  ${UI_MUTED}$(_nvim_item_desc opt "$on")${UI_OFF}")
       done
       local afb; if (( autoformat_off )); then afb="$(ui_badge off)"; else afb="$(ui_badge on)"; fi
       dkind+=(autoformat); did+=(autoformat); dlabel+=("  $afb $(_nvim_t autoformat_label)")
@@ -1974,7 +2147,7 @@ ui() {
       local ac acb
       for ac in $NVIM_AUTOCMD_ORDER; do
         if [[ "$(_nvim_conf_get "AUTOCMD_$ac")" == on ]]; then acb="$(ui_badge installed)"; else acb="$(ui_badge missing)"; fi
-        dkind+=(autocmd); did+=("$ac"); dlabel+=("    $acb $ac ${UI_MUTED}${NVIM_AUTOCMD_DESC[$ac]}${UI_OFF}")
+        dkind+=(autocmd); did+=("$ac"); dlabel+=("    $acb $ac ${UI_MUTED}$(_nvim_item_desc ac "$ac")${UI_OFF}")
       done
       dkind+=(spacer); did+=(""); dlabel+=("")
 
@@ -1982,6 +2155,7 @@ ui() {
       local mason mt
       mason="$(_nvim_conf_get MASON_TOOLS)"
       dkind+=(header); did+=(""); dlabel+=("$(_nvim_t sec_mason)")
+      dkind+=(info); did+=(""); dlabel+=("  ${UI_MUTED}$(_nvim_t mason_model_note)${UI_OFF}")
       if [[ -z "$mason" ]]; then
         dkind+=(info); did+=(""); dlabel+=("  ${UI_MUTED}$(_nvim_t mason_none)${UI_OFF}")
       else
@@ -2053,14 +2227,17 @@ ui() {
             else ui_run "default editor on" -- "$0" set-default-editor; fi ;;
           deps)        ui_run "$(_nvim_t install_deps)" -- "$0" ensure-deps ;;
           color)
-            local -a copts=() cc spec built mode
+            # Build the picker options + their parallel detail lines (UI_PICK_DETAILS) in lockstep so
+            # the indices stay aligned; the trailing custom/clear rows carry an empty detail.
+            local -a copts=() cdetails=() cc
             for cc in $NVIM_THEME_ORDER; do
-              spec="$(_nvim_theme_spec "$cc")"; if [[ -z "$spec" ]]; then built="built-in"; else built="plugin"; fi
-              mode="$(_nvim_theme_mode "$cc")"
-              copts+=("$cc" "$cc ($built${mode:+ · $mode})")
+              copts+=("$cc" "$cc — $(_nvim_item_desc cs "$cc")")
+              cdetails+=("$(_nvim_item_desc cs "$cc" full)")
             done
-            copts+=("__custom__" "$(_nvim_t custom_colorscheme)")
-            copts+=("" "$(_nvim_t clear_colorscheme)")
+            copts+=("__custom__" "$(_nvim_t custom_colorscheme)"); cdetails+=("")
+            copts+=("" "$(_nvim_t clear_colorscheme)"); cdetails+=("")
+            # shellcheck disable=SC2034  # consumed by ui_pick in lib/ui.sh (set right before the call)
+            UI_PICK_DETAILS=("${cdetails[@]}")
             if ui_pick "$(_nvim_t pick_colorscheme)" "" "" -- "${copts[@]}"; then
               if [[ "$UI_PICK" == "__custom__" ]]; then
                 if ui_input "$(_nvim_t prompt_colorscheme)" "" && [[ -n "$UI_INPUT" ]]; then
@@ -2071,8 +2248,13 @@ ui() {
               fi
             fi ;;
           font)
-            local -a fopts=() fk
-            for fk in $NVIM_FONT_KEYS; do fopts+=("$fk" "$fk"); done
+            local -a fopts=() fdetails=() fk
+            for fk in $NVIM_FONT_KEYS; do
+              fopts+=("$fk" "$fk — $(_nvim_item_desc font "$fk")")
+              fdetails+=("$(_nvim_item_desc font "$fk" full)")
+            done
+            # shellcheck disable=SC2034  # consumed by ui_pick in lib/ui.sh (set right before the call)
+            UI_PICK_DETAILS=("${fdetails[@]}")
             if ui_pick "$(_nvim_t pick_font)" "" "" -- "${fopts[@]}"; then
               local fkey="$UI_PICK"
               if ui_input "$(_nvim_t prompt_font_size)" ""; then
@@ -2162,6 +2344,14 @@ _nvim_ui_has() {
 }
 
 usage() {
+  # Curated per-entry descriptions for the Settings section (localized; full "what + when" form).
+  # Built before the heredoc so each stays a clean one-per-line block interpolated under its command.
+  local _cs _font _ex _opt _ac x
+  _cs="$(for x in $NVIM_THEME_ORDER;    do printf '                            %-12s %s\n' "$x" "$(_nvim_item_desc cs   "$x" full)"; done)"
+  _font="$(for x in $NVIM_FONT_KEYS;    do printf '                            %-14s %s\n' "$x" "$(_nvim_item_desc font "$x" full)"; done)"
+  _ex="$(for x in $NVIM_EXTRAS_CURATED; do printf '                            %-14s %s\n' "$x" "$(_nvim_item_desc ex   "$x" full)"; done)"
+  _opt="$(for x in $NVIM_OPTION_CURATED; do printf '                            %-14s %s\n' "$x" "$(_nvim_item_desc opt "$x" full)"; done)"
+  _ac="$(for x in $NVIM_AUTOCMD_ORDER;  do printf '                            %-24s %s\n' "$x" "$(_nvim_item_desc ac   "$x" full)"; done)"
   cat <<EOF
 Usage: ${0##*/} <command>
 
@@ -2188,22 +2378,29 @@ Core commands:
                             --font <name>         install/apply a Nerd Font (via fonts.sh)
 
 Settings (each writes a LazyVim file, then headless-syncs / regenerates; run AS YOU, never sudo):
-  set-colorscheme <name>  Domain 1 — colorscheme (curated: ${NVIM_THEME_ORDER// /, }; "" clears).
-  set-font <name> [size]  Domain 2 — Nerd Font via fonts.sh (curated: ${NVIM_FONT_KEYS// /, }).
+  set-colorscheme <name>  Domain 1 — colorscheme ("" clears). Curated (any other name works too):
+$_cs
+  set-font <name> [size]  Domain 2 — Nerd Font via fonts.sh. Curated:
+$_font
   add-plugin <owner/repo|git-url>     Domain 3 — add a plugin to lua/plugins/ubuntu-setup.lua
   remove-plugin <owner/repo|...>      Domain 3 — remove an added plugin
   disable-plugin <owner/repo>         Domain 3 — disable a LazyVim plugin (enabled = false)
   enable-plugin <owner/repo>          Domain 3 — undo a disable
-  extra-add <cat.name>    Domain 4 — enable a LazyVim extra in lazyvim.json (e.g. lang.go)
+    (LazyVim already bundles the core plugins — treesitter/telescope/gitsigns/…; add EXTRA ones here.)
+  extra-add <cat.name>    Domain 4 — enable a LazyVim extra in lazyvim.json. Curated (any module works too):
+$_ex
   extra-remove <cat.name> Domain 4 — disable an extra
   set-leader <char|space> Domain 5 — leader key (lua/config/options.lua managed block)
-  set-option <name> <v>   Domain 7 — an option (on|off|int|word); name 'autoformat' = format-on-save
+  set-option <name> <v>   Domain 7 — an option (on|off|int|word); 'autoformat' = format-on-save.
+                          Commonly-changed (any valid Neovim option works too):
+$_opt
   unset-option <name>     Domain 7 — drop an option back to LazyVim's default
   add-keymap <mode> <lhs> <rhs> [desc]  Domain 6 — a keymap (lua/config/keymaps.lua block)
   remove-keymap <mode> <lhs>            Domain 6 — drop a keymap
-  add-autocmd <name>      Domain 8 — enable a curated autocmd (lua/config/autocmds.lua block)
+  add-autocmd <name>      Domain 8 — enable a curated autocmd (lua/config/autocmds.lua block). Curated:
+$_ac
   remove-autocmd <name>   Domain 8 — disable a curated autocmd
-  mason-add <tool>        Domain 9 — add a Mason ensure_installed tool
+  mason-add <tool>        Domain 9 — add a Mason ensure_installed tool (LSP server / formatter / linter)
   mason-remove <tool>     Domain 9 — remove a Mason tool
 
 Other:

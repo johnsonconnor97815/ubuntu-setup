@@ -34,6 +34,13 @@ UI_RUN_RC=0      # exit code of the last ui_run command
 UI_ROWS=24
 UI_COLS=80
 
+# Optional per-call detail channel for ui_pick. When a caller fills this array (one entry per
+# id/label pair, SAME order) BEFORE calling ui_pick, the picker shows the highlighted item's detail
+# on a muted line just below the list (rich TTY) / appended to the numbered line (limited TTY).
+# ui_pick consumes-and-clears it on entry, so it never bleeds into a later call that does not set it
+# — the existing callers that never touch it are completely unaffected (empty array -> old behavior).
+declare -ga UI_PICK_DETAILS=()
+
 # Internal UI state.
 _UI_FD=""            # file descriptor open on /dev/tty while a screen is active
 _UI_ACTIVE=0         # 1 between ui_begin and ui_end
@@ -337,6 +344,9 @@ ui_pick() {
   local -a ids=() labels=()
   while (( $# >= 2 )); do ids+=("$1"); labels+=("$2"); shift 2; done
   local n=${#ids[@]}
+  # Consume the optional detail channel up front, then clear the global so a later ui_pick call that
+  # does not set it starts clean (no cross-call bleed). Only _details is used from here on.
+  local -a _details=( "${UI_PICK_DETAILS[@]}" ); UI_PICK_DETAILS=()
   UI_PICK=""
   (( n == 0 )) && return 1
   [[ -z "$footer" ]] && footer="$(ui_t nav_list)"
@@ -344,21 +354,22 @@ ui_pick() {
 
   if ! ui_supported; then
     kit_have_tty || { UI_PICK=""; return 1; }   # truly headless: quiet cancel
-    _ui_pick_text "$title" "$sub" ids labels
+    _ui_pick_text "$title" "$sub" ids labels _details
     return $?
   fi
 
   local own=0
   if [[ "${_UI_ACTIVE:-0}" != 1 ]]; then
-    ui_begin || { _ui_pick_text "$title" "$sub" ids labels; return $?; }
+    ui_begin || { _ui_pick_text "$title" "$sub" ids labels _details; return $?; }
     own=1
   fi
 
-  local sel=0 top=0 i row listrow avail rc=1
+  local sel=0 top=0 i row listrow avail rc=1 have_detail=0
+  (( ${#_details[@]} > 0 )) && have_detail=1
   while true; do
     [[ "${_UI_WINCH:-0}" == 1 ]] && { _UI_WINCH=0; ui_size; }
     listrow=4
-    avail=$(( UI_ROWS - listrow - 1 ))
+    avail=$(( UI_ROWS - listrow - 1 - have_detail ))
     (( avail < 1 )) && avail=1
     (( sel < top )) && top=$sel
     (( sel >= top + avail )) && top=$(( sel - avail + 1 ))
@@ -370,6 +381,16 @@ ui_pick() {
       ui_row "$row" "$i" "$sel" "${labels[$i]}"
       (( row++ ))
     done
+    if (( have_detail )); then
+      # The highlighted item's detail, on a muted line just below the list. ui_row never truncates,
+      # so truncate the PLAIN text ourselves (the color codes are wrapped on AFTER, never counted in
+      # the width) to keep it on one row without an ANSI sequence spilling past a mid-escape cut.
+      local _det="${_details[$sel]:-}" _detmax=$(( UI_COLS - 4 ))
+      (( _detmax < 1 )) && _detmax=1
+      _det="${_det:0:$_detmax}"
+      ui_move "$row" 1
+      printf '\033[K   %s%s%s' "$UI_MUTED" "$_det" "$UI_OFF" >&"$_UI_FD"
+    fi
     ui_footer "$footer"
     ui_read_key
     case "$UI_KEY" in
@@ -391,10 +412,15 @@ ui_pick() {
 _ui_pick_text() {
   local title="$1" sub="$2"; local -n _ids="$3" _labels="$4"
   local n=${#_ids[@]} i reply
+  local -a _det=()
+  [[ -n "${5:-}" ]] && { local -n _detref="$5"; _det=( "${_detref[@]}" ); }
   {
     printf '\n=== %s ===\n' "$title"
     [[ -n "$sub" ]] && printf '%s\n' "$sub"
-    for (( i=0; i<n; i++ )); do printf '  %d) %s\n' "$(( i+1 ))" "${_labels[$i]}"; done
+    for (( i=0; i<n; i++ )); do
+      if [[ -n "${_det[$i]:-}" ]]; then printf '  %d) %s — %s\n' "$(( i+1 ))" "${_labels[$i]}" "${_det[$i]}"
+      else printf '  %d) %s\n' "$(( i+1 ))" "${_labels[$i]}"; fi
+    done
     printf '  0) %s\n  > ' "$(ui_t back)"
   } >/dev/tty 2>/dev/null
   IFS= read -r reply </dev/tty 2>/dev/null || { UI_PICK=""; return 1; }
