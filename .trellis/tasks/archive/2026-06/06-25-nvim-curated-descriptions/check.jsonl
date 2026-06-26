@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/scripts/unified-interface.md", "reason": "验收契约:meta 字段齐/ops 不含 ui/status 独立可跑/help 不炸/ui 无 TTY 退 0"}
+{"file": ".trellis/spec/scripts/ui-conventions.md", "reason": "核对 ui_pick 详情行与三档终端降级、ui() 行内说明是否合规;旧 picker 回归依据"}
+{"file": ".trellis/spec/scripts/quality-guidelines.md", "reason": "shellcheck 零新增告警、i18n 三语一致、无 lua/marker grep 陷阱等质量门槛"}
+{"file": ".trellis/spec/lib/index.md", "reason": "lib/ui.sh 改动须守安全契约:向后兼容、默认关、零改 32 处调用方"}
