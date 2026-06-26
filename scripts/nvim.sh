@@ -705,7 +705,7 @@ do_install() {
   # re-sync, but don't re-run the binary install or re-land LazyVim.
   if status >/dev/null 2>&1; then
     log_info "The nvim + LazyVim combo is already installed ($(status 2>/dev/null)) — re-syncing plugins."
-    _nvim_sync nvim sync || log_warn "Plugin sync did not complete — re-run: ${0##*/} update-plugins."
+    _nvim_sync sync || log_warn "Plugin sync did not complete — re-run: ${0##*/} update-plugins."
     _nvim_migrate_legacy || true
     log_info "For settings (theme / font / plugins / extras / keymaps / options), open: swkit nvim"
     return 0
@@ -722,7 +722,7 @@ do_install() {
   # 3) Land LazyVim into ~/.config/nvim (four collision branches; writes the ownership marker).
   _lazyvim_land || return 1
   # 4) Sync LazyVim's plugins headless so the first launch is ready.
-  _nvim_sync nvim sync || log_warn "Plugin sync did not complete — re-run: ${0##*/} update-plugins (or just launch nvim)."
+  _nvim_sync sync || log_warn "Plugin sync did not complete — re-run: ${0##*/} update-plugins (or just launch nvim)."
   # 5) Best-effort: clean up leftovers from the old multi-distro/overlay layer (never touches user data).
   _nvim_migrate_legacy || true
 
@@ -1251,7 +1251,7 @@ _nvim_apply_plugins_file() {
   mv "$tmp" "$file" || { rm -f "$tmp"; return 1; }
   log_info "Wrote kit-managed plugins file: $file"
   # Install/clean the plugins LazyVim now sees. Needs nvim; _nvim_sync warns+returns if absent.
-  _nvim_sync nvim sync || log_warn "Plugin sync did not complete — re-run: ${0##*/} update-plugins (or just launch nvim)."
+  _nvim_sync sync || log_warn "Plugin sync did not complete — re-run: ${0##*/} update-plugins (or just launch nvim)."
   return 0
 }
 
@@ -1759,7 +1759,7 @@ do_extra_add() {
   _nvim_extras_apply add "$module" || return $?
   _nvim_cfg_list_add EXTRAS "$id"
   have_cmd node || log_info "$(_nvim_t node_hint)"
-  _nvim_sync nvim sync || log_warn "Plugin sync did not complete — re-run: ${0##*/} update-plugins (or just launch nvim)."
+  _nvim_sync sync || log_warn "Plugin sync did not complete — re-run: ${0##*/} update-plugins (or just launch nvim)."
   log_info "Enabled extra '${module}'. Restart nvim to load it (:LazyExtras shows it as enabled)."
 }
 
@@ -1772,7 +1772,7 @@ do_extra_remove() {
   local module; module="$(_nvim_extra_module "$id")"
   _nvim_extras_apply remove "$module" || return $?
   _nvim_cfg_list_remove EXTRAS "$id"
-  _nvim_sync nvim sync || log_warn "Plugin sync did not complete — re-run: ${0##*/} update-plugins (or just launch nvim)."
+  _nvim_sync sync || log_warn "Plugin sync did not complete — re-run: ${0##*/} update-plugins (or just launch nvim)."
   log_info "Disabled extra '${module}'. Restart nvim to apply."
 }
 
