@@ -825,7 +825,7 @@ do_update() {
   log_info "Neovim binary is now $(nvim --version 2>/dev/null | head -n1) (was ${cur:-unknown})."
 }
 
-# --- Distro installer ----------------------------------------------------------
+# --- Shared helpers: validators / dir backup / path guard / lazy.nvim sync ------
 
 # Validate a short name token (letters/digits/._-, no path-injection metacharacters). A shared
 # guard kept for any name/identifier the kit derives a filesystem path from.
@@ -1323,7 +1323,7 @@ do_mason_add() {
   local tool="${1:-}"; [[ -n "$tool" ]] || { log_err "Usage: ${0##*/} mason-add <tool>"; return 2; }
   _nvim_mason_tool_valid "$tool" || { log_err "Invalid Mason tool: $tool (letters/digits/._-)."; return 2; }
   _nvim_cfg_list_add MASON_TOOLS "$tool"
-  have_cmd node || log_info "$(_nvim_t mc_node_hint)"
+  have_cmd node || log_info "$(_nvim_t node_hint)"
   log_info "For configuring a whole language at once, prefer: ${0##*/} extra-add lang.<name>."
   _nvim_apply_plugins_file
 }
@@ -1758,7 +1758,7 @@ do_extra_add() {
   local module; module="$(_nvim_extra_module "$id")"
   _nvim_extras_apply add "$module" || return $?
   _nvim_cfg_list_add EXTRAS "$id"
-  have_cmd node || log_info "$(_nvim_t mc_node_hint)"
+  have_cmd node || log_info "$(_nvim_t node_hint)"
   _nvim_sync nvim sync || log_warn "Plugin sync did not complete — re-run: ${0##*/} update-plugins (or just launch nvim)."
   log_info "Enabled extra '${module}'. Restart nvim to load it (:LazyExtras shows it as enabled)."
 }
