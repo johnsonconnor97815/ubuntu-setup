@@ -102,6 +102,20 @@ declare -gA NVIM_THEME_SPEC=(
 # Stable display order for list-colorschemes / the UI selector (associative arrays are unordered).
 readonly NVIM_THEME_ORDER="tokyonight catppuccin gruvbox kanagawa rose-pine everforest"
 
+# Background mode shown next to each curated scheme in the picker/list. All six default to a DARK
+# background but ALSO ship a LIGHT variant (LazyVim follows `vim.o.background`), so the honest tag is
+# "dark/light" rather than a single mode — light flavors: tokyonight=day, catppuccin=latte,
+# gruvbox=light, kanagawa=lotus, rose-pine=dawn, everforest=light (verified upstream). A future
+# dark-only / light-only scheme would carry "dark" / "light" here instead.
+declare -gA NVIM_THEME_MODE=(
+  [tokyonight]="dark/light"
+  [catppuccin]="dark/light"
+  [gruvbox]="dark/light"
+  [kanagawa]="dark/light"
+  [rose-pine]="dark/light"
+  [everforest]="dark/light"
+)
+
 # External deps aligned with LazyVim's healthcheck (git/curl/ripgrep/fd/fzf + a C compiler + unzip +
 # gzip for the tree-sitter CLI LazyVim auto-installs). lazygit is best-effort (added separately so a
 # missing candidate never fails the set). fd's binary is `fdfind` on Ubuntu.
@@ -1192,6 +1206,8 @@ _nvim_mason_tool_valid() { [[ "$1" =~ ^[A-Za-z0-9._-]+$ ]]; }
 # Echo the lua/plugins spec line for the curated colorscheme NAME (empty for a built-in / unknown).
 # Built-ins (tokyonight, catppuccin) and any non-curated name map to "" (no extra plugin spec).
 _nvim_theme_spec() { printf '%s' "${NVIM_THEME_SPEC[$1]:-}"; }
+# Background mode label ("dark/light" | "dark" | "light"; empty for non-curated names).
+_nvim_theme_mode() { printf '%s' "${NVIM_THEME_MODE[$1]:-}"; }
 
 # _nvim_render_plugins_file — PURE: emit lua/plugins/ubuntu-setup.lua to stdout from nvim.conf state.
 # First line is the ownership marker. Composes domain 1 (theme) + 3 (plugins) + 9 (Mason) into one
@@ -1339,12 +1355,12 @@ do_mason_remove() {
 
 # list-colorschemes — print the curated theme table (built-in vs plugin-backed). No state change.
 do_list_colorschemes() {
-  local name spec
+  local name spec mode
   printf 'Curated colorschemes (set with: %s set-colorscheme <name>):\n' "${0##*/}"
   for name in $NVIM_THEME_ORDER; do
-    spec="$(_nvim_theme_spec "$name")"
-    if [[ -z "$spec" ]]; then printf '  %-12s  built-in (ships with LazyVim)\n' "$name"
-    else printf '  %-12s  plugin: %s\n' "$name" "$(printf '%s' "$spec" | sed -E 's/^\{ "([^"]+)".*/\1/')"; fi
+    spec="$(_nvim_theme_spec "$name")"; mode="$(_nvim_theme_mode "$name")"
+    if [[ -z "$spec" ]]; then printf '  %-12s  %-10s  built-in (ships with LazyVim)\n' "$name" "$mode"
+    else printf '  %-12s  %-10s  plugin: %s\n' "$name" "$mode" "$(printf '%s' "$spec" | sed -E 's/^\{ "([^"]+)".*/\1/')"; fi
   done
   printf 'Any other name is accepted too (add-plugin its plugin if it is not built-in/installed).\n'
 }
@@ -2037,10 +2053,11 @@ ui() {
             else ui_run "default editor on" -- "$0" set-default-editor; fi ;;
           deps)        ui_run "$(_nvim_t install_deps)" -- "$0" ensure-deps ;;
           color)
-            local -a copts=() cc spec built
+            local -a copts=() cc spec built mode
             for cc in $NVIM_THEME_ORDER; do
-              spec="$(_nvim_theme_spec "$cc")"; if [[ -z "$spec" ]]; then built=" (built-in)"; else built=" (plugin)"; fi
-              copts+=("$cc" "$cc$built")
+              spec="$(_nvim_theme_spec "$cc")"; if [[ -z "$spec" ]]; then built="built-in"; else built="plugin"; fi
+              mode="$(_nvim_theme_mode "$cc")"
+              copts+=("$cc" "$cc ($built${mode:+ · $mode})")
             done
             copts+=("__custom__" "$(_nvim_t custom_colorscheme)")
             copts+=("" "$(_nvim_t clear_colorscheme)")
