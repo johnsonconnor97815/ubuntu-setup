@@ -32,7 +32,10 @@ _KIT_CACHE_LOADED=1
 # (lib/ui.sh's _ui_catalog_scan). Declared here so the contract is visible and tools see them
 # assigned. Callers read these instead of capturing `$(...)`, keeping the hot loop fork-free.
 # shellcheck disable=SC2034  # consumed cross-file by lib/ui.sh
-_KIT_META_K="" _KIT_META_N="" _KIT_META_C="" _KIT_STATUS_V="" _KIT_STATUS_TS=""
+# _KIT_META_T (tags) and _KIT_META_DH (desktop_hint) feed the catalog's SSH grey-out/badge;
+# requires/recommends are NOT hot-path globals — the install-time resolver reads them via the
+# (fork-tolerant) kit_meta_field, keeping the first-paint loop lean.
+_KIT_META_K="" _KIT_META_N="" _KIT_META_C="" _KIT_META_T="" _KIT_META_DH="" _KIT_STATUS_V="" _KIT_STATUS_TS=""
 
 # Resolve the real user's home, honoring a sudo wrapper (mirror kit_load_lang).
 _kit_real_home() {
@@ -110,13 +113,15 @@ kit_meta_cached() {
 # (parses live `meta`). No `$(...)` here: callers read the globals, so no subshell per script.
 kit_meta_into() {
   local line base cache
-  _KIT_META_K="" _KIT_META_N="" _KIT_META_C=""
+  _KIT_META_K="" _KIT_META_N="" _KIT_META_C="" _KIT_META_T="" _KIT_META_DH=""
   if [[ -n "${KIT_NO_CACHE:-}" ]]; then
     while IFS= read -r line; do
       case "$line" in
-        key=*)      _KIT_META_K="${line#*=}" ;;
-        name=*)     _KIT_META_N="${line#*=}" ;;
-        category=*) _KIT_META_C="${line#*=}" ;;
+        key=*)          _KIT_META_K="${line#*=}" ;;
+        name=*)         _KIT_META_N="${line#*=}" ;;
+        category=*)     _KIT_META_C="${line#*=}" ;;
+        tags=*)         _KIT_META_T="${line#*=}" ;;
+        desktop_hint=*) _KIT_META_DH="${line#*=}" ;;
       esac
     done < <("$1" meta 2>/dev/null)
     [[ -n "$_KIT_META_K" ]]; return
@@ -127,12 +132,26 @@ kit_meta_into() {
   [[ -f "$cache" ]] || return 1
   while IFS= read -r line; do
     case "$line" in
-      key=*)      _KIT_META_K="${line#*=}" ;;
-      name=*)     _KIT_META_N="${line#*=}" ;;
-      category=*) _KIT_META_C="${line#*=}" ;;
+      key=*)          _KIT_META_K="${line#*=}" ;;
+      name=*)         _KIT_META_N="${line#*=}" ;;
+      category=*)     _KIT_META_C="${line#*=}" ;;
+      tags=*)         _KIT_META_T="${line#*=}" ;;
+      desktop_hint=*) _KIT_META_DH="${line#*=}" ;;
     esac
   done <"$cache"
   [[ -n "$_KIT_META_K" ]]
+}
+
+# Print one meta field's value for a script PATH (cached; cold-probes via kit_meta_cached).
+# Empty output when the field is absent. Used off the hot path (the install-time dependency
+# resolver reads requires=/recommends=), so a fork here is fine. Honors KIT_NO_CACHE.
+kit_meta_field() {
+  local script="$1" field="$2" line
+  [[ -f "$script" ]] || return 1
+  while IFS= read -r line; do
+    [[ "$line" == "$field="* ]] && { printf '%s' "${line#*=}"; return 0; }
+  done < <(kit_meta_cached "$script" 2>/dev/null)
+  return 0
 }
 
 # Read the cached install boolean into the global _KIT_STATUS_V (1/0/empty) WITHOUT any fork.

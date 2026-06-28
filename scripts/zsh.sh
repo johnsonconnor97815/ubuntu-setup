@@ -171,6 +171,7 @@ meta() {
 key=zsh
 name=zsh
 category=essentials
+tags=cli
 ops=install,remove,configure,install-omz,uninstall-omz,default-shell
 desc=Z shell — component manager: Oh My Zsh, prompts (git/starship/p10k/pure), plugins, default shell
 META

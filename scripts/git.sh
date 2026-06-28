@@ -44,6 +44,7 @@ meta() {
 key=git
 name=git
 category=essentials
+tags=cli
 ops=install,remove,configure
 desc=Distributed version control system (apt)
 META

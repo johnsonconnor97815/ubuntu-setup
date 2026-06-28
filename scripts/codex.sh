@@ -126,6 +126,8 @@ meta() {
 key=codex
 name=Codex CLI
 category=ai
+tags=cli
+recommends=node
 ops=install,remove
 desc=OpenAI Codex CLI (official native installer; npm optional)
 META

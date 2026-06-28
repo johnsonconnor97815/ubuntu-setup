@@ -74,6 +74,14 @@ sudo_passwordless() { sudo -n true 2>/dev/null; }
 # the LLM's non-interactive shell), so actually try to open it rather than test -r/-w.
 kit_have_tty() { { true </dev/tty; } 2>/dev/null && { true >/dev/tty; } 2>/dev/null; }
 
+# Are we on an SSH / headless session with no local display? The catalog uses this to grey out
+# and badge desktop-only software (disclose, never hide — ADR-0003). Read-only env probe, no
+# fork: true when an SSH_* var is set, or when neither X nor Wayland has a display.
+kit_is_ssh() {
+  [[ -n "${SSH_CONNECTION:-}${SSH_TTY:-}${SSH_CLIENT:-}" ]] && return 0
+  [[ -z "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]]
+}
+
 # Run a single command with root privilege, escalating per command:
 #   - already root            -> run it directly
 #   - sudo is passwordless     -> sudo <cmd>
@@ -341,6 +349,97 @@ kit_load_lang() {
   case "$code" in zh|en|ja) export UI_LANG="$code" ;; esac
 }
 
+# --- Cross-script dependencies (declarative requires/recommends; ADR-0002) ------
+# Scripts declare hard `requires=` and soft `recommends=` in their meta. The resolver gates an
+# install on hard requires being PRESENT — presence only: a version constraint like `java>=17`
+# is informational (shown/ordered) and enforced by the consuming script (android's
+# _android_java_gate), never by a generic comparator here. Honesty contract: an unmet hard
+# requires fails fast with a pointer on the headless/CLI path (never silently crosses a sudo
+# boundary); `--with-requires` installs the chain in topological order; recommends are only
+# pointed at, never auto-installed.
+
+# Bare dep key from a spec, dropping any version constraint:  java>=17 -> java
+_kit_dep_key()    { local s="$1"; printf '%s' "${s%%[<>=]*}"; }
+# Path to a dep's script (empty if the key has no script in the collection).
+_kit_dep_script() { local p="$KIT_SCRIPTS_DIR/$1.sh"; [[ -f "$p" ]] && printf '%s' "$p"; }
+# Script key (basename without .sh) from a path.
+_kit_script_key() { local b="${1##*/}"; printf '%s' "${b%.sh}"; }
+
+# Is a dep satisfied? PRESENCE only (status gate); any version constraint is discarded.
+kit_dep_satisfied() {
+  local sh; sh="$(_kit_dep_script "$(_kit_dep_key "$1")")" || return 1
+  [[ -n "$sh" ]] || return 1
+  KIT_PROBE_ONLY=1 "$sh" status >/dev/null 2>&1
+}
+
+# kit_resolve_requires <script-path> [--install]
+# Walk the transitive hard-requires closure of <script-path>, topologically order it (tsort,
+# with cycle detection), then GATE (default) or INSTALL (--install) the unmet deps in order.
+# Returns 0 when all hard requires are satisfied (or were installed); RC_NEED_SUDO/non-zero
+# otherwise (the caller's set -e then stops before do_install — the fail-fast contract).
+kit_resolve_requires() {
+  local self="$1" mode="${2:-gate}" selfkey
+  selfkey="$(_kit_script_key "$self")"
+  local -a edges=() stack=("$self")
+  local -A visited=(["$selfkey"]=1)
+  local cur curkey dep depkey depsh
+  while ((${#stack[@]})); do
+    cur="${stack[-1]}"; unset 'stack[-1]'
+    curkey="$(_kit_script_key "$cur")"
+    for dep in $(kit_meta_field "$cur" requires 2>/dev/null); do   # word-split intentional
+      depkey="$(_kit_dep_key "$dep")"
+      edges+=("$depkey" "$curkey")                                 # dep precedes dependent
+      depsh="$(_kit_dep_script "$depkey")"
+      if [[ -z "${visited[$depkey]:-}" ]]; then
+        visited[$depkey]=1
+        [[ -n "$depsh" ]] && stack+=("$depsh")
+      fi
+    done
+  done
+  ((${#edges[@]})) || return 0   # no hard requires anywhere in the closure (empty graph)
+
+  local order
+  if ! order="$(printf '%s %s\n' "${edges[@]}" | tsort 2>/dev/null)"; then
+    log_err "Dependency cycle detected involving '$selfkey' (check requires= edges)."
+    return 1
+  fi
+
+  local rc=0 k ksh
+  for k in $order; do                       # tsort lists deps before dependents
+    [[ "$k" == "$selfkey" ]] && continue
+    kit_dep_satisfied "$k" && continue
+    ksh="$(_kit_dep_script "$k")"
+    if [[ -z "$ksh" ]]; then
+      log_err "'$selfkey' requires '$k', but scripts/$k.sh does not exist."
+      rc=1; continue
+    fi
+    if [[ "$mode" == --install ]]; then
+      log_info "Installing required dependency: $k"
+      if declare -F ui_supported >/dev/null 2>&1 && ui_supported && [[ "${_UI_ACTIVE:-0}" == 1 ]]; then
+        ui_run "$k" -- "$ksh" install || rc=$?
+      else
+        "$ksh" install || rc=$?
+      fi
+    else
+      log_err "'$selfkey' requires '$k' (not installed). Install it first:  swkit $k install"
+      log_err "  (or:  swkit $selfkey install --with-requires  to install the whole chain)"
+      rc="$RC_NEED_SUDO"
+    fi
+  done
+  return "$rc"
+}
+
+# Warn about unmet soft recommends (never auto-install). Called after a successful install.
+kit_warn_recommends() {
+  local self="$1" selfkey rec key
+  selfkey="$(_kit_script_key "$self")"
+  for rec in $(kit_meta_field "$self" recommends 2>/dev/null); do   # word-split intentional
+    key="$(_kit_dep_key "$rec")"
+    kit_dep_satisfied "$key" && continue
+    log_warn "'$selfkey' recommends '$key' for full functionality:  swkit $key install"
+  done
+}
+
 # Route a script's subcommand to its convention functions. A script defines
 #   meta status do_install do_remove [do_configure] [ui] usage
 # and ends with `kit_dispatch "$@"`. configure is offered only if do_configure exists.
@@ -362,7 +461,19 @@ kit_dispatch() {
   case "$cmd" in
     meta)      meta ;;
     status)    status ;;
-    install)   do_install "$@" ;;
+    install)
+      # Declarative dependency gate (ADR-0002): satisfy hard requires before installing.
+      # --with-requires installs the chain in topo order; otherwise an unmet hard requires
+      # fails fast (the caller's set -e stops here, before do_install). recommends are warned
+      # after a successful install.
+      local _wr="" _a; local -a _ia=()
+      for _a in "$@"; do
+        if [[ "$_a" == --with-requires ]]; then _wr=1; else _ia+=("$_a"); fi
+      done
+      if [[ -n "$_wr" ]]; then kit_resolve_requires "$0" --install; else kit_resolve_requires "$0"; fi
+      do_install "${_ia[@]}"
+      kit_warn_recommends "$0"
+      ;;
     remove)    do_remove "$@" ;;
     configure)
       if declare -F do_configure >/dev/null 2>&1; then

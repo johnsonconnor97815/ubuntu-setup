@@ -82,6 +82,8 @@ meta() {
 key=trellis
 name=Trellis
 category=ai
+tags=cli
+requires=node
 ops=install,remove,configure
 desc=AI coding engineering framework (specs/tasks/memory in your repo)
 META

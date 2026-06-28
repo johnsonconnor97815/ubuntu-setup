@@ -345,6 +345,8 @@ meta() {
 key=claude
 name=Claude Code CLI
 category=ai
+tags=cli
+recommends=node
 ops=install,remove
 desc=Claude Code CLI + extension manager (MCP servers, plugins/marketplaces, skills)
 META

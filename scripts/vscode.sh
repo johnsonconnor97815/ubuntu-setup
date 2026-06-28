@@ -56,7 +56,9 @@ meta() {
   cat <<'META'
 key=vscode
 name=VS Code
-category=common
+category=editors
+tags=gui desktop-only
+desktop_hint=Remote-SSH
 ops=install,remove
 desc=Visual Studio Code editor (Microsoft apt repo, else snap)
 META

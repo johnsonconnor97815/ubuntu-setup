@@ -91,7 +91,8 @@ meta() {
   cat <<'META'
 key=java
 name=Java (OpenJDK)
-category=runtime
+category=languages
+tags=cli
 ops=install,remove,configure
 desc=OpenJDK dev environment — apt openjdk JDK (headless), multi-version + grouped default switch + JAVA_HOME
 META

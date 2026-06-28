@@ -320,7 +320,8 @@ meta() {
   cat <<'META'
 key=rime
 name=RIME
-category=common
+category=apps
+tags=gui desktop-only
 ops=install,remove,configure,deploy,install-rime-ice,remove-rime-ice
 desc=RIME input method on fcitx5 — installs the engine + frontends, manages schemas (输入方案), optional 雾凇拼音(rime-ice); desktop-only (honest no-op note over SSH)
 META

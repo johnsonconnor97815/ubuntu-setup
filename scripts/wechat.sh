@@ -66,7 +66,8 @@ meta() {
   cat <<'META'
 key=wechat
 name=WeChat
-category=common
+category=apps
+tags=gui desktop-only
 ops=install,remove,update
 desc=WeChat — Tencent's official Linux client (official .deb; 'update' fetches the latest)
 META

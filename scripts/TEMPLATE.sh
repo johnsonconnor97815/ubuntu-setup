@@ -25,13 +25,25 @@ source "$_kit_here/lib/common.sh"
 
 # Machine-readable self-description — read by the bootstrap TUI and `swkit list`.
 # Hard-code it (this is NOT a data-driven catalog; each script describes only itself).
-#   category : essentials | common | ai | runtime   (anything else groups under "other")
-#   ops      : MUST list exactly the operations implemented below (install,remove[,configure])
+#   category   : ONE end-user bucket (ADR-0003), exactly one of
+#                essentials | languages | editors | terminal | ai | apps   (else -> "other")
+#   ops        : MUST list exactly the operations implemented below (install,remove[,configure]).
+#                `ui` is an entry mode, NOT an op — never list it.
+#   tags       : (optional) space-separated facets. `desktop-only` makes the catalog grey +
+#                badge this row on SSH/headless (disclose, not hide); gui/cli are descriptive.
+#   desktop_hint : (optional) overrides the SSH badge text for a desktop-only row (e.g. a tool
+#                that still has a remote story like Remote-SSH).
+#   requires   : (optional) hard cross-script prerequisites "key[>=ver]" (ADR-0002). Install is
+#                gated on them being PRESENT (the version is informational — enforced by THIS
+#                script, not the resolver). Unmet -> fail-fast + pointer; install the chain with
+#                `swkit <key> install --with-requires`.
+#   recommends : (optional) soft deps "key" — pointed at after install, NEVER auto-installed.
 meta() {
   cat <<'META'
 key=example
 name=Example Tool
-category=common
+category=apps
+tags=cli
 ops=install,remove
 desc=One-line description of what this installs
 META

@@ -36,7 +36,8 @@ meta() {
   cat <<'META'
 key=node
 name=Node.js + npm (apt)
-category=runtime
+category=languages
+tags=cli
 ops=install,remove
 desc=Node.js runtime and npm from Ubuntu's apt repos
 META

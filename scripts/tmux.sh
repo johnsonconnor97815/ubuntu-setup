@@ -79,7 +79,8 @@ meta() {
   cat <<'META'
 key=tmux
 name=tmux
-category=common
+category=terminal
+tags=cli
 ops=install,remove,configure,install-tpm,uninstall-tpm,update-plugins
 desc=Terminal multiplexer — component manager: TPM, curated plugins, themes, best-practice settings
 META

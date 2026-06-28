@@ -115,7 +115,8 @@ meta() {
   cat <<'META'
 key=go
 name=Go
-category=runtime
+category=languages
+tags=cli
 ops=install,remove,configure,tools,update-tools
 desc=Go dev environment — apt golang-go + GOPROXY, GOBIN-on-PATH, curated tools (gopls/dlv/golangci-lint…)
 META

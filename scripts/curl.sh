@@ -36,6 +36,7 @@ meta() {
 key=curl
 name=curl
 category=essentials
+tags=cli
 ops=install,remove
 desc=Command-line HTTP client and TLS CA certificates (apt)
 META

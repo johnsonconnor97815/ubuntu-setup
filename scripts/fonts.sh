@@ -113,7 +113,8 @@ meta() {
   cat <<'META'
 key=fonts
 name=Nerd Fonts
-category=common
+category=essentials
+tags=cli
 ops=install,remove,apply,configure
 desc=Nerd Fonts (MesloLGS NF for Powerlevel10k/Starship, + JetBrainsMono/FiraCode/Hack) — user-space install + fc-cache + local terminal apply
 META

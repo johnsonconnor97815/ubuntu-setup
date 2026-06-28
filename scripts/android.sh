@@ -190,7 +190,9 @@ meta() {
   cat <<'META'
 key=android
 name=Android SDK
-category=runtime
+category=languages
+tags=cli
+requires=java>=17
 ops=install,remove,configure,accept-licenses,purge
 desc=Headless Android SDK toolchain — cmdline-tools + sdkmanager (platform-tools/platforms/build-tools/emulator/NDK); needs a JDK >=17 (swkit java)
 META

@@ -61,7 +61,8 @@ meta() {
   cat <<'META'
 key=obsidian
 name=Obsidian
-category=common
+category=apps
+tags=gui desktop-only
 ops=install,remove,update
 desc=Obsidian — the Markdown knowledge base (official .deb from GitHub releases; 'update' fetches the latest)
 META

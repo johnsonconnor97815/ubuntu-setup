@@ -353,6 +353,8 @@ meta() {
 key=mattpocock-skills
 name=Matt Pocock Skills
 category=ai
+tags=cli
+requires=node
 ops=install,remove,configure,update
 desc=Matt Pocock's agent skills — multi-agent installer (via the skills CLI)
 META

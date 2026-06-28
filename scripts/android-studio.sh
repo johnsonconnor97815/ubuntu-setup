@@ -80,7 +80,8 @@ meta() {
   cat <<'META'
 key=android-studio
 name=Android Studio
-category=common
+category=editors
+tags=gui desktop-only
 ops=install,remove,update
 desc=Android Studio — Google's official Android IDE (official tarball, sha256-verified; else snap)
 META

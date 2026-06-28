@@ -176,7 +176,8 @@ meta() {
   cat <<'META'
 key=ghostty
 name=Ghostty
-category=common
+category=terminal
+tags=gui desktop-only
 ops=install,remove,configure,default-terminal
 desc=Ghostty — fast GPU-accelerated terminal emulator (apt on 26.04+, else community .deb / snap); manages theme, font, sensible defaults, default-terminal
 META

@@ -51,7 +51,8 @@ meta() {
   cat <<'META'
 key=docker
 name=Docker (docker.io)
-category=common
+category=terminal
+tags=cli
 ops=install,remove,configure
 desc=Container runtime from Ubuntu's docker.io package
 META

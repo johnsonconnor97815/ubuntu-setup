@@ -62,6 +62,8 @@ meta() {
 key=codegraph
 name=CodeGraph
 category=ai
+tags=cli
+requires=node
 ops=install,remove,configure
 desc=Local code knowledge graph (MCP server) for AI coding agents
 META

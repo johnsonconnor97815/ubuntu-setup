@@ -184,7 +184,8 @@ meta() {
   cat <<'META'
 key=python
 name=Python
-category=runtime
+category=languages
+tags=cli
 ops=install,remove,configure,install-uv,remove-uv,update-uv,tools,update-tools,list-versions,upgrade-versions,clear-default
 desc=Python dev environment — apt pip/venv/dev + uv (modern manager) + ruff/mypy/…, version mgmt, index mirrors
 META

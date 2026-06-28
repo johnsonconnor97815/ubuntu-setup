@@ -129,10 +129,13 @@ UI_MSG[zh:no_tty]="这是交互界面,但未检测到终端。" UI_MSG[ja:no_tty
 UI_MSG[en:use_swkit]="Run a specific action instead, e.g.:" \
 UI_MSG[zh:use_swkit]="请改用具体操作,例如:" UI_MSG[ja:use_swkit]="代わりに具体的な操作を実行してください。例:"
 UI_MSG[en:cat_essentials]="ESSENTIALS"   UI_MSG[zh:cat_essentials]="装机必备"   UI_MSG[ja:cat_essentials]="必須ツール"
-UI_MSG[en:cat_common]="COMMON"           UI_MSG[zh:cat_common]="常用软件"       UI_MSG[ja:cat_common]="よく使うソフト"
-UI_MSG[en:cat_ai]="AI CODING CLIS"       UI_MSG[zh:cat_ai]="AI 编码 CLI"        UI_MSG[ja:cat_ai]="AI コーディング CLI"
-UI_MSG[en:cat_runtime]="RUNTIME"         UI_MSG[zh:cat_runtime]="运行时"        UI_MSG[ja:cat_runtime]="ランタイム"
+UI_MSG[en:cat_languages]="LANGUAGES & RUNTIMES" UI_MSG[zh:cat_languages]="语言与运行时" UI_MSG[ja:cat_languages]="言語とランタイム"
+UI_MSG[en:cat_editors]="EDITORS & IDES"  UI_MSG[zh:cat_editors]="编辑器与 IDE"  UI_MSG[ja:cat_editors]="エディタと IDE"
+UI_MSG[en:cat_terminal]="TERMINAL & TOOLS" UI_MSG[zh:cat_terminal]="终端与工具" UI_MSG[ja:cat_terminal]="ターミナルとツール"
+UI_MSG[en:cat_ai]="AI TOOLS"             UI_MSG[zh:cat_ai]="AI 工具"            UI_MSG[ja:cat_ai]="AI ツール"
+UI_MSG[en:cat_apps]="APPS"               UI_MSG[zh:cat_apps]="应用"             UI_MSG[ja:cat_apps]="アプリ"
 UI_MSG[en:cat_other]="OTHER"             UI_MSG[zh:cat_other]="其他"            UI_MSG[ja:cat_other]="その他"
+UI_MSG[en:badge_desktop_only]="desktop-only" UI_MSG[zh:badge_desktop_only]="桌面专用" UI_MSG[ja:badge_desktop_only]="デスクトップ専用"
 UI_MSG[en:nav_list]="↑↓ move   ↵/space select   esc/q back" \
 UI_MSG[zh:nav_list]="↑↓ 移动   ↵/space 选择   esc/q 返回" UI_MSG[ja:nav_list]="↑↓ 移動   ↵/space 選択   esc/q 戻る"
 UI_MSG[en:nav_catalog]="↑↓ move   ↵/→ manage   esc back   q quit" \
@@ -645,14 +648,19 @@ _ui_meta_field() {   # read "key=value" blob on stdin; $1=key -> value of first 
 
 # --- ui_catalog: browse the whole script collection ----------------------------
 # ui_catalog [DIR] — list scripts by category, mark installed, drill into "<script> ui".
-_KIT_UI_CAT_ORDER=(essentials common ai runtime)
+# The 6 end-user-facing categories, in display order (ADR-0003). Any script whose category is
+# none of these (or empty -> "other") is appended after these by _ui_catalog_build, so unknown
+# categories still render (the "other" fallback) — no need to list it here.
+_KIT_UI_CAT_ORDER=(essentials languages editors terminal ai apps)
 
 _ui_cat_label() {
   case "$1" in
     essentials) ui_t cat_essentials ;;
-    common)     ui_t cat_common ;;
+    languages)  ui_t cat_languages ;;
+    editors)    ui_t cat_editors ;;
+    terminal)   ui_t cat_terminal ;;
     ai)         ui_t cat_ai ;;
-    runtime)    ui_t cat_runtime ;;
+    apps)       ui_t cat_apps ;;
     *)          ui_t cat_other ;;
   esac
 }
@@ -672,13 +680,13 @@ ui_catalog() {
   local sel=0 rescan=1 n=0 i p
   # selectable arrays (filled/read via nameref by _ui_catalog_scan/_ui_catalog_build)
   # shellcheck disable=SC2034
-  local -a sk=() sn=() sc=() sp=() si=()     # keys/names/cats/paths/installed
+  local -a sk=() sn=() sc=() sp=() si=() st=() sdh=()   # keys/names/cats/paths/installed/tags/desktop_hint
   local -a keys=() labels=() paths=()        # display: interleaved headers (empty key) + rows
   local -a pending=()                         # paths whose fresh status we are still awaiting
   while true; do
     if (( rescan )); then
-      _ui_catalog_scan "$dir" sk sn sc sp si
-      _ui_catalog_build sk sn sc sp si keys labels paths
+      _ui_catalog_scan "$dir" sk sn sc sp si st sdh
+      _ui_catalog_build sk sn sc sp si st sdh keys labels paths
       n=${#keys[@]}
       if (( n == 0 )); then ui_notify "$(ui_t install_software)" "$(ui_t no_scripts)"; break; fi
       (( sel >= n )) && sel=$(( n - 1 )); (( sel < 0 )) && sel=0
@@ -738,7 +746,7 @@ ui_catalog() {
           fi
         done
         pending=("${still[@]}")
-        (( changed )) && _ui_catalog_build sk sn sc sp si keys labels paths
+        (( changed )) && _ui_catalog_build sk sn sc sp si st sdh keys labels paths
         ;;
       up|k)   _ui_catalog_step keys sel -1 ;;
       down|j) _ui_catalog_step keys sel 1 ;;
@@ -779,9 +787,10 @@ _ui_catalog_step() {
 # (which set globals, so there is no `$(...)` subshell per script). Cold start: any script whose
 # meta is not cached yet is probed in parallel first (one-time). installed: 1/0/empty -> 1/0/-1
 # ("unknown"); the catalog re-probes status in the background. Honors the TEMPLATE.sh skip.
+# shellcheck disable=SC2153  # _KIT_META_* are assigned cross-file in lib/cache.sh (sourced via common.sh)
 _ui_catalog_scan() {
-  local dir="$1"; local -n __s_k="$2" __s_n="$3" __s_c="$4" __s_p="$5" __s_i="$6"
-  __s_k=(); __s_n=(); __s_c=(); __s_p=(); __s_i=()
+  local dir="$1"; local -n __s_k="$2" __s_n="$3" __s_c="$4" __s_p="$5" __s_i="$6" __s_t="$7" __s_dh="$8"
+  __s_k=(); __s_n=(); __s_c=(); __s_p=(); __s_i=(); __s_t=(); __s_dh=()
   kit_cache_dir >/dev/null   # ensure $_KIT_CACHE_DIR is set so the helpers stay fork-free
   local f base v cdir="$_KIT_CACHE_DIR"
   local -a miss=()
@@ -806,7 +815,8 @@ _ui_catalog_scan() {
     [[ -n "$_KIT_META_C" ]] || _KIT_META_C="other"
     kit_status_read "$f"
     case "$_KIT_STATUS_V" in 1) v=1 ;; 0) v=0 ;; *) v=-1 ;; esac
-    __s_k+=("$_KIT_META_K"); __s_n+=("$_KIT_META_N"); __s_c+=("$_KIT_META_C"); __s_p+=("$f"); __s_i+=("$v")
+    # _KIT_META_* (incl. tags/desktop_hint) are set by kit_meta_into (lib/cache.sh).
+    __s_k+=("$_KIT_META_K"); __s_n+=("$_KIT_META_N"); __s_c+=("$_KIT_META_C"); __s_p+=("$f"); __s_i+=("$v"); __s_t+=("$_KIT_META_T"); __s_dh+=("$_KIT_META_DH")
   done
   shopt -u nullglob
 }
@@ -815,16 +825,19 @@ _ui_catalog_scan() {
 # arrays. installed -> badge: 1 installed, 0 missing, -1 mid ("probing"). Nameref params use
 # a __b_ prefix so they never collide with a caller's array names (avoids circular refs).
 _ui_catalog_build() {
-  local -n __b_sk="$1" __b_sn="$2" __b_sc="$3" __b_sp="$4" __b_si="$5"   # selectable in
-  local -n __b_dk="$6" __b_dl="$7" __b_dp="$8"                            # display out
+  local -n __b_sk="$1" __b_sn="$2" __b_sc="$3" __b_sp="$4" __b_si="$5" __b_st="$6" __b_sdh="$7"  # selectable in
+  local -n __b_dk="$8" __b_dl="$9" __b_dp="${10}"                         # display out
   __b_dk=(); __b_dl=(); __b_dp=()
   # Hoist all subshells out of the per-item loop: the three badges and the "installed" word are
   # the same for every row, so compute them once (keeps a repaint on a status change near-free).
   local b_on b_off b_mid word_installed
   b_on="$(ui_badge installed)"; b_off="$(ui_badge missing)"; b_mid="$(ui_badge mid)"
   word_installed="$(ui_t installed)"
+  # SSH grey-out: compute once (kit_is_ssh is fork-free). Desktop-only rows are muted + badged
+  # on SSH/headless but stay selectable — disclose, don't hide (ADR-0003).
+  local is_ssh=0 dbadge; kit_is_ssh && is_ssh=1; dbadge="$(ui_t badge_desktop_only)"
   local -a cats=("${_KIT_UI_CAT_ORDER[@]}")
-  local c seen e i lbl tag cat any lbl_word
+  local c seen e i lbl tag cat any lbl_word nm dt hint
   for c in "${__b_sc[@]}"; do
     seen=0; for e in "${cats[@]}"; do [[ "$e" == "$c" ]] && { seen=1; break; }; done
     (( seen )) || cats+=("$c")
@@ -841,7 +854,14 @@ _ui_catalog_build() {
         0) tag="$b_off"; lbl_word="" ;;
         *) tag="$b_mid"; lbl_word="" ;;
       esac
-      printf -v lbl '%s %-12s %s' "$tag" "${__b_sn[$i]}" "${UI_MUTED}${lbl_word}${UI_OFF}"
+      printf -v nm '%-12s' "${__b_sn[$i]}"          # pad the PLAIN name first (width-correct)
+      dt=""
+      if (( is_ssh )) && [[ " ${__b_st[$i]} " == *" desktop-only "* ]]; then
+        nm="${UI_MUTED}${nm}${UI_OFF}"               # then wrap — color bytes must not skew padding
+        hint="${__b_sdh[$i]}"; [[ -n "$hint" ]] || hint="$dbadge"
+        dt=" ${UI_MUTED}(${hint})${UI_OFF}"
+      fi
+      printf -v lbl '%s %s %s%s' "$tag" "$nm" "${UI_MUTED}${lbl_word}${UI_OFF}" "$dt"
       __b_dk+=("${__b_sk[$i]}"); __b_dl+=("$lbl"); __b_dp+=("${__b_sp[$i]}")
     done
   done
@@ -864,10 +884,10 @@ _ui_spawn_probes() {
 # (no async repaint there), so warm the whole cache up front, then scan + build.
 _ui_catalog_collect() {
   local dir="$1"; local -n _keys="$2" _labels="$3" _paths="$4"
-  local -a _sk=() _sn=() _sc=() _sp=() _si=()
+  local -a _sk=() _sn=() _sc=() _sp=() _si=() _st=() _sdh=()
   kit_cache_fill "$dir"
-  _ui_catalog_scan "$dir" _sk _sn _sc _sp _si
-  _ui_catalog_build _sk _sn _sc _sp _si _keys _labels _paths
+  _ui_catalog_scan "$dir" _sk _sn _sc _sp _si _st _sdh
+  _ui_catalog_build _sk _sn _sc _sp _si _st _sdh _keys _labels _paths
 }
 
 # Plain numbered catalog for limited TTY.

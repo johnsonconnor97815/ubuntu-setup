@@ -23,9 +23,9 @@ _kit_here="$(cd "$(dirname "$_self")" && pwd)"
 source "$_kit_here/lib/common.sh"
 # KIT_SCRIPTS_DIR is now available from the library.
 
-# Known categories, in display order. Anything a script reports outside this set is
-# grouped under "other".
-_KIT_CATEGORY_ORDER=(essentials common ai runtime)
+# Known categories, in display order (ADR-0003). MUST stay in sync with lib/ui.sh's
+# _KIT_UI_CAT_ORDER. Anything a script reports outside this set is grouped under "other".
+_KIT_CATEGORY_ORDER=(essentials languages editors terminal ai apps)
 
 # Read one field from a script's `meta` output. Usage: meta_field "$meta" key
 # Prints the value of the FIRST matching "key=value" line, or nothing.

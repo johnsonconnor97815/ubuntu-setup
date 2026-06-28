@@ -514,7 +514,9 @@ meta() {
   cat <<'META'
 key=nvim
 name=Neovim
-category=common
+category=editors
+tags=cli
+recommends=node
 ops=install,remove,configure,update,update-plugins
 desc=nvim + LazyVim combo manager — best-channel Neovim binary (apt/tarball/snap) + LazyVim, fully configurable via LazyVim's own extension points: theme/font/plugins/extras/leader/keymaps/options/autocmds/Mason
 META

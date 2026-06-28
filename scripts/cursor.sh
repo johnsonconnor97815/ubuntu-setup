@@ -56,7 +56,9 @@ meta() {
   cat <<'META'
 key=cursor
 name=Cursor
-category=common
+category=editors
+tags=gui desktop-only
+desktop_hint=Remote-SSH
 ops=install,remove,update
 desc=Cursor — the AI code editor (official .deb; 'update' fetches the latest)
 META
