@@ -30,9 +30,11 @@ META
 }
 ```
 
-- `category ∈ essentials|common|ai|runtime`(其余归 `other`)。
+- `category ∈ essentials|languages|editors|terminal|ai|apps`(端用户 6 类,其余归 `other`;见 `docs/adr/0003`)。
 - **`ops` 必须恰好列出实现了的操作**(`install,remove[,configure]` + 任何自定义 op)。
 - **`ui` 是入口模式,绝不进 `ops`**(见 [ui-conventions.md](./ui-conventions.md))。
+- 可选 `tags=`(空格分隔 facet):`desktop-only` 让 catalog 在 SSH/headless 下**标灰+角标、仍可选**(披露非隐藏);`gui`/`cli` 描述性;`desktop_hint=` 覆盖角标文案。
+- 可选 `requires=`/`recommends=`(两档声明式跨脚本依赖,见 `docs/adr/0002`):硬 `requires="key[>=ver]"` 在 install 前**仅存在性** gate(版本信息性、由消费脚本强制),未满足 fail-fast+指路、`--with-requires` 按 `tsort` 拓扑序装链;软 `recommends="key"` 只指路**永不**自动装。
 
 ### `status`(幂等探测)
 
