@@ -1,0 +1,7 @@
+{"file": "CLAUDE.md", "reason": "项目契约权威:meta/ops/ui 约定、安全契约、i18n 规则、category 枚举——改 meta schema 必须遵守且同步更新"}
+{"file": "CONTEXT.md", "reason": "术语表:system-default runtime、hard requires/soft recommends、auto-provisioned helper、primary category/facet tag——本任务引入概念的权威定义"}
+{"file": "docs/adr/0002-declarative-requires-recommends-dependency-model.md", "reason": "依赖模型决策:两档 + 诚实解析策略 + 范围边界(只管安装期、presence-generic、版本仅信息性)"}
+{"file": "docs/adr/0003-end-user-categories-and-facet-tags.md", "reason": "分类模型决策:6 类目 + facet 标签 + SSH 标灰(披露非隐藏)"}
+{"file": ".trellis/spec/scripts/unified-interface.md", "reason": "meta/status/install/ui 统一接口契约——加 requires/recommends/tags/新 category 的落点与格式"}
+{"file": ".trellis/spec/scripts/ui-conventions.md", "reason": "ui()/ui_catalog 渲染契约——grey-out/badge 与新增 SSH 探测 helper 改这里"}
+{"file": ".trellis/spec/lib/index.md", "reason": "lib 层安全语义 + worktree 前置隔离——改 cache.sh/ui.sh/common.sh 的规范"}
