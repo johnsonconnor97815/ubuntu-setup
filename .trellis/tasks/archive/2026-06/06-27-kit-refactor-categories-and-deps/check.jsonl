@@ -1,7 +1,0 @@
-{"file": "CLAUDE.md", "reason": "验收对照:契约不漂移、meta ops 不含 ui、向后兼容(缺字段默认空)、i18n 三语齐全"}
-{"file": "docs/adr/0001-keep-system-default-runtimes-not-mise.md", "reason": "校验:确认未引入 mise/eget 等第三方工具,架构与脚本保留"}
-{"file": "docs/adr/0002-declarative-requires-recommends-dependency-model.md", "reason": "校验:依赖解析符合诚实契约(硬 requires 不静默装、软 recommends 永不自动装)、presence-generic、android 版本强制仍归 _android_java_gate"}
-{"file": "docs/adr/0003-end-user-categories-and-facet-tags.md", "reason": "校验:6 分类/facet 标签/SSH 标灰(披露非隐藏、仍可选)"}
-{"file": ".trellis/spec/scripts/idempotency.md", "reason": "幂等契约——解析器与 meta 迁移不得破坏重跑安全"}
-{"file": ".trellis/spec/scripts/unified-interface.md", "reason": "meta 字段格式与 ops 一致性校验、ui 不进 ops"}
-{"file": ".trellis/spec/scripts/quality-guidelines.md", "reason": "脚本质量校验清单(bash -n / shellcheck / 契约自测)"}

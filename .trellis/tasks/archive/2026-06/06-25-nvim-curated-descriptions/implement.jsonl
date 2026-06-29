@@ -1,4 +1,0 @@
-{"file": ".trellis/spec/lib/index.md", "reason": "本任务改 lib/ui.sh(ui_pick 详情行);本层是安全契约即代码、被全部脚本 source,改这里=改全项目 UI 渲染语义,须先读懂"}
-{"file": ".trellis/spec/scripts/ui-conventions.md", "reason": "ui()/ui_pick/三档终端降级/ui 非 op 的约定;详情行渲染与 nvim.sh 的 ui() 行内短说明都受此约束"}
-{"file": ".trellis/spec/scripts/unified-interface.md", "reason": "meta/ops/status/help/ui 统一接口契约;meta desc 重排、list-* 与 help 改动须不破坏接口"}
-{"file": ".trellis/spec/scripts/quality-guidelines.md", "reason": "i18n 本地化范式、lua/marker grep 陷阱、shellcheck 零告警等质量铁律,文案与 helper 实现须遵守"}

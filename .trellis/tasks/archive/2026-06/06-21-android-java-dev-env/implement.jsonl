@@ -1,7 +1,0 @@
-{"file": ".trellis/spec/lib/safety-contract.md", "reason": "5 条不可妥协项——写任何脚本前的前提(逐命令 sudo、非交互 apt、改前备份、幂等、fail-fast)"}
-{"file": ".trellis/spec/lib/sudo-and-apt.md", "reason": "java.sh 的 apt/update-alternatives 提权与 android.sh 的条件性 apt(curl/unzip/libgl1/scrcpy)都走 sudo_run/apt_install"}
-{"file": ".trellis/spec/scripts/unified-interface.md", "reason": "meta/status/do_install/do_remove/do_configure + kit_dispatch 带参 op 路由 + 渠道优先级——两脚本的接口骨架"}
-{"file": ".trellis/spec/scripts/idempotency.md", "reason": "status 闸门、查活系统、收敛、改前 backup_file、grep -qxF——java 多版本与 android 组件的幂等纪律"}
-{"file": ".trellis/spec/scripts/ui-conventions.md", "reason": "两脚本的 ui():入口模式非 op、三档终端降级、ui_run 跑状态变更(android 的装 Java 17 走 ui_run 关键)"}
-{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "通用『复用优先』思维框架(写新代码前先搜既有实现/沿用既有模式);具体可复用 helper(_go_rc_file/_*_user_guard/ui_run/apt_install)与 go/python/rime 范式见 lib/scripts spec 与现有脚本"}
-{"file": ".trellis/tasks/06-21-android-java-dev-env/research/android-sdk-java-facts.md", "reason": "本任务调研事实(带来源):AGP↔JDK17、repository2 XML 裸 SHA-1/相对 url/块布局、SDK_TEST_BASE_URL 范围、TUNA 不镜像、update-java-alternatives 分组、ANDROID_HOME 现行——实现据此处理,版本号一律动态解析不硬编码"}
