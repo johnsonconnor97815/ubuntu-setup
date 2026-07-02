@@ -1576,15 +1576,16 @@ readonly NVIM_AUTOCMD_ORDER="trim_whitespace disable_wrap_spell disable_highligh
 # shiftwidth, conceallevel). Plus the special token 'autoformat' (handled as vim.g, not vim.opt).
 _nvim_option_name_valid() { [[ "$1" =~ ^[a-z_]+$ ]]; }
 # An option value: on|off (→ true/false), a non-negative integer, or a simple bareword string
-# (letters/digits/_.,- only). Anything with a quote/backslash/space is rejected — it would break
-# (or inject into) the generated `vim.opt.<name> = "<value>"` Lua string.
+# (letters/digits/_.,:/- only; ':' and '/' admit mode-spec values like guicursor's
+# "i-ci-ve:ver25-Cursor/lCursor"). Anything with a quote/backslash/space is rejected — it would
+# break (or inject into) the generated `vim.opt.<name> = "<value>"` Lua string.
 _nvim_option_value_valid() {
   case "$1" in
     on|off) return 0 ;;
     ''|*[!0-9]*) ;;  # not a pure integer; fall through to the string check
     *) return 0 ;;   # pure non-negative integer
   esac
-  [[ "$1" =~ ^[A-Za-z0-9_.,-]+$ ]]
+  [[ "$1" =~ ^[A-Za-z0-9_.,:/-]+$ ]]
 }
 # Curated, commonly-changed options surfaced in the ui()/help (set-option accepts ANY valid name).
 readonly NVIM_OPTION_CURATED="relativenumber wrap scrolloff shiftwidth tabstop conceallevel background spell"
@@ -1729,7 +1730,7 @@ do_set_option() {
   local name="${1:-}" val="${2:-}"
   [[ -n "$name" && $# -ge 2 ]] || { log_err "Usage: ${0##*/} set-option <name> <on|off|int|word>"; return 2; }
   _nvim_option_name_valid "$name"  || { log_err "Invalid option name: $name (lowercase letters/underscore)."; return 2; }
-  _nvim_option_value_valid "$val"  || { log_err "Invalid option value: $val (on|off, an integer, or a simple word)."; return 2; }
+  _nvim_option_value_valid "$val"  || { log_err "Invalid option value: $val (on|off, an integer, or a simple string of letters/digits/_.,:/-)."; return 2; }
   if [[ "$name" == autoformat ]]; then
     case "$val" in
       on)  _nvim_conf_unset AUTOFORMAT; log_info "Format-on-save: on (LazyVim default)." ;;
