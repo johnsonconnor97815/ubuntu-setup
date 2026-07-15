@@ -28,7 +28,7 @@
 #
 # Run it as:  android.sh install|remove|configure|accept-licenses|purge|status|meta|ui|help   plus
 #             add-package <pkg> / remove-package <pkg> / add-platform <N> / remove-platform <N> /
-#             set-mirror <name|url>   (or via `swkit`).
+#             set-mirror <name|url> / setup-udev [on|off]   (or via `swkit`).
 
 set -Eeuo pipefail
 
@@ -82,6 +82,8 @@ ANDROID_I18N[en:add_package]="add a package by id…"
 ANDROID_I18N[en:add_platform]="add a platform (android-NN)…"
 ANDROID_I18N[en:mirror]="SDK download mirror"
 ANDROID_I18N[en:env_path]="ANDROID_HOME + PATH on rc"
+ANDROID_I18N[en:udev_rules]="USB device debugging (udev rules + plugdev)"
+ANDROID_I18N[en:confirm_udev_off]="Remove the kit udev rules (51-android-ubuntu-setup.rules)? (plugdev membership is kept)"
 ANDROID_I18N[en:apply_recommended]="Apply recommended setup (platform + build-tools + emulator)"
 ANDROID_I18N[en:accept_licenses]="Accept the SDK licenses"
 ANDROID_I18N[en:install_baseline]="Install the baseline (cmdline-tools + platform-tools)"
@@ -119,6 +121,8 @@ ANDROID_I18N[zh:add_package]="按 id 添加一个包…"
 ANDROID_I18N[zh:add_platform]="添加一个平台(android-NN)…"
 ANDROID_I18N[zh:mirror]="SDK 下载镜像"
 ANDROID_I18N[zh:env_path]="ANDROID_HOME + PATH 写入 rc"
+ANDROID_I18N[zh:udev_rules]="USB 真机调试(udev 规则 + plugdev)"
+ANDROID_I18N[zh:confirm_udev_off]="移除 kit 的 udev 规则(51-android-ubuntu-setup.rules)?(保留 plugdev 组成员身份)"
 ANDROID_I18N[zh:apply_recommended]="应用推荐配置(platform + build-tools + emulator)"
 ANDROID_I18N[zh:accept_licenses]="接受 SDK 许可"
 ANDROID_I18N[zh:install_baseline]="安装基线(cmdline-tools + platform-tools)"
@@ -156,6 +160,8 @@ ANDROID_I18N[ja:add_package]="id でパッケージを追加…"
 ANDROID_I18N[ja:add_platform]="プラットフォームを追加(android-NN)…"
 ANDROID_I18N[ja:mirror]="SDK ダウンロードミラー"
 ANDROID_I18N[ja:env_path]="ANDROID_HOME + PATH を rc に追加"
+ANDROID_I18N[ja:udev_rules]="USB 実機デバッグ(udev ルール + plugdev)"
+ANDROID_I18N[ja:confirm_udev_off]="kit の udev ルール(51-android-ubuntu-setup.rules)を削除しますか?(plugdev 所属は保持)"
 ANDROID_I18N[ja:apply_recommended]="推奨セットアップを適用(platform + build-tools + emulator)"
 ANDROID_I18N[ja:accept_licenses]="SDK ライセンスに同意"
 ANDROID_I18N[ja:install_baseline]="ベースラインをインストール(cmdline-tools + platform-tools)"
@@ -917,6 +923,139 @@ do_set_mirror() {
   log_warn "$(_android_t mirror_lag)"
 }
 
+# --- USB device debugging: udev rules (adb/fastboot device access) -------------
+# The ONE system-touching action here: adb/fastboot reach a physical device through its USB node,
+# which defaults to root:root 0600 — so `adb devices` prints "no permissions" for a normal user. The
+# fix is a udev rule granting the plugdev group (MODE 0660) + the logged-in seat (TAG+="uaccess")
+# access to known Android-OEM USB vendors, plus ensuring the user is in plugdev. Unlike the rest of
+# android.sh (user-space under HOME), this writes /etc/udev and runs usermod/udevadm — so it escalates
+# PER-COMMAND via sudo_run (the user guard still refuses a whole-root sudo-WRAP; sudo_run does the
+# privileged bits). We own a DISTINCTLY NAMED file — never clobbering a user's/apt's 51-android.rules
+# — marked as ours, so `setup-udev off` deletes only our file, unambiguously.
+readonly ANDROID_UDEV_RULES_FILE="/etc/udev/rules.d/51-android-ubuntu-setup.rules"
+readonly ANDROID_UDEV_MARKER="# ubuntu-setup (android adb/fastboot udev rules) — managed; safe to delete"
+# Curated Android-OEM USB vendor IDs (Google's device-vendor table + the android-udev-rules project).
+# "idVendor Name" per line; Name is comment-only. Proper nouns stay untranslated.
+readonly ANDROID_UDEV_VENDORS="\
+0502 Acer
+0b05 ASUS
+413c Dell
+0489 Foxconn
+04c5 Fujitsu/Toshiba
+091e Garmin-Asus
+18d1 Google
+201E Haier
+109b Hisense
+03f0 HP
+0bb4 HTC
+12d1 Huawei
+8087 Intel
+24e3 K-Touch
+2116 KT-Tech
+0482 Kyocera
+17ef Lenovo
+1004 LG
+0e8d MediaTek
+22b8 Motorola
+0409 NEC
+2080 Nook
+0955 Nvidia
+2a70 OnePlus
+22d9 Oppo/Realme
+2257 OTGV
+10a9 Pantech
+1d4d Pegatron
+0471 Philips
+04da PMC-Sierra
+05c6 Qualcomm
+04e8 Samsung
+04dd Sharp
+1f53 SK-Telesys
+054c Sony
+0fce Sony-Mobile
+2340 Teleepoch
+0930 Toshiba
+2d95 Vivo
+2717 Xiaomi
+19d2 ZTE"
+
+# Render the full udev rules file: our marker + one rule per curated vendor. Each rule grants the
+# plugdev group AND the logged-in seat (systemd-logind uaccess ACL) — belt and suspenders: a desktop
+# seat gets the ACL, a headless/plugdev login gets group access.
+_android_emit_udev() {
+  printf '%s\n' "$ANDROID_UDEV_MARKER"
+  printf '# Android adb/fastboot device access — plugdev group + logged-in seat (uaccess).\n'
+  printf '# Managed by ubuntu-setup: swkit android setup-udev  (remove: swkit android setup-udev off).\n'
+  local id name
+  while read -r id name; do
+    [[ -n "$id" ]] || continue
+    printf 'SUBSYSTEM=="usb", ATTR{idVendor}=="%s", MODE="0660", GROUP="plugdev", TAG+="uaccess"  # %s\n' "$id" "$name"
+  done <<<"$ANDROID_UDEV_VENDORS"
+}
+
+# setup-udev [on|off] — install (on, default) or remove (off) the adb/fastboot udev rules.
+#   on:  write our rules file (idempotent) + ensure plugdev membership + reload/trigger udev.
+#   off: delete OUR marked file only + reload/trigger (plugdev membership left as-is — harmless).
+# Runs as the normal user (guard refuses a sudo-WRAP); the file write / usermod / udevadm escalate
+# per-command via sudo_run. Reading the world-readable rules file for status needs no privilege.
+do_setup_udev() {
+  _android_user_guard || return 1
+  local mode="${1:-on}"
+  case "$mode" in
+    on|off) ;;
+    *) log_err "setup-udev takes on|off (default on)."; return 2 ;;
+  esac
+  local user; user="${SUDO_USER:-$(id -un)}"
+
+  if [[ "$mode" == off ]]; then
+    local first=""
+    [[ -f "$ANDROID_UDEV_RULES_FILE" ]] && first="$(head -n1 "$ANDROID_UDEV_RULES_FILE" 2>/dev/null || true)"
+    if [[ "$first" == "$ANDROID_UDEV_MARKER" ]]; then
+      sudo_run rm -f "$ANDROID_UDEV_RULES_FILE" || return $?
+      sudo_run udevadm control --reload-rules || log_warn "Could not reload udev rules."
+      sudo_run udevadm trigger --subsystem-match=usb --action=add || log_warn "Could not trigger udev."
+      log_info "Removed the kit udev rules ($ANDROID_UDEV_RULES_FILE) and reloaded udev."
+      log_info "Left your plugdev group membership as-is (drop it manually if you want: sudo gpasswd -d $user plugdev)."
+    else
+      log_info "No kit-managed udev rules at $ANDROID_UDEV_RULES_FILE — nothing to remove."
+    fi
+    return 0
+  fi
+
+  # on. USB debugging needs the device attached to THIS machine — be honest over SSH/headless.
+  if _android_headless; then
+    log_warn "USB debugging needs the phone plugged into THIS machine's USB; over SSH/headless these rules only matter for a device attached to this box (not your laptop)."
+  fi
+
+  # 1. Write the rules file (idempotent: skip when ours already matches byte-for-byte).
+  local new; new="$(_android_emit_udev)"
+  if [[ -f "$ANDROID_UDEV_RULES_FILE" ]] && [[ "$(cat "$ANDROID_UDEV_RULES_FILE" 2>/dev/null || true)" == "$new" ]]; then
+    log_info "udev rules already current ($ANDROID_UDEV_RULES_FILE)."
+  else
+    local tmp; tmp="$(mktemp)"
+    printf '%s\n' "$new" >"$tmp"
+    sudo_run install -d -m 0755 /etc/udev/rules.d || true
+    sudo_run install -m 0644 "$tmp" "$ANDROID_UDEV_RULES_FILE" || { rm -f "$tmp"; return 1; }
+    rm -f "$tmp"
+    local nvendors; nvendors="$(printf '%s\n' "$ANDROID_UDEV_VENDORS" | grep -c . || true)"
+    log_info "Wrote udev rules for $nvendors Android vendors -> $ANDROID_UDEV_RULES_FILE"
+    sudo_run udevadm control --reload-rules || log_warn "Could not reload udev rules."
+    sudo_run udevadm trigger --subsystem-match=usb --action=add || log_warn "Could not trigger udev."
+  fi
+
+  # 2. plugdev group membership (SIGPIPE-safe: capture then bash-match, never `| grep -q`).
+  local groups=""; groups="$(id -nG "$user" 2>/dev/null || true)"
+  if [[ " $groups " == *" plugdev "* ]]; then
+    log_info "User $user is already in the plugdev group."
+  elif sudo_run usermod -aG plugdev "$user"; then
+    log_warn "Added $user to the plugdev group — LOG OUT and back in (or reboot) for it to take effect."
+  else
+    log_warn "Could not add $user to plugdev; add it manually: sudo usermod -aG plugdev $user"
+  fi
+
+  log_info "Next: replug the device, unlock the screen, tap 'Allow USB debugging'. Verify: adb kill-server && adb devices"
+}
+
 # --- configure -----------------------------------------------------------------
 # No flags = conservative baseline (ensure curl/unzip + cmdline-tools + the env block; NO platform
 # / build-tools / emulator — nothing extra downloaded). --recommended layers on the latest stable
@@ -1077,6 +1216,8 @@ ui() {
       dkind+=(mirror); did+=(mirror); dlabel+=("$(_android_t mirror): ${UI_INFO}${mname}${UI_OFF}  $UI_ARROW")
       local eb; if [[ -f "$(_android_rc_file)" ]] && grep -qxF "$ANDROID_BLOCK_BEGIN" "$(_android_rc_file)"; then eb="$(ui_badge on)"; else eb="$(ui_badge off)"; fi
       dkind+=(env); did+=(env); dlabel+=("$eb $(_android_t env_path)")
+      local ub; if [[ -f "$ANDROID_UDEV_RULES_FILE" ]]; then ub="$(ui_badge on)"; else ub="$(ui_badge off)"; fi
+      dkind+=(udev); did+=(udev); dlabel+=("$ub $(_android_t udev_rules)")
 
       dkind+=(spacer); did+=(""); dlabel+=("")
       dkind+=(header); did+=(""); dlabel+=("$(_android_t sec_actions)")
@@ -1146,6 +1287,10 @@ ui() {
           env)
             if [[ -f "$(_android_rc_file)" ]] && grep -qxF "$ANDROID_BLOCK_BEGIN" "$(_android_rc_file)"; then ui_run "env off" -- "$0" configure --ensure-path off
             else ui_run "env on" -- "$0" configure --ensure-path on; fi ;;
+          udev)
+            if [[ -f "$ANDROID_UDEV_RULES_FILE" ]] && [[ "$(head -n1 "$ANDROID_UDEV_RULES_FILE" 2>/dev/null || true)" == "$ANDROID_UDEV_MARKER" ]]; then
+              ui_confirm "$(_android_t confirm_udev_off)" n && ui_run "setup-udev off" -- "$0" setup-udev off
+            else ui_run "$(_android_t udev_rules)" -- "$0" setup-udev; fi ;;
           licenses)    ui_run "$(_android_t accept_licenses)" -- "$0" accept-licenses ;;
           recommended) ui_run "$(_android_t apply_recommended)" -- "$0" configure --recommended ;;
           remove)      ui_confirm "$(_android_t confirm_remove)" n && ui_run "$(ui_t remove) Android SDK" -- "$0" remove ;;
@@ -1198,6 +1343,9 @@ Commands:
   remove-platform <N>   Uninstall platforms;android-<N>
   set-mirror <v>        Set the SDK download mirror (preset name or http(s) base URL; 'default' = direct)
   ensure-path on|off    Add/remove the ANDROID_HOME + PATH env block in your shell rc
+  setup-udev [on|off]   Install (on, default) / remove (off) adb-fastboot udev rules + plugdev
+                        membership so a USB-attached device is not "no permissions". Needs sudo;
+                        adding you to plugdev takes a re-login to take effect.
   status                Print component counts + a Java-compat banner; exit 0 iff cmdline-tools present
   ui                    Open the interactive manager (needs a terminal)
   meta                  Print machine-readable metadata
