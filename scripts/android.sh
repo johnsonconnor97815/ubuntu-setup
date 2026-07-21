@@ -982,6 +982,11 @@ readonly ANDROID_UDEV_VENDORS="\
 # Render the full udev rules file: our marker + one rule per curated vendor. Each rule grants the
 # plugdev group AND the logged-in seat (systemd-logind uaccess ACL) — belt and suspenders: a desktop
 # seat gets the ACL, a headless/plugdev login gets group access.
+#
+# The vendor NAME goes on its OWN comment line above its rule. udev has NO inline/trailing comment
+# syntax: a `#` after the key/value pairs on the SAME line makes udev reject the entire rule with
+# "Invalid key/value pair, ignoring" — silently, so the file looks installed while granting nothing.
+# (That regression shipped once here; `udevadm verify` in do_setup_udev is now the gate that catches it.)
 _android_emit_udev() {
   printf '%s\n' "$ANDROID_UDEV_MARKER"
   printf '# Android adb/fastboot device access — plugdev group + logged-in seat (uaccess).\n'
@@ -989,7 +994,8 @@ _android_emit_udev() {
   local id name
   while read -r id name; do
     [[ -n "$id" ]] || continue
-    printf 'SUBSYSTEM=="usb", ATTR{idVendor}=="%s", MODE="0660", GROUP="plugdev", TAG+="uaccess"  # %s\n' "$id" "$name"
+    printf '# %s\n' "$name"
+    printf 'SUBSYSTEM=="usb", ATTR{idVendor}=="%s", MODE="0660", GROUP="plugdev", TAG+="uaccess"\n' "$id"
   done <<<"$ANDROID_UDEV_VENDORS"
 }
 
@@ -1032,11 +1038,24 @@ do_setup_udev() {
   if [[ -f "$ANDROID_UDEV_RULES_FILE" ]] && [[ "$(cat "$ANDROID_UDEV_RULES_FILE" 2>/dev/null || true)" == "$new" ]]; then
     log_info "udev rules already current ($ANDROID_UDEV_RULES_FILE)."
   else
-    local tmp; tmp="$(mktemp)"
+    # Stage under a .rules name: `udevadm verify` keys off the extension.
+    local tmpdir tmp; tmpdir="$(mktemp -d)"; tmp="$tmpdir/${ANDROID_UDEV_RULES_FILE##*/}"
     printf '%s\n' "$new" >"$tmp"
+    # GATE: udev rejects a malformed rule SILENTLY at load time (it just logs and skips the line),
+    # so a broken ruleset installs "successfully" while granting nothing — exactly how the inline-
+    # comment regression slipped through here. Validate BEFORE installing. `udevadm verify` is
+    # systemd >= 251; probe for the subcommand so older udev degrades to a skip, never a false alarm.
+    if have_cmd udevadm && udevadm verify --help >/dev/null 2>&1; then
+      if ! udevadm verify "$tmp" >/dev/null 2>&1; then
+        log_err "The generated udev rules failed validation — refusing to install them:"
+        udevadm verify "$tmp" 2>&1 | head -20 >&2 || true
+        rm -rf "$tmpdir"; return 1
+      fi
+      log_info "udev ruleset validated (udevadm verify)."
+    fi
     sudo_run install -d -m 0755 /etc/udev/rules.d || true
-    sudo_run install -m 0644 "$tmp" "$ANDROID_UDEV_RULES_FILE" || { rm -f "$tmp"; return 1; }
-    rm -f "$tmp"
+    sudo_run install -m 0644 "$tmp" "$ANDROID_UDEV_RULES_FILE" || { rm -rf "$tmpdir"; return 1; }
+    rm -rf "$tmpdir"
     local nvendors; nvendors="$(printf '%s\n' "$ANDROID_UDEV_VENDORS" | grep -c . || true)"
     log_info "Wrote udev rules for $nvendors Android vendors -> $ANDROID_UDEV_RULES_FILE"
     sudo_run udevadm control --reload-rules || log_warn "Could not reload udev rules."
