@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "fixture_id": "synthetic-desktop-a",
+  "observations": {
+    "os": {"value": {"id": "ubuntu", "version_id": "24.04", "codename": "noble", "architecture": "x86_64"}},
+    "environment": {"value": {"kind": "physical", "technology": "none"}},
+    "resources": {"value": {"cpu_model": "Synthetic CPU", "logical_cpus": 4, "memory_bytes": 8589934592}},
+    "storage": {"value": {"total_bytes": 100000000000, "available_bytes": 50000000000, "read_only": false}},
+    "kernel": {"value": {"release": "6.8.0-example"}},
+    "kernel.next_boot": {"status": "unknown", "value": null, "reason": "模拟数据未核实引导选择"},
+    "boot": {"value": {"id": "synthetic-boot-a"}},
+    "packages.dpkg": {"value": {
+      "nano": {"version": "1.0-example", "architecture": "amd64", "status": "installed", "error_flag": "ok"},
+      "linux-image-example": {"version": "6.8.0-example", "architecture": "amd64", "status": "installed", "error_flag": "ok"}
+    }},
+    "packages.snap": {"value": {}},
+    "packages.flatpak.system": {"value": {}},
+    "packages.flatpak.user": {"value": {}},
+    "sources.apt": {"value": {"/etc/apt/sources.list.d/example.sources": {"exists": true, "sha256": "synthetic-digest-a", "size": 100, "mode": 420}}},
+    "metadata.apt": {"value": {"index_file_count": 2, "oldest_file_mtime": 1, "newest_file_mtime": 2}},
+    "hardware.pci": {"value": {"0000:01:00.0": {"vendor": "0xffff", "device": "0x0001", "class": "0x030000"}}},
+    "hardware.usb": {"value": {"1-1": {"vendor": "ffff", "device": "0002", "class": "00"}}},
+    "drivers.bindings": {"value": {"pci:0000:01:00.0": {"driver": "example", "module": "example"}, "usb:1-1": {"driver": "usb", "module": null}}},
+    "drivers.modules": {"value": {"example": {"state": "Live"}}},
+    "drivers.secure_boot": {"value": {"enabled": true}},
+    "drivers.dkms": {"value": {"entries": []}},
+    "reboot": {"value": {"required_marker": false}},
+    "services": {"value": {}},
+    "configs": {"coverage": ["/etc/example.conf"], "value": {"/etc/example.conf": {"exists": true, "sha256": "synthetic-config-a", "size": 10, "mode": 420}}}
+  }
+}

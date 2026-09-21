@@ -1,0 +1,321 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="report-content-version" content="${content_version}">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'sha256-${script_hash}'; base-uri 'none'; form-action 'none'">
+  <title>系统检查报告 · Ubuntu Setup</title>
+  <style>
+    :root { color-scheme:light; --ink:#253343; --muted:#5c6875; --line:#dce2e7; --accent:#245b76; --red:#9f3037; --amber:#80540d; }
+    * { box-sizing:border-box; }
+    body { margin:0; background:#edf0f2; color:var(--ink); font:16px/1.65 system-ui,-apple-system,"Noto Sans CJK SC","Microsoft YaHei",sans-serif; }
+    a { color:var(--accent); text-underline-offset:3px; }
+    p { margin:8px 0; }
+    h1,h2,h3,h4 { margin:0; line-height:1.5; }
+    h1 { font-size:30px; letter-spacing:.03em; color:#182d40; }
+    h2 { font-size:20px; } h3 { font-size:17px; } h4 { font-size:16px; }
+    button,input,select { font:inherit; color:var(--ink); border:1px solid #b9c5ce; background:white; border-radius:4px; padding:7px 10px; }
+    button,summary { cursor:pointer; }
+    :focus-visible { outline:3px solid #32779c; outline-offset:4px; }
+    [hidden] { display:none!important; }
+    .shell { max-width:1080px; margin:18px auto 40px; padding:0 22px; }
+    .report-tools { display:flex; justify-content:space-between; align-items:center; gap:12px; margin:0 0 10px; color:var(--muted); font-size:12px; }
+    .report-tools button { font-size:12px; }
+    .paper { padding:28px 46px 24px; background:white; border:1px solid var(--line); border-top:4px solid #253e54; box-shadow:0 4px 20px #22374908; }
+    .report-header { border-bottom:1px solid var(--line); padding-bottom:16px; }
+    .masthead { display:flex; justify-content:space-between; gap:8px; flex-wrap:wrap; font-size:11px; color:var(--muted); margin-bottom:5px; }
+    .brand { font-weight:700; letter-spacing:.1em; }
+    .source.fixture { background:#fff0d2; color:#805000; padding:2px 6px; font-weight:700; }
+    .report-meta { margin:9px 0 0; display:flex; flex-wrap:wrap; gap:3px 26px; font-size:12px; color:var(--muted); }
+    .report-meta>div { display:flex; gap:8px; min-width:0; }
+    .report-meta dt { flex-shrink:0; } .report-meta dd { margin:0; overflow-wrap:anywhere; }
+    .document-section { margin-top:28px; scroll-margin-top:20px; }
+    .section-heading { display:flex; gap:12px; align-items:baseline; border-bottom:1px solid var(--line); padding-bottom:9px; margin-bottom:16px; }
+    .section-number { color:#718495; font-size:12px; }
+    #reading-summary { margin-top:20px; }
+    .eyebrow { color:var(--muted); font-size:12px; font-weight:600; margin-bottom:8px; }
+    .conclusion { border-left:4px solid #6b7e8f; padding:4px 0 4px 16px; }
+    .conclusion.failed { border-color:var(--red); } .conclusion.pending { border-color:var(--amber); }
+    .conclusion-title { font-size:25px; font-weight:700; margin:0; line-height:1.5; }
+    .conclusion.failed .conclusion-title { color:#892c34; }
+    .conclusion-copy { margin:7px 0 0; font-size:15px; }
+    .boundary { font-size:12px; color:var(--muted); margin:12px 0 0; }
+    .next-steps { margin-top:20px; }
+    .next-steps>h2 { font-size:16px; margin-bottom:10px; }
+    .action-grid { display:grid; grid-template-columns:1.15fr 1fr; gap:16px; }
+    .action { border:1px solid var(--line); border-radius:5px; padding:16px 18px; min-width:0; }
+    .user-action { background:#f1f6f8; border-color:#cbdbe4; }
+    .action-label { font-size:12px; color:#48677c; font-weight:600; margin:0 0 6px; }
+    .action h3 { font-size:17px; }
+    .action p,.user-tasks { font-size:14px; }
+    .user-tasks { list-style:none; padding:0; margin:10px 0; }
+    .user-tasks li { margin:4px 0; }
+    .action .footnote,.action-link { font-size:12px; }
+    .action-link { display:inline-block; margin-top:4px; }
+    .agent-action p:not(.action-label) { color:#4e5d6a; }
+    .footnote { font-size:12px; color:var(--muted); margin-top:9px; }
+    .quiet { color:var(--muted); font-size:14px; }
+    .finding-group { margin-top:18px; }
+    .finding-group>h3 { display:flex; gap:12px; align-items:baseline; font-size:15px; }
+    .finding-group>h3 span { font-size:12px; font-weight:400; color:var(--muted); }
+    .finding-group.failed>h3 { color:var(--red); }
+    .finding-group.pending>h3 { color:var(--amber); }
+    .focus-list { list-style:none; padding:0; margin:8px 0 0; }
+    .focus-item { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:8px 20px; padding:15px 0; border-bottom:1px solid #e5e9ed; }
+    .focus-copy p { margin:5px 0 0; font-size:14px; color:var(--muted); }
+    .focus-item.failed h4 { font-size:17px; }
+    .focus-copy .finding-next { color:var(--ink); font-size:13px; }
+    .finding-next strong { font-weight:500; color:var(--muted); }
+    .focus-link { align-self:start; font-size:12px; padding:5px 0; white-space:nowrap; }
+    .coverage-note { padding:14px 18px; background:#f6f7f8; margin:24px 0 0; font-size:13px; border-left:2px solid #aebbc5; }
+    .coverage-note h3 { font-size:14px; }
+    .coverage-note ul { list-style:none; padding:0; margin:8px 0 0; }
+    .coverage-note li { margin:8px 0; }
+    .coverage-note li p { margin:3px 0 0; color:var(--muted); }
+    .coverage-state { margin-right:9px; color:var(--muted); font-size:12px; }
+    .table-wrap { overflow:auto; }
+    table { width:100%; border-collapse:collapse; text-align:left; font-size:14px; }
+    caption { text-align:left; color:var(--muted); font-size:12px; padding:0 0 10px; }
+    th,td { border-bottom:1px solid #e0e5e9; padding:11px 12px; vertical-align:top; overflow-wrap:anywhere; }
+    thead { background:#f1f4f6; } thead th { color:#415363; font-size:13px; font-weight:600; } tbody th { font-weight:500; }
+    .results-table { table-layout:fixed; }
+    .results-table th:first-child { width:24%; } .results-table th:nth-child(2) { width:16%; }
+    .results-table tbody th a { color:var(--ink); text-decoration-color:#b2bec7; }
+    .results-table td:last-child { color:#4b5e6b; font-size:13px; }
+    .badge { display:inline-block; font-size:12px; font-weight:600; line-height:1.55; color:#566978; }
+    .badge.failed { color:var(--red); } .badge.pending,.badge.check_error { color:var(--amber); }
+    .badge.passed,.badge.observed { color:#25654f; }
+    .detail-counts { display:flex; flex-wrap:wrap; gap:4px 18px; list-style:none; padding:0; font-size:12px; color:var(--muted); }
+    .scope-description { font-size:14px; }
+    .facts { display:grid; grid-template-columns:1fr 1fr; gap:0 30px; margin:16px 0; font-size:14px; }
+    .facts>div { padding:10px 0; border-bottom:1px solid #e6ebee; min-width:0; }
+    .facts dt { color:var(--muted); font-size:12px; } .facts dd { margin:3px 0 0; overflow-wrap:anywhere; }
+    .report-section { padding:15px 0; border-bottom:1px solid var(--line); }
+    summary { font-weight:600; font-size:14px; color:#354e61; }
+    summary small { font-size:12px; font-weight:400; color:var(--muted); margin-left:8px; }
+    details[open]>summary { margin-bottom:14px; }
+    .toolbar { display:flex; flex-wrap:wrap; align-items:center; gap:12px; margin:16px 0; }
+    .toolbar label { display:flex; align-items:center; gap:8px; font-size:12px; }
+    .toolbar .search { flex:1; min-width:180px; } .toolbar input { width:100%; min-width:0; }
+    .result-count { font-size:12px; color:var(--muted); }
+    .group-title { color:var(--muted); font-size:14px; margin:22px 0 8px; }
+    .check { border:1px solid var(--line); padding:16px 18px; margin-bottom:12px; scroll-margin-top:16px; }
+    .check:target { border-color:var(--accent); }
+    .check-head { display:flex; justify-content:space-between; align-items:baseline; flex-wrap:wrap; gap:8px; }
+    .check p { font-size:14px; overflow-wrap:anywhere; } .impact { color:var(--muted); }
+    .next { padding:9px 12px; background:#f5f7f8; font-size:13px; margin-top:12px; }
+    .next strong { display:block; margin-bottom:3px; }
+    .check-evidence { margin-top:13px; } .check-evidence summary { font-size:13px; }
+    .evidence { border-top:1px solid var(--line); padding-top:8px; margin-top:10px; overflow-wrap:anywhere; }
+    .evidence p { color:var(--muted); font-size:12px; }
+    code,pre { font:12px/1.65 ui-monospace,SFMono-Regular,Consolas,monospace; overflow-wrap:anywhere; }
+    code { background:#f0f3f5; padding:2px 4px; }
+    pre { white-space:pre-wrap; overflow:auto; max-height:360px; padding:12px; background:#f4f6f8; }
+    ul { padding-left:20px; } .subjects { list-style:none; padding:0; }
+    .meta { font-size:12px; color:var(--muted); overflow-wrap:anywhere; }
+    .observation { padding:12px 0; border-bottom:1px solid var(--line); scroll-margin-top:18px; }
+    .observation summary { font-size:14px; } .observation .badge { margin:0 8px; }
+    .observation:target { background:#f0f5f8; } .panel { padding:12px 0; }
+    .empty { color:var(--muted); padding:16px 0; }
+    .report-footer { margin-top:24px; font-size:12px; color:var(--muted); overflow-wrap:anywhere; }
+    .report-footer p { margin:4px 0; }
+    @media(max-width:650px) {
+      body { background:white; } .shell { padding:0; margin:0; }
+      .report-tools { padding:8px 18px; margin:0; border-bottom:1px solid var(--line); }
+      .paper { padding:18px; border-left:0; border-right:0; box-shadow:none; }
+      h1 { font-size:26px; } h2 { font-size:18px; }
+      .report-header { padding-bottom:12px; } .report-meta { display:block; }
+      .document-section { margin-top:24px; } .section-heading { gap:9px; }
+      .conclusion { padding-left:12px; } .conclusion-title { font-size:21px; } .conclusion-copy { font-size:14px; }
+      .action-grid { grid-template-columns:1fr; gap:12px; } .action { padding:13px 15px; }
+      .focus-item { grid-template-columns:minmax(0,1fr); gap:2px; } .focus-link { justify-self:start; }
+      th,td { padding:9px 6px; } .results-table th:first-child { width:27%; } .results-table th:nth-child(2) { width:22%; }
+      .results-table th,.results-table td:last-child { font-size:12px; } .results-table .badge { font-size:11px; }
+      .facts { grid-template-columns:1fr; } .check { padding:13px; }
+      .report-section>summary small { display:block; margin:4px 0 0 16px; }
+    }
+    @page { size:A4; margin:16mm; }
+    @media print {
+      body { background:white; font-size:10pt; line-height:1.6; } .shell { margin:0; padding:0; max-width:none; }
+      .paper { border:0; box-shadow:none; padding:0; }
+      .no-print,.toolbar,.focus-link,.action-link { display:none!important; }
+      details:not([open]):not(#results-overview) { display:none; }
+      #results-overview::details-content { content-visibility:visible; display:block; }
+      #results-overview>summary { display:none; }
+      #appendix { break-before:page; } #appendix>.quiet { display:none; }
+      h1 { font-size:23pt; } h2 { font-size:14pt; } .conclusion-title { font-size:16pt; }
+      .document-section { margin-top:16px; } .action-grid { grid-template-columns:1.15fr 1fr; }
+      .focus-item { display:block; } .focus-item,.check,tr,.facts>div,.action { break-inside:avoid; }
+      h2,h3,h4,.section-heading,caption { break-after:avoid; }
+      .check[hidden],.result-group[hidden] { display:block!important; }
+      .table-wrap { overflow:visible; } thead { display:table-header-group; }
+      a { color:inherit; text-decoration:none; } pre { max-height:none; }
+      .report-footer { font-size:9pt; }
+    }
+  </style>
+</head>
+<body>
+<main class="shell">
+  <div class="report-tools no-print"><span>本地检查报告</span><button id="print-report" type="button" hidden>打印 / 保存 PDF</button></div>
+  <article class="paper" aria-labelledby="report-title">
+    <header class="report-header">
+      <div class="masthead"><span class="brand">UBUNTU SETUP</span><span class="source ${source_class}">${source_label}</span></div>
+      <h1 id="report-title">系统检查报告</h1>
+      <dl class="report-meta">
+        <div><dt>操作系统</dt><dd>${system_label}</dd></div>
+        <div><dt>检查对象</dt><dd>${environment_label}</dd></div>
+        <div><dt>检查时间</dt><dd><time datetime="${captured_at_raw}">${captured_at}</time></dd></div>
+      </dl>
+    </header>
+
+    <section id="reading-summary" class="document-section" aria-labelledby="summary-heading">
+      <h2 id="summary-heading" class="eyebrow">检查结论</h2>
+      <div class="conclusion ${summary_tone}">
+        <p id="report-headline" class="conclusion-title">${headline}</p>
+        <p id="report-summary" class="conclusion-copy">${summary}</p>
+      </div>
+      <p class="boundary">目前不能确认整机稳定。本次未执行修复或重启。</p>
+    </section>
+
+    <section id="next-steps" class="next-steps" aria-labelledby="next-heading">
+      <h2 id="next-heading">接下来怎么做</h2>
+      <div class="action-grid">
+        <div id="user-action" class="action user-action" ${user_attention}>
+          <p class="action-label">你现在要做</p>
+          <h3>${user_title}</h3>
+          ${user_tasks}
+          <p id="user-step">${user_step}</p>
+          ${user_note}
+          ${user_record}
+        </div>
+        <div class="action agent-action">
+          <p class="action-label">建议${agent_owner}接下来做</p>
+          <p id="agent-step">${agent_step}</p>
+          <p class="footnote">以上为后续建议，尚未执行。</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="attention" class="document-section" aria-labelledby="attention-heading">
+      <div class="section-heading"><span class="section-number" aria-hidden="true">01</span><h2 id="attention-heading">需要处理的事项</h2></div>
+      ${highlights}
+      ${coverage}
+    </section>
+
+    <section id="appendix" class="document-section" aria-labelledby="appendix-heading">
+      <div class="section-heading"><span class="section-number" aria-hidden="true">02</span><h2 id="appendix-heading">完整结果与详细记录</h2></div>
+      <p class="quiet">本次共 ${total_checks} 项检查。完整结果、电脑信息和技术记录可在这里展开。</p>
+      <details class="report-section" id="results-overview">
+        <summary>全部检查结果<small>共 ${total_checks} 项，含通过、尚待完成和未查清的项目</small></summary>
+        <ul class="detail-counts" aria-label="完整检查统计">${stats}</ul>
+        ${results_table}
+      </details>
+      <details class="report-section" id="all-results">
+        <summary>逐项检查说明<small>影响、处理建议和判断依据</small></summary>
+        <div class="toolbar no-print" id="filters" hidden>
+          <label>筛选 <select id="status-filter"><option value="all">全部结果</option><option value="attention">发现问题或尚待完成</option><option value="failed">发现问题</option><option value="pending">尚待完成</option><option value="check_error">检查程序出错</option><option value="unknown">本次没查清</option><option value="not_implemented">尚未提供检查</option><option value="passed">此项未见异常</option><option value="info">仅记录信息</option><option value="not_applicable">本次不适用</option></select></label>
+          <label class="search">搜索 <input id="check-search" type="search" placeholder="检查内容或技术名称" autocomplete="off"></label>
+          <span id="visible-count" class="result-count" role="status" aria-live="polite"></span>
+        </div>
+        ${checks}
+        <p id="empty-search" class="empty no-print" hidden>没有符合条件的检查。</p>
+      </details>
+      <details class="report-section" id="inventory">
+        <summary>电脑信息与检查范围<small>系统、处理器、内存和存储空间</small></summary>
+        <p class="scope-description">本次核对了能读取的软件记录、系统盘状态、后台报错、驱动、更新和部分设置，并做了列出的设备测试。已读到的信息和实际功能是否可用，分别记录。</p>
+        <dl class="facts">${facts}</dl>
+        <details class="report-section" id="technical-info"><summary>补充系统信息<small>版本、软件数量与启动设置</small></summary>
+          <p class="meta">GiB 是容量单位；内核是系统核心。</p><dl class="facts">${technical_facts}</dl>
+        </details>
+      </details>
+      <details class="report-section" id="changes">
+        <summary>与上次相比的变化<small>${total_changes} 项变化记录</small></summary>
+        ${changes}
+        ${rule_changes}
+        ${invalidations}
+      </details>
+      <details class="report-section" id="inventory-details">
+        <summary>完整采集记录<small>本次读到的信息与未读到的原因</small></summary>
+        <p class="meta">${inventory_summary}</p>
+        ${observations}
+      </details>
+      <details class="report-section" id="records">
+        <summary>记录文件与检查限制<small>供核对结果或继续处理时使用</small></summary>
+        ${records}
+        <h3>检查范围与限制</h3>
+        ${limitations}
+        <p class="meta">文案版本：${content_version} · 报告位置：${report_path}</p>
+        <p class="meta">本次记录编号：${run_id}</p>
+      </details>
+    </section>
+    <footer class="report-footer"><p>报告反映检查时的状态。系统、软件或硬件发生变化后，需要重新检查。</p></footer>
+  </article>
+</main>
+<script>
+(() => {
+  const cards = Array.from(document.querySelectorAll('.check'));
+  const select = document.getElementById('status-filter');
+  const search = document.getElementById('check-search');
+  function filter() {
+    const query = search.value.trim().toLocaleLowerCase();
+    let count = 0;
+    cards.forEach(card => {
+      const state = card.dataset.category;
+      const matches = select.value === 'all' || select.value === state ||
+        (select.value === 'attention' && (state === 'failed' || state === 'pending'));
+      card.hidden = !(matches && card.textContent.toLocaleLowerCase().includes(query));
+      if (!card.hidden) count++;
+    });
+    document.querySelectorAll('.result-group').forEach(group => {
+      group.hidden = !Array.from(group.querySelectorAll('.check')).some(card => !card.hidden);
+    });
+    document.getElementById('visible-count').textContent = '匹配 ' + count + ' / ' + cards.length + ' 项';
+    document.getElementById('empty-search').hidden = count !== 0;
+  }
+  select.addEventListener('change', filter);
+  search.addEventListener('input', filter);
+  document.getElementById('filters').hidden = false;
+  const printButton = document.getElementById('print-report');
+  printButton.hidden = false;
+  printButton.addEventListener('click', () => window.print());
+  const overview = document.getElementById('results-overview');
+  let overviewBeforePrint = null;
+  window.addEventListener('beforeprint', () => {
+    if (overviewBeforePrint === null) overviewBeforePrint = overview.open;
+    overview.open = true;
+  });
+  window.addEventListener('afterprint', () => {
+    if (overviewBeforePrint !== null) overview.open = overviewBeforePrint;
+    overviewBeforePrint = null;
+  });
+  function revealTarget() {
+    let id;
+    try { id = decodeURIComponent(window.location.hash.slice(1)); } catch { return; }
+    const target = document.getElementById(id);
+    if (!target) return;
+    if (target.classList.contains('check')) {
+      if (target.hidden) {
+        select.value = 'all';
+        search.value = '';
+        filter();
+      }
+      target.querySelector('.check-evidence').open = true;
+    }
+    for (let node = target; node; node = node.parentElement) {
+      if (node.tagName === 'DETAILS') node.open = true;
+    }
+    target.scrollIntoView({block:'start'});
+  }
+  window.addEventListener('hashchange', revealTarget);
+  document.querySelectorAll('.evidence-link').forEach(link => {
+    link.addEventListener('click', () => {
+      if (window.location.hash === new URL(link.href).hash) revealTarget();
+    });
+  });
+  filter();
+  revealTarget();
+})();
+</script>
+</body>
+</html>

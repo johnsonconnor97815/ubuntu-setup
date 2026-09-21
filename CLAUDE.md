@@ -2,6 +2,8 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+公共协作规则见 [AGENTS.md](AGENTS.md)。本文其余部分说明 Bash 软件管理组件。新增的 Python 只读检查原型位于 `ubuntu_setup/`，测试位于 `tests/`，用法与能力边界见 [README.md](README.md#只读检查原型) 和 [docs/prototype.md](docs/prototype.md)；该原型尚未接入 Bash 安装脚本。
+
 ## 项目目标
 
 把一台**全新安装的 Ubuntu 机器**(含 Server / SSH / 无桌面)变成**用脚本集合管理软件**的机器。核心模型是**脚本集合 + 分类管理**:

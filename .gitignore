@@ -1,4 +1,4 @@
-# ubuntu-setup is a pure bash + markdown project (no Python, no build toolchain).
+# Source includes Bash software management and a Python inspection prototype.
 # Keep this minimal — lib/ and scripts/ are first-class source, never ignored.
 
 # Editor / OS cruft
@@ -31,3 +31,9 @@
 
 # Code-intel index — a rebuildable binary SQLite db, never part of the repo.
 .codegraph/
+
+# Python inspection caches and local state
+__pycache__/
+*.py[cod]
+.venv/
+.ubuntu-setup-state/
