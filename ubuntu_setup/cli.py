@@ -80,15 +80,33 @@ def inspect(args):
 
 def capabilities(args):
     result = {"schema_version": 1, "program_version": __version__,
+              "runtime": {
+                  "minimum_python": "3.10",
+                  "preflight": "./ubuntu-setup runtime status --format json",
+                  "unavailable_exit_code": 3,
+                  "repair_command": "swkit python configure --python 3.12",
+                  "repair_side_effects": [
+                      "安装用户态 uv 和 Python 3.12",
+                      "缺少 curl 时经 apt 安装 curl 和 ca-certificates",
+                      "调整 shell rc 中的 PATH 和 uv 补全",
+                  ],
+                  "repair_requires_network": True,
+                  "repair_replaces_system_python": False,
+                  "preflight_side_effects": [
+                      "启动候选 Python 解释器读取版本",
+                      "如已安装 uv，只读查询 uv 的 Python 安装目录",
+                  ],
+                  "network_access": False,
+              },
               "operations": [
-                  {"id": "inspect", "invocation": "python3 -m ubuntu_setup inspect --format json",
+                  {"id": "inspect", "invocation": "./ubuntu-setup inspect --format json",
                    "purpose": "采集当前运行环境并运行全部检测规则，保存带证据的报告",
                    "target": "当前运行环境；模拟检查显式指定 --fixture 和独立 --state-dir",
                    "side_effects": ["写入本工具的私有状态目录", "在现有图形库创建并销毁 1 像素离屏缓冲；不打开窗口", "--online 将软件索引下载到临时目录并清理", "保存 HTML 后请求默认浏览器打开；--no-open 可关闭"], "requires_privilege": False,
                    "network_access": False, "optional_network_access": "仅 --online；联系已配置的软件源，不修改系统索引",
                    "human_confirmation": "--confirm-from 最新报告编号和 --confirm-device 记录用户已实际验证的结果；采集复核环境变化后拒绝沿用",
                    "exit_codes": {"0": "报告保存完成，须另读检查结果", "2": "检查未完成", "130": "用户中断"}},
-                  {"id": "capabilities", "invocation": "python3 -m ubuntu_setup capabilities --format json",
+                  {"id": "capabilities", "invocation": "./ubuntu-setup capabilities --format json",
                    "purpose": "查询检测规则的用途、输入、依据、版本和限制",
                    "side_effects": [], "requires_privilege": False, "network_access": False}],
               "checks": describe_rules(args.check),

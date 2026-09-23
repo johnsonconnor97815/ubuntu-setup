@@ -85,11 +85,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ```bash
 # 语法检查(必过)——bootstrap、三个库、每个脚本、launcher
-for f in bootstrap.sh lib/common.sh lib/cache.sh lib/ui.sh swkit scripts/*.sh; do bash -n "$f"; done
+for f in bootstrap.sh lib/common.sh lib/cache.sh lib/ui.sh swkit scripts/*.sh ubuntu-setup bin/ubuntu-setup; do bash -n "$f"; done
 
 # shellcheck(保持零告警)。所有文件都 source lib(common.sh 再 source cache.sh、ui.sh),
 # 统一带 -x 跟随 source 指令、用 SCRIPTDIR 让 source-path 相对每个文件解析:
-shellcheck -x --source-path=SCRIPTDIR swkit scripts/*.sh lib/common.sh lib/cache.sh lib/ui.sh bootstrap.sh
+shellcheck -x --source-path=SCRIPTDIR swkit scripts/*.sh lib/common.sh lib/cache.sh lib/ui.sh bootstrap.sh ubuntu-setup bin/ubuntu-setup
 
 ./bootstrap.sh --help                      # 用法说明
 ```
@@ -104,7 +104,7 @@ shellcheck -x --source-path=SCRIPTDIR swkit scripts/*.sh lib/common.sh lib/cache
 
 1. **建并切入** — 调用 `EnterWorktree` 工具(或 `claude --worktree <名>`),在 `.claude/worktrees/<名>/` 起隔离 checkout。worktree 从当前 HEAD 分支起(本机 `settings.local.json` 已设 `worktree.baseRef=head`,故基于 `dev` 而非 `main`;若要让 clone 也如此,把该项加进提交版 `.claude/settings.json`)。
 2. **在 worktree 内改** — 本次全部代码改动在该 worktree 完成。
-3. **验证** — 跑本仓校验(见「构建 / 校验命令」):`for f in bootstrap.sh lib/*.sh swkit scripts/*.sh; do bash -n "$f"; done` + `shellcheck -x --source-path=SCRIPTDIR ...` + 改动脚本的 `meta`/`status`/`help`/`ui` 契约自测(必要时伪终端冒烟、外部渠道真机端到端)。
+3. **验证** — 跑本仓校验(见「构建 / 校验命令」):`for f in bootstrap.sh lib/*.sh swkit scripts/*.sh ubuntu-setup bin/ubuntu-setup; do bash -n "$f"; done` + `shellcheck -x --source-path=SCRIPTDIR ...` + 改动脚本的 `meta`/`status`/`help`/`ui` 契约自测(必要时伪终端冒烟、外部渠道真机端到端)。
 4. **合并回来** — 验证通过后回主树 `git merge worktree-<名>`(Claude Code **不自动 merge**,有意保持人工控制),解决冲突后在主树重跑校验。
 5. **收尾** — `ExitWorktree` 切回主树;无改动的 worktree 退出时自动清理,有改动的按提示保留/删除。
 

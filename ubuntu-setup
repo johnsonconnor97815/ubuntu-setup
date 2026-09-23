@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# Convenience entry point when called from the repository root.
+set -Eeuo pipefail
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+exec "$HERE/bin/ubuntu-setup" "$@"

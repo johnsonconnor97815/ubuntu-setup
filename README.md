@@ -3,7 +3,7 @@
 仓库包含两部分：Bash 软件管理脚本负责安装与配置，Python 只读检查原型负责检查机器状态并生成报告。两者目前各自运行，尚未接入统一的安装与检查流程。
 
 - 软件管理：`./bootstrap.sh` 或 `swkit`，见[快速开始](#快速开始)。
-- 只读检查：`python3 -m ubuntu_setup inspect`，见[只读检查原型](#只读检查原型)。
+- 只读检查：`./ubuntu-setup inspect`，见[只读检查原型](#只读检查原型)。
 
 ## Bash 软件管理
 
@@ -121,11 +121,19 @@ shellcheck -x --source-path=SCRIPTDIR swkit scripts/*.sh lib/common.sh lib/ui.sh
 
 ### 运行原型
 
-需要 Linux 和 Python 3.10 或更新版本。主程序使用标准库；依赖与更新检查调用系统的 `/usr/bin/python3`、`python3-apt` 和 `apt-get`，驱动检查使用 `modinfo`，绘制测试使用已有的 EGL/GLES 图形库。缺少工具时报告未知，不自动安装。从仓库根目录运行：
+需要 Linux 和 Python 3.10 或更新版本。推荐从仓库根目录通过 `./ubuntu-setup` 启动；它会先寻找已经存在的 Python 3.10+ 解释器，不会因只读检查自动安装 Python。主程序使用标准库；依赖与更新检查调用系统的 `/usr/bin/python3`、`python3-apt` 和 `apt-get`，驱动检查使用 `modinfo`，绘制测试使用已有的 EGL/GLES 图形库。缺少可选工具时报告未知。
 
 ```sh
-python3 -m ubuntu_setup inspect
+./ubuntu-setup inspect
 ```
+
+如果没有找到 Python `3.10+`，启动器会返回 `runtime_unavailable`，不会修改系统。明确允许安装时执行：
+
+```sh
+swkit python configure --python 3.12
+```
+
+该操作会安装用户态 uv 和 Python `3.12`，需要联网；缺少 `curl` 时会先经 apt 安装 `curl` 和 `ca-certificates`，并会调整 shell rc 中的 PATH 和 uv 补全。它不替换 `/usr/bin/python3`。直接使用 `python3 -m ubuntu_setup` 仍可作为已确认运行时满足要求时的底层入口。
 
 命令检查当前运行环境，使用普通用户权限，不安装软件、不更新软件包索引、不修改系统配置。程序会在自己的状态目录保存记录；检测权限不足或工具缺失的项目记为未知。
 
@@ -136,8 +144,8 @@ python3 -m ubuntu_setup inspect
 通过参数增加配置监测或输出结构化报告：
 
 ```sh
-python3 -m ubuntu_setup inspect --watch-config /etc/apt/sources.list --format json
-python3 -m ubuntu_setup inspect --format json --no-open
+./ubuntu-setup inspect --watch-config /etc/apt/sources.list --format json
+./ubuntu-setup inspect --format json --no-open
 ```
 
 `--format json` 只改变终端输出，HTML 报告仍会生成并默认打开。配置监测只保存文件摘要和基本属性，不保存文件内容，也不代表配置已通过语法或功能验证。完整使用说明、采集范围和退出码见 [只读原型](docs/prototype.md)。
@@ -145,8 +153,8 @@ python3 -m ubuntu_setup inspect --format json --no-open
 Agent 可先查询已有能力，再决定如何使用检查结果。目录查询不采集机器信息，也不写入档案：
 
 ```sh
-python3 -m ubuntu_setup capabilities --format json
-python3 -m ubuntu_setup capabilities --check services
+./ubuntu-setup capabilities --format json
+./ubuntu-setup capabilities --check services
 ```
 
 `0.8.0` 提供 13 条已实现的规则，其中 3 条仅记录环境或清单信息。本版调整报告结构和文字，保留 `0.7.0` 的检测判断；5 项扩展检查的范围、依据和限制见 [扩展检查](docs/extended-checks.md)。检查已实现不代表结果一定通过；信息缺失、功能未确认和等待生效仍会单独列出。
@@ -154,7 +162,7 @@ python3 -m ubuntu_setup capabilities --check services
 默认更新检查使用本地缓存。要核实软件源签名、索引有效期和当前更新候选，可运行：
 
 ```sh
-python3 -m ubuntu_setup inspect --online --timeout 30
+./ubuntu-setup inspect --online --timeout 30
 ```
 
 联网检查只在临时目录下载索引，完成或超时后清理，不修改本机索引、不触发本机的更新钩子，不安装软件。绘制测试创建一个看不见的 1 像素画面并读回结果，不截取屏幕、不播放或录制声音、不读取键盘输入。屏幕、声音和键鼠的实际使用结果由用户确认；Agent 按报告编号记录反馈，环境变化后重新确认，具体命令见 [设备确认](docs/extended-checks.md#设备实际使用确认)。
@@ -165,17 +173,20 @@ python3 -m ubuntu_setup inspect --online --timeout 30
 
 ```sh
 ubuntu_setup_demo_dir=$(mktemp -d)
-python3 -m ubuntu_setup inspect --fixture tests/fixtures/desktop.json --state-dir "$ubuntu_setup_demo_dir"
+./ubuntu-setup inspect --fixture tests/fixtures/desktop.json --state-dir "$ubuntu_setup_demo_dir"
 ```
 
 运行自动测试：
 
 ```sh
+bash -n bin/ubuntu-setup ubuntu-setup test/runtime_launcher_test.sh
+shellcheck -x bin/ubuntu-setup ubuntu-setup test/runtime_launcher_test.sh
+test/runtime_launcher_test.sh
 python3 -m unittest discover -s tests -v
 git diff --check
 ```
 
-测试覆盖重复检查、软件与硬件变化、配置修改、检测失败、待重启、档案损坏、并发写入、检查中断，以及 HTML 内容转义、文案是否保持判断含义、旧报告续接和浏览器打开失败。自动测试不实际弹出浏览器。`git diff --check` 只检查已跟踪差异；新增文件需另外检查。
+测试覆盖启动器解释器选择与阻塞输出，重复检查、软件与硬件变化、配置修改、检测失败、待重启、档案损坏、并发写入、检查中断，以及 HTML 内容转义、文案是否保持判断含义、旧报告续接和浏览器打开失败。自动测试不安装 Python、不实际弹出浏览器。`git diff --check` 只检查已跟踪差异；新增文件需另外检查。
 
 首批只读实测环境为 Ubuntu 24.04、x86_64、Python 3.12.3。其他系统、架构、真实虚拟化环境和设备功能尚未实测；模拟结果不构成实机支持证明。实际验证记录见 [只读原型](docs/prototype.md)。
 

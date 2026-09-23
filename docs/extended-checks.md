@@ -19,7 +19,7 @@
 默认离线读取本地索引。缓存中没有更新也不能报告“已是最新”。程序还检查是否配置了跳过来源签名或有效期验证的选项。
 
 ```sh
-python3 -m ubuntu_setup inspect --online --timeout 30
+./ubuntu-setup inspect --online --timeout 30
 ```
 
 `--online` 从已配置的软件源下载索引到私有临时目录，由 APT 核实来源和索引有效期，再使用新索引重新解析候选。不会刷新 `/var/lib/apt/lists`。配置仅继承软件源、密钥、版本优先级、架构、必要的包策略和静态代理设置；不继承本机更新钩子或代理自动探测命令，不调用安装操作。实际使用自定义网络扩展的环境可能需要另行适配，失败保留未知。
@@ -43,7 +43,7 @@ python3 -m ubuntu_setup inspect --online --timeout 30
 屏幕显示、声音和键鼠的实际体验由用户确认。Agent 必须先获得用户对具体项目的明确反馈，再记录；不能根据模块加载、命令成功或自己的推测填写通过。例如，用户确认当前报告对应的三项都可用后：
 
 ```sh
-python3 -m ubuntu_setup inspect --confirm-from REPORT_RUN_ID \
+./ubuntu-setup inspect --confirm-from REPORT_RUN_ID \
   --confirm-device display=passed \
   --confirm-device audio=passed \
   --confirm-device input=passed

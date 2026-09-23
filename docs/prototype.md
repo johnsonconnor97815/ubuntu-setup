@@ -8,15 +8,15 @@
 
 ## 命令
 
-在仓库根目录执行：
+在仓库根目录执行。推荐使用启动器，它会在进入 Python 前检查运行时：
 
 ```sh
-python3 -m ubuntu_setup inspect
-python3 -m ubuntu_setup inspect --format json
-python3 -m ubuntu_setup inspect --format json --no-open
-python3 -m ubuntu_setup inspect --watch-config /etc/apt/sources.list
-python3 -m ubuntu_setup inspect --help
-python3 -m ubuntu_setup capabilities --format json
+./ubuntu-setup inspect
+./ubuntu-setup inspect --format json
+./ubuntu-setup inspect --format json --no-open
+./ubuntu-setup inspect --watch-config /etc/apt/sources.list
+./ubuntu-setup inspect --help
+./ubuntu-setup capabilities --format json
 ```
 
 | 参数 | 行为 |
@@ -30,7 +30,7 @@ python3 -m ubuntu_setup capabilities --format json
 | `--online` | 在临时目录下载和核实 APT 索引，建议配合 `--timeout 30`；不修改系统索引 |
 | `--confirm-from RUN_ID`、`--confirm-device DEVICE=RESULT` | 记录用户针对最新报告实际验证的显示、声音或输入结果；复核发现环境变化时不沿用 |
 
-退出码 `0` 表示检查报告已完整保存，报告仍可能有异常、未知或待验证项。退出码 `2` 表示参数、身份、档案或必要文件读写出错；`130` 表示用户中断。报告完成不代表系统稳定，也不代表可以自动执行变更。
+启动器还提供 `./ubuntu-setup runtime status [--format json]`。它会启动候选解释器读取版本，只检查是否存在可用的 Python 3.10+，不启动检查、不安装软件。找不到时退出码为 `3`，并给出 `swkit python configure --python 3.12`。`2` 表示启动器参数错误，或 Python 程序的参数、档案或读写错误；`130` 表示用户中断。报告完成不代表系统稳定，也不代表可以自动执行变更。
 
 默认在完整保存并发布报告后通过当前桌面的 `xdg-open` 打开 HTML；调用等待最多 5 秒，不安装浏览器、不修改默认应用。无桌面会话、缺少打开工具或启动失败时仍保留报告并返回路径，报告完成状态不受影响。能力查询不启动浏览器。
 

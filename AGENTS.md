@@ -13,7 +13,7 @@
 - 仓库已有 Python 实现的只读检查原型、合成数据和自动测试；`0.7.0` 补齐依赖、驱动匹配、设备功能、更新来源和部分配置生效检查。该原型的安装、修复、任意新软件的版本选择及完整兼容性验证尚未实现。实际边界见 [扩展检查](docs/extended-checks.md)。
 - 仓库另有 Bash 软件管理脚本，入口为 `./bootstrap.sh` 和 `swkit`，用法见 [README.md](README.md)，组件约定见 [CLAUDE.md](CLAUDE.md)。两部分目前各自运行，检查原型尚未接入这些安装脚本。
 - 已确定的工作流维护在 [docs/workflow.md](docs/workflow.md)；信息采集、数据保存与交互细节的草案入口见 [README.md](README.md)。草案不代表已实现或已验证的能力。
-- 原型入口为 `python3 -m ubuntu_setup inspect`，能力查询为 `python3 -m ubuntu_setup capabilities --format json`，测试为 `python3 -m unittest discover -s tests -v`。实际采集与保存范围见 [docs/prototype.md](docs/prototype.md)，规则接口见 [docs/detection-rules.md](docs/detection-rules.md)；各 Agent 工具的专用接入尚未实现。
+- 原型入口为 `./ubuntu-setup inspect`，能力查询为 `./ubuntu-setup capabilities --format json`，测试为 `python3 -m unittest discover -s tests -v`。启动器先选择现有的 Python 3.10+ 解释器；没有合适解释器时只报告运行时阻塞，不自动安装。实际采集与保存范围见 [docs/prototype.md](docs/prototype.md)，规则接口见 [docs/detection-rules.md](docs/detection-rules.md)；各 Agent 工具的专用接入尚未实现。
 - `inspect --online --timeout 30` 只能刷新临时目录的索引，禁止继承执行本机更新钩子。`--confirm-from` 与 `--confirm-device` 仅记录用户明确给出的实际使用结果；采集发现环境变化时不沿用旧确认。不得为了让报告通过而伪造确认或执行修复。
 - 引入代码时同步补充真实的运行、检查和测试命令；不要把规划中的功能写成已经可用。
 - 开发本项目与配置当前主机是两项任务。开发和测试默认使用只读探测、模拟数据或隔离环境；只有用户要求配置目标系统时才执行相应系统变更。

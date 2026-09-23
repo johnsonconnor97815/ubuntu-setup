@@ -5,7 +5,7 @@
 ## 使用
 
 ```sh
-python3 -m ubuntu_setup inspect
+./ubuntu-setup inspect
 ```
 
 命令先只读采集和检查，再把报告保存为私有状态目录中的 `runs/<run-id>/report.html`。快照、检查结果和报告全部保存，当前索引发布完成并释放写入锁之后，才请求桌面打开报告。终端显示结果摘要、文件路径和打开请求的状态。
@@ -13,8 +13,8 @@ python3 -m ubuntu_setup inspect
 模拟检查也使用同一种 HTML 报告，并在页面明确标为模拟数据。自动化调用或无需弹出页面时，可以关闭自动打开：
 
 ```sh
-python3 -m ubuntu_setup inspect --no-open
-python3 -m ubuntu_setup inspect --format json --no-open
+./ubuntu-setup inspect --no-open
+./ubuntu-setup inspect --format json --no-open
 ```
 
 `--format` 只决定终端输出摘要还是 JSON，不改变报告文件的 HTML 格式。`--format json` 本身不关闭自动打开，调用方需要时显式使用 `--no-open`。`capabilities` 是能力查询，不生成检查报告或启动浏览器。

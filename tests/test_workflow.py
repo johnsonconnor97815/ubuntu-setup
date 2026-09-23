@@ -207,6 +207,24 @@ class WorkflowTests(unittest.TestCase):
         self.assertEqual(code, 0)
         result = json.loads(out.getvalue())
         self.assertEqual([c["check_id"] for c in result["checks"]], ["services"])
+        self.assertEqual(result["runtime"], {
+            "minimum_python": "3.10",
+            "preflight": "./ubuntu-setup runtime status --format json",
+            "unavailable_exit_code": 3,
+            "repair_command": "swkit python configure --python 3.12",
+            "repair_side_effects": [
+                "安装用户态 uv 和 Python 3.12",
+                "缺少 curl 时经 apt 安装 curl 和 ca-certificates",
+                "调整 shell rc 中的 PATH 和 uv 补全",
+            ],
+            "repair_requires_network": True,
+            "repair_replaces_system_python": False,
+            "preflight_side_effects": [
+                "启动候选 Python 解释器读取版本",
+                "如已安装 uv，只读查询 uv 的 Python 安装目录",
+            ],
+            "network_access": False,
+        })
         self.assertFalse(self.state.exists())
 
     def test_report_exposes_evidence_paths_and_specific_failed_services(self):

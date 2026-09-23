@@ -1,0 +1,317 @@
+#!/usr/bin/env bash
+#
+# ubuntu-setup — runtime-aware launcher for the Python inspection prototype.
+#
+# This file deliberately uses only Bash and common POSIX commands before it has
+# found a usable Python interpreter.  The read-only inspection command must not
+# install a runtime, update APT, or make a network request as a side effect of
+# starting it.
+
+set -Eeuo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+readonly SCRIPT_DIR REPO_ROOT
+
+# Keep this distinct from the Python CLI's argument/data error (2) and interrupt
+# status (130).  It means the inspection could not start because its runtime is
+# unavailable.
+readonly RC_RUNTIME_UNAVAILABLE=3
+readonly MIN_PYTHON_MAJOR=3
+readonly MIN_PYTHON_MINOR=10
+
+declare -a CANDIDATES=()
+declare -a DETECTED=()
+BEST_PYTHON=""
+BEST_VERSION=""
+EXPLICIT_PYTHON=""
+
+usage() {
+  cat <<'EOF'
+Usage: ./ubuntu-setup <command> [options]
+
+Commands:
+  inspect       Read the machine and save a check report
+  capabilities  Show the available checks and their limits
+  runtime       Check the Python runtime without starting the inspection command
+
+The launcher selects an existing Python 3.10+ interpreter. It never installs
+Python or updates the system as part of a read-only inspection. If no suitable
+interpreter exists and you explicitly authorize changes, run:
+
+  swkit python configure --python 3.12
+
+The lower-level `python3 -m ubuntu_setup ...` entry remains available when the
+caller already knows that its interpreter meets the requirement.
+
+Environment:
+  UBUNTU_SETUP_PYTHON  Use one explicit interpreter path and do not fall back
+                       to another interpreter if it is missing or too old.
+EOF
+}
+
+json_quote() {
+  local value="$1" result="" char index code
+  local backslash="\\" double_quote='"' json_backslash="\\\\" json_quote="\\\""
+  for ((index = 0; index < ${#value}; index++)); do
+    char="${value:index:1}"
+    case "$char" in
+      "$backslash") result+="$json_backslash" ;;
+      "$double_quote") result+="$json_quote" ;;
+      $'\n') result+='\\n' ;;
+      $'\r') result+='\\r' ;;
+      $'\t') result+='\\t' ;;
+      *)
+        printf -v code '%d' "'$char"
+        if (( code >= 0 && code < 32 )); then
+          printf -v char '\\u%04x' "$code"
+        fi
+        result+="$char"
+        ;;
+    esac
+  done
+  printf '"%s"' "$result"
+}
+
+wants_json() {
+  while (($#)); do
+    case "$1" in
+      --format=json) return 0 ;;
+      --format)
+        [[ $# -ge 2 && "$2" == json ]] && return 0
+        shift
+        ;;
+    esac
+    shift
+  done
+  return 1
+}
+
+add_candidate() {
+  local requested="$1" resolved existing
+  [[ -n "$requested" ]] || return 0
+
+  if [[ "$requested" == */* ]]; then
+    [[ -x "$requested" ]] || return 0
+    resolved="$requested"
+  else
+    resolved="$(command -v "$requested" 2>/dev/null || true)"
+    [[ -n "$resolved" && -x "$resolved" ]] || return 0
+  fi
+
+  resolved="$(readlink -f "$resolved" 2>/dev/null || printf '%s' "$resolved")"
+  for existing in "${CANDIDATES[@]}"; do
+    [[ "$existing" == "$resolved" ]] && return 0
+  done
+  CANDIDATES+=("$resolved")
+}
+
+add_all_path_candidates() {
+  local requested="$1" resolved
+  while IFS= read -r resolved; do
+    add_candidate "$resolved"
+  done < <(type -aP "$requested" 2>/dev/null)
+}
+
+collect_python_command_candidates() {
+  local command_name
+  while IFS= read -r command_name; do
+    [[ "$command_name" =~ ^python([0-9]+(\.[0-9]+[a-z]*)?)?$ ]] || continue
+    add_all_path_candidates "$command_name"
+  done < <(compgen -c)
+}
+
+collect_candidates() {
+  CANDIDATES=()
+  EXPLICIT_PYTHON="${UBUNTU_SETUP_PYTHON:-}"
+
+  if [[ -n "$EXPLICIT_PYTHON" ]]; then
+    add_candidate "$EXPLICIT_PYTHON"
+    return 0
+  fi
+
+  # Discover all Python command names on PATH, including future versioned
+  # names. Selection below compares the actual reported version, so PATH order
+  # cannot make an old interpreter win over an existing newer one.
+  collect_python_command_candidates
+
+  # uv is an optional existing runtime manager. Querying its bin directory is
+  # read-only; no `uv python install` or `uv run` is ever called here.
+  if command -v uv >/dev/null 2>&1; then
+    local uv_bin
+    uv_bin="$(uv python dir --bin 2>/dev/null || true)"
+    if [[ -n "$uv_bin" && -d "$uv_bin" ]]; then
+      local candidate
+      for candidate in "$uv_bin"/python "$uv_bin"/python3 "$uv_bin"/python3.*; do
+        add_candidate "$candidate"
+      done
+    fi
+  fi
+}
+
+version_at_least() {
+  local version="$1" major minor rest
+  IFS=. read -r major minor rest <<<"$version"
+  [[ "$major" =~ ^[0-9]+$ && "$minor" =~ ^[0-9]+$ ]] || return 1
+  (( major > MIN_PYTHON_MAJOR ||
+     (major == MIN_PYTHON_MAJOR && minor >= MIN_PYTHON_MINOR) ))
+}
+
+version_newer() {
+  local left="$1" right="$2" lmajor lminor lpatch rmajor rminor rpatch
+  IFS=. read -r lmajor lminor lpatch <<<"$left"
+  IFS=. read -r rmajor rminor rpatch <<<"$right"
+  lpatch="${lpatch:-0}"
+  rpatch="${rpatch:-0}"
+  (( lmajor > rmajor ||
+     (lmajor == rmajor && lminor > rminor) ||
+     (lmajor == rmajor && lminor == rminor && lpatch > rpatch) ))
+}
+
+find_runtime() {
+  collect_candidates
+  DETECTED=()
+  BEST_PYTHON=""
+  BEST_VERSION=""
+
+  local candidate version
+  for candidate in "${CANDIDATES[@]}"; do
+    version="$({ "$candidate" -S -E -c 'import sys; print("%d.%d.%d" % sys.version_info[:3])'; } 2>/dev/null || true)"
+    if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+      DETECTED+=("$candidate=unavailable")
+      continue
+    fi
+    DETECTED+=("$candidate=$version")
+    version_at_least "$version" || continue
+    if [[ -z "$BEST_VERSION" ]] || version_newer "$version" "$BEST_VERSION"; then
+      BEST_PYTHON="$candidate"
+      BEST_VERSION="$version"
+    fi
+  done
+
+  [[ -n "$BEST_PYTHON" ]]
+}
+
+emit_runtime_error() {
+  local operation="$1" format="$2" first item
+  if [[ "$format" == json ]]; then
+    printf '{"schema_version":1,"status":"blocked","operation":'
+    json_quote "$operation"
+    printf ',"error_code":"runtime_unavailable","required":{"python":"3.10+"},"detected":['
+    first=1
+    for item in "${DETECTED[@]}"; do
+      (( first )) || printf ','
+      first=0
+      json_quote "$item"
+    done
+    printf '],"next_steps":["swkit python configure --python 3.12"],'
+    printf '"message":"需要 Python 3.10 或更新版本；本次未安装软件、未更新索引、未联网。"}\n'
+    return 0
+  fi
+
+  printf '[error] ubuntu-setup %s 未启动：需要 Python 3.10 或更新版本。\n' "$operation" >&2
+  if ((${#DETECTED[@]})); then
+    printf '[error] 已发现：%s\n' "$(IFS=', '; printf '%s' "${DETECTED[*]}")" >&2
+  else
+    printf '[error] 未发现可用的 Python 解释器。\n' >&2
+  fi
+  printf '[next] 如需安装用户态兼容运行时，请明确执行：\n' >&2
+  printf '       swkit python configure --python 3.12\n' >&2
+  printf '[info] 本次未安装软件、未更新软件包索引、未联网。\n' >&2
+}
+
+runtime_status() {
+  local format=text
+  while (($#)); do
+    case "$1" in
+      --format)
+        if [[ $# -lt 2 || ( "$2" != json && "$2" != text ) ]]; then
+          printf '[error] runtime status 的 --format 只支持 json 或 text。\n' >&2
+          return 2
+        fi
+        [[ "$2" == json ]] && format=json
+        shift 2
+        ;;
+      --format=json)
+        format=json
+        shift
+        ;;
+      --format=text)
+        format=text
+        shift
+        ;;
+      *)
+        printf '[error] 未知 runtime 参数：%s\n' "$1" >&2
+        return 2
+        ;;
+    esac
+  done
+  if find_runtime; then
+    if [[ "$format" == json ]]; then
+      printf '{"schema_version":1,"status":"ready","python":'
+      json_quote "$BEST_PYTHON"
+      printf ',"version":'
+      json_quote "$BEST_VERSION"
+      printf '}\n'
+    else
+      printf 'Python runtime ready: %s (%s)\n' "$BEST_PYTHON" "$BEST_VERSION"
+    fi
+    return 0
+  fi
+  emit_runtime_error runtime "$format"
+  return "$RC_RUNTIME_UNAVAILABLE"
+}
+
+run_python_command() {
+  local operation="$1" format=text
+  shift
+  wants_json "$@" && format=json
+  if ! find_runtime; then
+    emit_runtime_error "$operation" "$format"
+    return "$RC_RUNTIME_UNAVAILABLE"
+  fi
+
+  # The selected interpreter may be a user-managed copy outside the checkout.
+  # Put this checkout first so `-m ubuntu_setup` always runs this source tree.
+  if [[ -n "${PYTHONPATH:-}" ]]; then
+    export PYTHONPATH="$REPO_ROOT:$PYTHONPATH"
+  else
+    export PYTHONPATH="$REPO_ROOT"
+  fi
+  exec "$BEST_PYTHON" -m ubuntu_setup "$operation" "$@"
+}
+
+main() {
+  local command="${1:-}"
+  case "$command" in
+    inspect|capabilities)
+      shift
+      run_python_command "$command" "$@"
+      ;;
+    runtime)
+      shift
+      if [[ "${1:-}" == -h || "${1:-}" == --help ]]; then
+        usage
+        return 0
+      fi
+      if [[ "${1:-}" == status ]]; then
+        shift
+      fi
+      runtime_status "$@"
+      ;;
+    -h|--help)
+      usage
+      ;;
+    "")
+      usage >&2
+      return 2
+      ;;
+    *)
+      printf '[error] 未知命令：%s\n\n' "$command" >&2
+      usage >&2
+      return 2
+      ;;
+  esac
+}
+
+main "$@"

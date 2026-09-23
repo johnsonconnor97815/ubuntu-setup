@@ -7,9 +7,9 @@
 在仓库根目录运行：
 
 ```sh
-python3 -m ubuntu_setup capabilities --format json
-python3 -m ubuntu_setup capabilities --check drivers.dkms.current
-python3 -m ubuntu_setup inspect --format json
+./ubuntu-setup capabilities --format json
+./ubuntu-setup capabilities --check drivers.dkms.current
+./ubuntu-setup inspect --format json
 ```
 
 `capabilities` 不采集机器信息、不读取或写入机器档案。它列出操作入口和规则说明；`--check` 按编号查看一条规则，不执行该检查。JSON 输出有独立的 `schema_version: 1`、程序版本、`operations` 和 `checks`。
