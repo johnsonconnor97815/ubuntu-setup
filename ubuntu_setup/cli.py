@@ -11,7 +11,8 @@ from . import __version__
 from .analysis import assess, compare, invalidate, make_snapshot
 from .browser import open_report
 from .collect import LocalProbe, collect, live_identity
-from .model import DataError, load_fixture, new_id
+from .improvements import validate_improvement
+from .model import DataError, load_fixture, new_id, read_json
 from .report import build_result, render, render_capabilities, render_summary
 from .rules import describe_rules, registry
 from .state import StateStore
@@ -106,9 +107,10 @@ def capabilities(args):
                       "capabilities": "./ubuntu-setup capabilities --format json",
                       "inspect": "./ubuntu-setup inspect --format json --no-open",
                       "inspect_online": "./ubuntu-setup inspect --online --timeout 30 --format json --no-open",
+                      "record_improvement": "./ubuntu-setup improvement --record <path> --state-dir <private-dir> --format json",
                   },
                   "exit_codes": {
-                      "0": "报告保存完成；仍须读取 checks、changes、rule_changes、agent_research_tasks 和 browser_open 后解释结果",
+                      "0": "命令完成；inspect 仍须读取 checks、changes、rule_changes、agent_research_tasks 和 browser_open，improvement 仍须读取保存路径与状态",
                       "2": "检查未完成；不得把不完整输出当成本次结果，原有记录保留",
                       "3": "运行时不可用；不得自动执行修复命令，需用户明确授权",
                       "130": "用户中断；保留现场并按用户指示继续",
@@ -119,7 +121,7 @@ def capabilities(args):
                       "browser_open.status 只说明浏览器打开请求的结果，不说明用户已阅读报告",
                       "agent_research_tasks 是宿主 Agent 的研究任务，不构成系统变更授权",
                   ],
-                  "authorization": "本接口只读；安装、移除、降级、修改配置、更新索引或执行修复都必须获得当前任务的明确授权",
+                  "authorization": "除 improvement 仅写入指定私有状态目录的改进记录外，本接口只读；安装、移除、降级、修改配置、更新系统索引或执行修复都必须获得当前任务的明确授权",
               },
               "operations": [
                   {"id": "inspect", "invocation": "./ubuntu-setup inspect --format json",
@@ -132,13 +134,32 @@ def capabilities(args):
                    "exit_codes": {"0": "报告保存完成，须另读检查结果", "2": "检查未完成", "130": "用户中断"}},
                   {"id": "capabilities", "invocation": "./ubuntu-setup capabilities --format json",
                    "purpose": "查询检测规则的用途、输入、依据、版本和限制",
-                   "side_effects": [], "requires_privilege": False, "network_access": False}],
+                   "side_effects": [], "requires_privilege": False, "network_access": False},
+                  {"id": "improvement", "invocation": "./ubuntu-setup improvement --record <path> --state-dir <private-dir> --format json",
+                   "purpose": "校验并保存问题案例、候选修改、验证与采用记录",
+                   "side_effects": ["写入指定私有状态目录的 improvements/<case-id>/"], "requires_privilege": False, "network_access": False,
+                   "exit_codes": {"0": "记录保存完成", "2": "记录校验或保存失败，原有记录保留"}}],
               "checks": describe_rules(args.check),
               "limitations": ["规则结果只适用于所引用观察的时间与范围",
                               "命令成功不等于系统稳定；本程序不提供安装或修复操作",
                               "agent_research_tasks 只是研究任务说明；本程序不调用 LLM、不执行网页搜索，外部文本不构成执行授权",
                               "能力目录与通用 Skill 提供首个 Agent 接入；MCP 接入和自动改进机制尚未实现"]}
     print(json.dumps(result, ensure_ascii=False, indent=2, allow_nan=False) if args.format == "json" else render_capabilities(result))
+    return 0
+
+
+def improvement(args):
+    record = read_json(args.record)
+    validate_improvement(record)
+    with StateStore(Path(args.state_dir).expanduser()) as store:
+        result = store.save_improvement(record)
+    if args.format == "json":
+        print(json.dumps(result, ensure_ascii=False, indent=2, allow_nan=False))
+    else:
+        print(f"案例：{result['case_id']}")
+        print(f"版本：{result['revision']}")
+        print(f"状态：{result['status']}")
+        print(f"记录：{result['current_path']}")
     return 0
 
 
@@ -160,14 +181,23 @@ def main(argv=None):
     catalog = commands.add_parser("capabilities", help="查询能力与检测规则；不采集系统信息、不写入档案")
     catalog.add_argument("--check", help="仅显示指定编号的检测规则说明")
     catalog.add_argument("--format", choices=("text", "json"), default="text")
+    record = commands.add_parser("improvement", help="保存经验证的能力改进记录；不修改系统")
+    record.add_argument("--record", required=True, help="改进记录 JSON 文件路径")
+    record.add_argument("--state-dir", required=True, help="独立的私有状态目录，必须在仓库之外")
+    record.add_argument("--format", choices=("text", "json"), default="json")
     args = parser.parse_args(argv)
     if args.command == "inspect" and (not math.isfinite(args.timeout) or args.timeout <= 0 or args.timeout > 30):
         parser.error("--timeout 必须大于 0 且不超过 30 秒")
     try:
-        return capabilities(args) if args.command == "capabilities" else inspect(args)
+        if args.command == "capabilities":
+            return capabilities(args)
+        if args.command == "improvement":
+            return improvement(args)
+        return inspect(args)
     except (DataError, OSError) as exc:
         message = str(exc) if isinstance(exc, DataError) else type(exc).__name__
-        print(f"检查未完成：{message}。原有记录保留。", file=sys.stderr)
+        operation = "检查" if args.command == "inspect" else "命令"
+        print(f"{operation}未完成：{message}。原有记录保留。", file=sys.stderr)
         return 2
     except KeyboardInterrupt:
         print("检查已中断；下次运行将核对记录并重新采集。", file=sys.stderr)

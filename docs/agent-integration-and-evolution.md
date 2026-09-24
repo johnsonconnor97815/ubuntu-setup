@@ -1,6 +1,6 @@
 # Agent 接入与能力改进
 
-状态：开发应遵守的设计约定。`0.9.0` 已提供 Python 命令行程序、JSON 报告、独立检测规则、能力目录、通用 Agent 检查 Skill 和公共接口约定；MCP 接入、自动改进流程和系统变更执行仍未实现。当前可用范围以 [只读原型](prototype.md) 和 [检测规则](detection-rules.md) 为准。
+状态：开发应遵守的设计约定。`0.10.0` 已提供 Python 命令行程序、JSON 报告、独立检测规则、能力目录、通用 Agent 检查 Skill、公共接口约定和改进记录命令；MCP 接入、自动整理与自动采用、系统变更执行仍未实现。当前可用范围以 [只读原型](prototype.md) 和 [检测规则](detection-rules.md) 为准。
 
 本文补充 [工作流](workflow.md)，不改变系统与驱动维护优先的顺序。兼容性、权限、恢复及验证规则仍统一维护在 [AGENTS.md](../AGENTS.md)。
 
@@ -114,14 +114,22 @@ Codex 的 Skill 和 `AGENTS.md` 用法已按官方资料核对。Claude Code CLI
 
 ## 改进记录如何保存
 
-沿用 [数据保存与任务执行](storage-and-execution.md) 的原则，先采用本地文件，不增加数据库或外部上传服务。以下记录结构仍待实现：
+沿用 [数据保存与任务执行](storage-and-execution.md) 的原则，先采用本地文件，不增加数据库或外部上传服务。`0.10.0` 已实现基础记录结构：
 
 | 记录 | 保存位置与内容 |
 | --- | --- |
 | 机器现场与原始证据 | 现有私有机器目录；保留运行、快照和检查引用，不提交仓库 |
-| 问题与候选修改记录 | 拟放在私有状态目录的 `improvements/<case-id>/`；保存能力及版本、复现条件、证据引用、候选差异、测试结果和当前状态 |
+| 问题与候选修改记录 | 私有状态目录的 `improvements/<case-id>/`；保存能力及版本、复现条件、证据引用、候选差异、测试结果和当前状态 |
 | 可复用测试与公共依据 | 经检查的合成或脱敏案例随代码保存；公共支持资料记录来源、对应版本、核对时间和适用范围 |
 | 能力版本与采用记录 | 公共代码及说明按版本维护；本地运行另记实际采用的版本和适用范围，可追溯到对应案例与验证结果 |
+
+保存入口为：
+
+```sh
+./ubuntu-setup improvement --record <case.json> --state-dir ~/.local/state/ubuntu-setup-improvements --format json
+```
+
+每个案例保存 `current.json` 和不可覆盖的 `revisions/000N.json`。第一条记录不能直接写为 `adopted`；`validated` 与 `adopted` 必须分成连续版本，且后续版本不能改写问题、案例、候选和验证内容。该命令只写指定私有状态目录，不修改系统，也不自动切换代码版本。
 
 问题记录区分待复现、候选、验证通过、已采用、已撤回和已否决；验证通过与采用是两件事。没有足够依据的问题可以保留待处理，同类问题用同一案例关联后续运行，避免反复创建候选。
 
@@ -135,10 +143,10 @@ Codex 的 Skill 和 `AGENTS.md` 用法已按官方资料核对。Claude Code CLI
 | --- | --- | --- |
 | 1 | 已提供首版独立检测规则及能力说明，继续扩展覆盖范围 | 现有 `inspect` 可继续使用；新增规则有依据、证据引用、未知处理与变化重查测试 |
 | 2 | 已提供首个 Agent 接入及公共接口约定 | `agent_interface` 与通用 Skill 声明同一命令链；2026-09-24 在 Codex CLI `0.139.0` 会话中实测运行时预检、能力目录和模拟 `inspect --format json --no-open`，失败、未知和授权边界有自动测试 |
-| 3 | 问题案例、候选修改和版本采用记录 | 完成一次“真实问题 → 脱敏案例 → 修改 → 比较验证 → 采用或否决 → 追溯”的流程 |
+| 3 | 已提供问题案例、候选修改和版本采用记录 | `improvement` 命令可校验并保存连续、不可改写的记录；Codex `0.156.0` Skill 加载问题已形成脱敏案例，验证与采用分离并有自动测试 |
 | 4 | 在既有验证基础上增加自动化 | 先自动整理问题和运行测试，再在授权范围内自动采用合格改进；测量误判、复发、耗时等实际效果 |
 
-这四步应逐步实现。当前已有结构化记录和合成测试可复用，尚不能声称已经支持自动改进、自动升级或多 Agent 工具适配。接入声明不能外推到未实测的宿主版本。
+这四步应逐步实现。当前已有结构化记录和合成测试可复用，尚不能声称已经支持自动整理、自动采用、自动升级或多 Agent 工具适配。接入声明不能外推到未实测的宿主版本。
 
 ## 官方资料与适用范围
 
@@ -147,3 +155,5 @@ Codex 的 Skill 和 `AGENTS.md` 用法已按官方资料核对。Claude Code CLI
 1. [Codex Customization](https://developers.openai.com/codex/customization/overview)：`AGENTS.md`、Skill 和 MCP 的职责；工作说明按需加载。
 2. [Using skills to accelerate OSS maintenance](https://developers.openai.com/blog/skills-agents-sdk)：固定步骤由脚本执行，模型处理上下文判断；工作流需要清晰的使用时机和产物。
 3. [Evaluation best practices](https://developers.openai.com/api/docs/guides/evaluation-best-practices)：根据实际任务定义通过条件，维护测试案例，检查工具选择、参数及指令遵循。这里只采用评估方法，不依赖其中的托管评估服务。
+4. [Codex Custom Prompts](https://learn.chatgpt.com/codex/custom-prompts.md)（2026-09-24 核对）：自定义 prompt 已弃用，需显式调用且存放在本地 Codex 目录。
+5. [Build skills](https://learn.chatgpt.com/docs/build-skills.md)（2026-09-24 核对）：Codex 从用户级 `~/.agents/skills` 等位置加载 Skill，可用 `$` 显式引用或按描述隐式选择。

@@ -117,7 +117,7 @@ shellcheck -x --source-path=SCRIPTDIR swkit scripts/*.sh lib/common.sh lib/ui.sh
 
 目前已实现只读检查原型：采集系统、软件、硬件与驱动信息，检查软件依赖、驱动匹配、设备功能、更新来源和部分设置的生效状态，保存机器档案并比较变化。该原型的安装、修复、任意新软件的版本选择和完整兼容性验证尚未实现。开发约定见 [AGENTS.md](AGENTS.md)。
 
-采集由 Python 命令行程序完成，Agent 可调用它并读取 JSON 结果。当前已提供独立检测规则、能力目录、证据引用、规则版本记录、通用检查接入 Skill 和更新复核专用 Skill，详见 [检测规则](docs/detection-rules.md) 与 [Agent 接入与能力改进](docs/agent-integration-and-evolution.md)。MCP 接入和自动自进化尚未实现。
+采集由 Python 命令行程序完成，Agent 可调用它并读取 JSON 结果。当前已提供独立检测规则、能力目录、证据引用、规则版本记录、通用检查接入 Skill、更新复核专用 Skill 和手动改进记录命令，详见 [检测规则](docs/detection-rules.md) 与 [Agent 接入与能力改进](docs/agent-integration-and-evolution.md)。MCP 接入和自动自进化尚未实现。
 
 ### 运行原型
 
@@ -157,9 +157,17 @@ Agent 可先查询已有能力，再决定如何使用检查结果。目录查�
 ./ubuntu-setup capabilities --check services
 ```
 
+经验证的能力改进可保存到独立的私有状态目录。记录分为不可覆盖的历史版本和指向最新版本的 `current.json`；验证通过与采用必须分成两个记录版本：
+
+```sh
+./ubuntu-setup improvement --record <case.json> --state-dir ~/.local/state/ubuntu-setup-improvements --format json
+```
+
+该命令只写入指定私有记录，不修改系统、不安装软件、不自动采用代码版本。
+
 宿主 Agent 的通用检查入口见 [`skills/ubuntu-inspect/SKILL.md`](skills/ubuntu-inspect/SKILL.md)：先检查运行时，再读取能力目录，随后执行只读 `inspect --format json --no-open` 并解释检查、变化、失败、等待和未知项。该 Skill 不授权安装或修复。
 
-`0.9.0` 提供 12 条已实现的规则，其中 3 条仅记录环境或清单信息，并新增 Agent 接口约定。检测判断沿用 `0.8.0`；5 项扩展检查的范围、依据和限制见 [扩展检查](docs/extended-checks.md)。检查已实现不代表结果一定通过；信息缺失、功能未确认和等待生效仍会单独列出。
+`0.10.0` 提供 12 条已实现的规则，其中 3 条仅记录环境或清单信息，并新增 Agent 接口约定和改进记录命令。检测判断沿用 `0.8.0`；5 项扩展检查的范围、依据和限制见 [扩展检查](docs/extended-checks.md)。检查已实现不代表结果一定通过；信息缺失、功能未确认和等待生效仍会单独列出。
 
 默认更新检查使用本地缓存。要核实软件源签名、索引有效期和当前更新候选，可运行：
 

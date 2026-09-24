@@ -11,6 +11,7 @@ import stat
 import tempfile
 
 from .model import DataError, SCOPES, new_id, now, read_json, validate_snapshot
+from .improvements import validate_improvement, validate_transition
 
 
 def _identifier(value):
@@ -95,6 +96,31 @@ class StateStore:
 
     def read(self, relative):
         return read_json(self._path(relative))
+
+    def save_improvement(self, record):
+        validate_improvement(record)
+        case_id = record["case_id"]
+        current_relative = f"improvements/{case_id}/current.json"
+        if self._path(current_relative).exists():
+            previous = self.read(current_relative)
+            validate_transition(previous, record)
+        elif record["revision"] != 1:
+            raise DataError("第一条改进记录版本必须为 1")
+        revision_relative = f"improvements/{case_id}/revisions/{record['revision']:04d}.json"
+        if self._path(revision_relative).exists():
+            if self.read(revision_relative) != record:
+                raise DataError("拒绝改写已有改进记录版本")
+        else:
+            self.write(revision_relative, record, immutable=True)
+        self.write(current_relative, record)
+        return {
+            "schema_version": 1,
+            "case_id": case_id,
+            "revision": record["revision"],
+            "status": record["status"],
+            "current_path": str(self.root / current_relative),
+            "revision_path": str(self.root / revision_relative),
+        }
 
     def bind(self, source_kind, token):
         path = self._path("identity.json")

@@ -1,0 +1,49 @@
+{
+  "schema_version": 1,
+  "case_id": "codex-156-skill-loading",
+  "revision": 1,
+  "status": "validated",
+  "created_at": "2026-09-24T00:00:00+00:00",
+  "updated_at": "2026-09-24T00:00:00+00:00",
+  "capability": {
+    "name": "agent-interface",
+    "version": "0.9.0"
+  },
+  "problem": {
+    "summary": "Codex 0.156.0 did not expose ubuntu-inspect when only the legacy prompt path was deployed.",
+    "observed_at": "2026-09-24T00:00:00+00:00",
+    "expected": "The host exposes ubuntu-inspect as an invocable skill.",
+    "actual": "The legacy prompt was not shown by debug prompt-input or the interactive command menu.",
+    "evidence": [
+      "Codex CLI 0.156.0 debug prompt-input before the deployment fix",
+      "https://learn.chatgpt.com/codex/custom-prompts.md",
+      "https://learn.chatgpt.com/docs/build-skills.md"
+    ]
+  },
+  "case": {
+    "kind": "deidentified",
+    "input": "Ask Codex to use ubuntu-inspect without running system commands.",
+    "expected": "The skill is visible and explains the read-only workflow, unknown, wait, and authorization boundaries."
+  },
+  "candidate": {
+    "summary": "Deploy current Codex skills to ~/.agents/skills and retain ~/.codex/prompts for older versions.",
+    "change": "Update bootstrap skill deployment and user documentation.",
+    "rollback": "Revert the deployment change and remove the copied ~/.agents/skills entry."
+  },
+  "validation": {
+    "passed": true,
+    "old_result": "ubuntu-inspect was absent from Codex 0.156.0 skill input.",
+    "new_result": "debug prompt-input listed ubuntu-inspect; $ubuntu-inspect reproduced the workflow and treated unknown and wait as not passed.",
+    "tests": [
+      "codex debug prompt-input 'skill visibility test'",
+      "codex exec --ephemeral --sandbox read-only '$ubuntu-inspect ...'",
+      "claude -p --no-session-persistence 'Use the ubuntu-inspect skill ...'",
+      "python3 -m unittest tests.test_agent_interface -v",
+      "bash -n bootstrap.sh"
+    ],
+    "limitations": [
+      "Only skill loading and instruction interpretation were verified; no host ran a real machine inspection.",
+      "Claude Code CLI 2.1.273 was verified in print mode, not interactive mode."
+    ]
+  }
+}

@@ -3,9 +3,9 @@
 # ubuntu-setup — runtime-aware launcher for the Python inspection prototype.
 #
 # This file deliberately uses only Bash and common POSIX commands before it has
-# found a usable Python interpreter.  The read-only inspection command must not
-# install a runtime, update APT, or make a network request as a side effect of
-# starting it.
+# found a usable Python interpreter.  Starting a command must not install a
+# runtime, update APT, or make a network request.  `improvement` only writes a
+# caller-selected private state directory.
 
 set -Eeuo pipefail
 
@@ -33,11 +33,12 @@ Usage: ./ubuntu-setup <command> [options]
 Commands:
   inspect       Read the machine and save a check report
   capabilities  Show the available checks and their limits
+  improvement   Save a validated capability improvement record
   runtime       Check the Python runtime without starting the inspection command
 
-The launcher selects an existing Python 3.10+ interpreter. It never installs
-Python or updates the system as part of a read-only inspection. If no suitable
-interpreter exists and you explicitly authorize changes, run:
+The launcher selects an existing Python 3.10+ interpreter. Starting a command
+never installs Python or updates the system. If no suitable interpreter exists
+and you explicitly authorize changes, run:
 
   swkit python configure --python 3.12
 
@@ -284,7 +285,7 @@ run_python_command() {
 main() {
   local command="${1:-}"
   case "$command" in
-    inspect|capabilities)
+    inspect|capabilities|improvement)
       shift
       run_python_command "$command" "$@"
       ;;
