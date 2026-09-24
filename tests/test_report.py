@@ -63,7 +63,6 @@ class HtmlReportTests(unittest.TestCase):
         attack = '</script><img src="https://example.invalid/steal" onerror="alert(1)"> & <svg/onload=alert(2)>'
         self.observations["resources"]["value"]["cpu_model"] = attack
         self.observations["services"] = observation("services", {attack: {"load": "loaded", "active": "failed", "sub": "failed"}})
-        self.observations["drivers.dkms"] = observation("drivers.dkms", status="unknown", reason=attack)
         content = self.report([{"scope": "configs", "subject": attack, "kind": "changed", "before": attack, "after": attack}])
         doc = Document(content)
         self.assertFalse(any(tag in {"img", "svg", "iframe"} for tag, _ in doc.tags))

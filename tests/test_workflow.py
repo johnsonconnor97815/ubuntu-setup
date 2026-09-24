@@ -244,7 +244,7 @@ class WorkflowTests(unittest.TestCase):
         value = json.loads(path.read_text())
         value.pop("rule_versions")
         value.pop("rule_changes")
-        value["checks"] = [c for c in value["checks"] if c["check_id"] != "drivers.dkms.current"]
+        value["checks"] = [c for c in value["checks"] if c["check_id"] != "configs"]
         for check in value["checks"]:
             check["rule_version"] = "1"
             for key in ("evidence_refs", "basis_refs", "unavailable_inputs", "reason_code"):
@@ -255,8 +255,8 @@ class WorkflowTests(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertEqual(result["changes"], [])
         changes = {c["check_id"]: c["kind"] for c in result["rule_changes"]}
-        self.assertEqual(changes, {"platform": "updated", "services": "updated", "drivers.dkms.current": "added",
-                                   **{k: "updated" for k in ("packages.dependencies", "drivers.compatibility", "hardware.function", "updates", "configs")}})
+        self.assertEqual(changes, {"platform": "updated", "services": "updated", "configs": "added",
+                                   **{k: "updated" for k in ("packages.dependencies", "drivers.compatibility", "hardware.function", "updates")}})
         self.assertEqual(path.read_bytes(), historical)
 
     def test_previous_complete_scope_set_resumes_without_rewriting_old_evidence(self):

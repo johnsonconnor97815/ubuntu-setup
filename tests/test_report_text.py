@@ -125,48 +125,14 @@ class UserWordingTests(unittest.TestCase):
                 self.set_value("storage", {"total_bytes": 100, "available_bytes": available, "read_only": read_only})
                 self.assertEqual(explain(self.check("storage.basic")).category, "failed")
 
-    def test_dkms_empty_unreadable_unmatched_and_uninstalled_stay_distinct(self):
-        cases = [
-            ([], "not_applicable", "没有可供"),
-            (["example/1.0, 6.7.0-old, x86_64: installed"], "unknown", "缺少适用于当前"),
-            (["example/1.0, 6.8.0-example, x86_64: built"], "failed", "未登记为已安装"),
-            (["example/1.0, 6.8.0-example, x86_64: installed"], "passed", "已安装记录"),
-            (["unrecognized"], "unknown", "无法识别"),
-            (["example/1.0: installed"], "unknown", "不完整"),
-            (["example/1.0: added", "example/1.0: added"], "unknown", "重复"),
-        ]
-        for entries, state, phrase in cases:
-            with self.subTest(entries=entries):
-                self.set_value("drivers.dkms", {"entries": entries})
-                message = explain(self.check("drivers.dkms.current"))
-                self.assertEqual(message.category, state)
-                self.assertIn(phrase, message.summary)
-                self.assertNotIn("当前没有对应的详细说明", message.impact)
-        self.snapshot["observations"]["drivers.dkms"] = observation("drivers.dkms", status="unknown", reason="tool absent")
-        message = explain(self.check("drivers.dkms.current"))
-        self.assertEqual(message.category, "unknown")
-        self.assertIn("没能读取", message.summary)
-        self.assertIn("不能说明驱动缺失或损坏", message.impact)
-
     def test_guest_environment_does_not_claim_host_drivers_verified(self):
         for kind in ("container", "wsl"):
             with self.subTest(kind=kind):
                 self.set_value("environment", {"kind": kind, "technology": "synthetic"})
-                message = explain(self.check("drivers.dkms.current"))
+                message = explain(self.check("drivers.compatibility"))
                 self.assertEqual(message.category, "not_applicable")
-                self.assertIn("外层电脑", message.impact)
+                self.assertIn("目标电脑", message.impact)
                 self.assertIn("尚未验证", explain(self.check("platform")).summary)
-
-    def test_dkms_missing_system_information_is_not_called_a_missing_tool(self):
-        self.set_value("drivers.dkms", {"entries": ["example/1.0, 6.8.0-example, x86_64: installed"]})
-        for scope in ("environment", "kernel", "os"):
-            with self.subTest(scope=scope):
-                previous = self.snapshot["observations"][scope]
-                self.snapshot["observations"][scope] = observation(scope, status="unknown", reason="not read")
-                message = explain(self.check("drivers.dkms.current"))
-                self.assertEqual(message.category, "unknown")
-                self.assertNotIn("没能读取这类", message.summary)
-                self.snapshot["observations"][scope] = previous
 
     def test_legacy_unknown_reason_and_wrong_result_use_cautious_fallback(self):
         for code in (None, "future_reason", "services_state"):
@@ -196,7 +162,6 @@ class UserWordingTests(unittest.TestCase):
 
     def test_main_cards_keep_uncertainty_and_hide_technical_identifiers(self):
         self.set_value("services", {"synthetic.service": {"load": "loaded", "active": "failed", "sub": "failed"}})
-        self.snapshot["observations"]["drivers.dkms"] = observation("drivers.dkms", status="unknown", reason="synthetic tool missing")
         assessment = assess(self.snapshot)
         result = build_result(self.snapshot, assessment, [], [], [],
                               Path("/private/state/runs") / self.snapshot["run_id"] / "report.html")
@@ -206,10 +171,6 @@ class UserWordingTests(unittest.TestCase):
         self.assertNotIn("synthetic.service", cards["services"]["main"])
         self.assertIn("synthetic.service", cards["services"]["details"])
         self.assertIn("尚未确定原因", cards["services"]["details"])
-        self.assertNotIn("DKMS", cards["drivers.dkms.current"]["main"])
-        self.assertIn("DKMS", cards["drivers.dkms.current"]["details"])
-        self.assertIn("synthetic tool missing", cards["drivers.dkms.current"]["details"])
-        self.assertIn("不能说明驱动缺失或损坏", cards["drivers.dkms.current"]["main"])
         self.assertEqual(result["report_content_version"], CONTENT_VERSION)
         self.assertEqual(result["checks"], assessment["checks"])
         self.assertIn('name="report-content-version" content="' + CONTENT_VERSION + '"', page)

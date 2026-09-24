@@ -23,7 +23,6 @@ TITLES = {
     "storage.basic": "系统盘的空间和写入限制",
     "reboot": "系统重启提示",
     "drivers.modules": "系统组件清单",
-    "drivers.dkms.current": "附加驱动的安装记录",
     "drivers.compatibility": "驱动与系统是否匹配",
     "hardware.function": "屏幕、声音和键鼠能否使用",
     "services": "后台任务是否报错",
@@ -107,47 +106,6 @@ MESSAGES = {
     ("services", "services_state", "passed"): Message(
         "本次可读取的系统后台项目中，没有列出失败记录。",
         "未检查全部用户的后台程序，也没有验证所有后台功能。"),
-    ("drivers.dkms.current", "dkms_environment_unknown", "unknown"): Message(
-        "无法确认驱动记录与正在运行的系统是否来自同一个环境。",
-        "目前不能用这些记录判断驱动的安装情况。",
-        "先确认检查的是哪一层环境，再核对驱动记录。"),
-    ("drivers.dkms.current", "dkms_guest", "not_applicable"): Message(
-        "本次检查位于容器或 Windows 内的 Linux 环境，这项检查不适用。",
-        "这里的记录不能用来判断外层电脑的驱动是否正确安装。"),
-    ("drivers.dkms.current", "dkms_unreadable", "unknown"): Message(
-        "本次没能读取这类附加驱动的安装记录。",
-        "缺少记录不能说明驱动缺失或损坏；工具或权限等具体读取情况见详情。",
-        "核对为什么没读到记录，以及这些驱动实际采用的安装方式。"),
-    ("drivers.dkms.current", "dkms_empty", "not_applicable"): Message(
-        "已读取安装清单，但其中没有可供这项规则核对的驱动记录。",
-        "这不代表电脑没有驱动；其他安装方式的驱动仍需单独检查。"),
-    ("drivers.dkms.current", "dkms_system_unknown", "unknown"): Message(
-        "缺少系统核心版本或处理器类型信息，没法核对驱动安装记录。",
-        "本次无法判断记录是否适用于正在运行的系统。",
-        "补充系统版本和处理器类型信息，再核对驱动记录。"),
-    ("drivers.dkms.current", "dkms_unrecognized", "unknown"): Message(
-        "驱动安装记录含有无法识别的内容。",
-        "本次不能据此判断驱动是否正确安装。",
-        "核对工具版本和原始记录，补充读取方法后重新检查。"),
-    ("drivers.dkms.current", "dkms_fields_unknown", "unknown"): Message(
-        "驱动安装记录中的系统版本信息不完整或格式无法识别。",
-        "本次不能判断记录是否适用于正在运行的系统。",
-        "核对工具版本与原始记录后重新检查。"),
-    ("drivers.dkms.current", "dkms_duplicate", "unknown"): Message(
-        "驱动安装清单中有重复或相互矛盾的记录。",
-        "在记录核实前，不能据此判断驱动的安装情况。",
-        "重新读取清单，核对重复记录的来源。"),
-    ("drivers.dkms.current", "dkms_uninstalled", "failed"): Message(
-        "有 {count} 项附加驱动的记录显示：已生成安装文件，但未登记为已安装。",
-        "这些记录对应正在运行的系统。是否需要安装这些驱动，还要结合实际设备与用途判断。",
-        "确认这些驱动是否为当前设备所需，再制定维护计划。"),
-    ("drivers.dkms.current", "dkms_unmatched", "unknown"): Message(
-        "有 {count} 项已登记的附加驱动缺少适用于当前系统的安装记录。",
-        "目前还不能判断是否影响设备使用。",
-        "按设备用途核对所需驱动，区分保留的旧记录和实际缺少的安装。"),
-    ("drivers.dkms.current", "dkms_installed", "passed"): Message(
-        "这类已登记的附加驱动，都有适用于正在运行系统的已安装记录。",
-        "还没验证驱动能否加载、来源签名、下次重启后的适用情况和设备实际功能。"),
 }
 MESSAGES.update({
     ("packages.dependencies", "dependencies_broken", "failed"): Message(
@@ -388,8 +346,6 @@ def highlight(check):
             "软件安装记录有异常", f"{count} 条记录显示安装未完成或状态异常；使用影响尚未查明。"),
         ("storage.basic", "storage_state", "failed"): (
             "系统盘的写入条件有问题", "系统盘被标为只能读取，或剩余空间已经耗尽；具体原因需继续核对。"),
-        ("drivers.dkms.current", "dkms_uninstalled", "failed"): (
-            "部分驱动没有已安装记录", f"{count} 项驱动已生成安装文件，但未登记为已安装；是否需要安装仍待核实。"),
         ("reboot", "reboot_required", "pending"): (
             "系统提示需要重启", "为什么需要重启还没查明；重启后仍要检查相关功能。"),
         ("reboot", "reboot_unconfirmed", "pending"): (
@@ -409,7 +365,7 @@ def attention_checks(checks):
     # Reading order, not an inferred severity score. Never truncate findings.
     priority = {"storage.basic": 0, "packages.state": 1, "packages.dependencies": 2,
                 "drivers.compatibility": 3, "hardware.function": 4, "services": 5,
-                "drivers.dkms.current": 6, "configs": 7, "reboot": 8, "updates": 9}
+                "configs": 6, "reboot": 7, "updates": 8}
     return sorted((c for c in checks if c["result"] in {"failed", "pending"}),
                   key=lambda c: (c["result"] != "failed", priority.get(c["check_id"], 10), c["check_id"]))
 

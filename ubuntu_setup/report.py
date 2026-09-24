@@ -181,8 +181,6 @@ def _check_card(check, snapshot):
     if subjects:
         pieces.append('<p>涉及的对象：</p><ul class="subjects">' +
                       ''.join('<li><code>' + _h(s) + '</code></li>' for s in subjects) + '</ul>')
-    if check["check_id"] == "drivers.dkms.current":
-        pieces.append('<p>DKMS 是用于构建和管理部分驱动模块的工具；这项只检查它登记的安装记录。</p>')
     pieces += ['<p>检查编号：<code>' + _h(check["check_id"]) + '</code> · 规则版本：' + _h(check["rule_version"]) + '</p>',
                '<p>原因编号：<code>' + _h(check.get("reason_code") or "旧记录未提供") + '</code></p>',
                '<p>判断时间：' + _h(check["checked_at"]) + '</p>']

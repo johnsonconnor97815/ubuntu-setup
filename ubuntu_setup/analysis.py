@@ -6,7 +6,7 @@ from .model import DataError, MAP_SCOPES, SCOPES, now, validate_snapshot
 from .rules import registry, run_rule
 
 DRIVER_PACKAGES = ("linux-", "firmware-", "nvidia-", "libnvidia-", "xserver-", "mesa-",
-                   "libgl", "libegl", "libdrm", "libvulkan", "dkms", "libc6", "libstdc++")
+                   "libgl", "libegl", "libdrm", "libvulkan", "libc6", "libstdc++")
 
 
 def _comparison_value(scope, value):

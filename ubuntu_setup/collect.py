@@ -26,7 +26,6 @@ COMMANDS = {
     "container": ("systemd-detect-virt", "--container"),
     "vm": ("systemd-detect-virt", "--vm"),
     "secure_boot": ("mokutil", "--sb-state"),
-    "dkms": ("dkms", "status"),
     "services": ("systemctl", "list-units", "--state=failed", "--all", "--no-legend", "--no-pager", "--plain"),
     "sysctl_config": ("systemd-analyze", "cat-config", "sysctl.d", "--no-pager"),
     "unit_config": ("systemctl", "show", "--all", "--no-pager", "--property=Id,LoadState,NeedDaemonReload,FragmentPath,DropInPaths", "*"),
@@ -384,7 +383,6 @@ def collect(probe, watch_configs=(), *, online=False, confirmations=None, previo
         return {"enabled": output[0] == "SecureBoot enabled"}
 
     capture("drivers.secure_boot", secure_boot)
-    capture("drivers.dkms", lambda: {"entries": _successful(probe, "dkms").splitlines()})
     capture("reboot", lambda: {"required_marker": probe.exists("/run/reboot-required")}, ["/run/reboot-required；缺少标志不代表所有变更均已生效"])
     capture("services", lambda: _services(probe), ["当前可访问的系统服务；不含所有用户服务"])
     capture("configs", lambda: {str(Path(p).absolute()): probe.file_info(p) for p in watch_configs},

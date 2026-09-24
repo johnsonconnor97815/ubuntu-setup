@@ -14,10 +14,12 @@ BASE_SCOPES = (
     "boot", "packages.dpkg", "packages.snap", "packages.flatpak.system",
     "packages.flatpak.user", "sources.apt", "metadata.apt", "hardware.pci",
     "hardware.usb", "drivers.bindings", "drivers.modules", "drivers.secure_boot",
-    "drivers.dkms", "reboot", "services", "configs",
+    "reboot", "services", "configs",
 )
 CHECK_SCOPES = ("checks.packages", "checks.drivers", "checks.hardware", "checks.updates", "checks.configs")
 SCOPES = BASE_SCOPES + CHECK_SCOPES
+HISTORICAL_BASE_SCOPES = BASE_SCOPES + ("drivers.dkms",)
+HISTORICAL_SCOPES = HISTORICAL_BASE_SCOPES + CHECK_SCOPES
 MAP_SCOPES = frozenset(s for s in SCOPES if s.startswith(("packages.", "hardware."))) | {
     "sources.apt", "drivers.bindings", "drivers.modules", "configs", "services",
 }
@@ -57,7 +59,8 @@ def _require(value, fields, scope):
 
 
 def validate_observations(observations, *, legacy=False):
-    allowed = (set(BASE_SCOPES), set(SCOPES)) if legacy else (set(SCOPES),)
+    allowed = ((set(BASE_SCOPES), set(HISTORICAL_BASE_SCOPES), set(SCOPES), set(HISTORICAL_SCOPES))
+               if legacy else (set(SCOPES),))
     if not isinstance(observations, dict) or set(observations) not in allowed:
         raise DataError("采集范围不完整或包含未知范围")
     for scope, obs in observations.items():

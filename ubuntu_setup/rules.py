@@ -3,7 +3,6 @@
 from copy import deepcopy
 from dataclasses import dataclass, field
 import json
-import re
 from typing import Callable
 
 from .model import DataError, SCOPES, now
@@ -215,54 +214,8 @@ def _configs(inputs, previous):
     return configs(inputs, previous)
 
 
-def _dkms(inputs, previous):
-    env = inputs.value("environment")
-    if env is None:
-        return Outcome("unknown", "无法确认 DKMS 记录与运行内核是否属于同一环境", "先补充运行环境识别", reason_code='dkms_environment_unknown')
-    if env["kind"] in {"container", "wsl"}:
-        return Outcome("not_applicable", "当前规则不适用于容器或 WSL 的宿主内核；其 DKMS 记录不能作为宿主验证", reason_code='dkms_guest')
-    dkms = inputs.value("drivers.dkms")
-    if dkms is None:
-        return Outcome("unknown", "无法读取 DKMS 登记记录；工具缺失不代表没有外部驱动", "核实缺失原因及实际驱动安装方式", reason_code='dkms_unreadable')
-    entries = dkms["entries"]
-    if not entries:
-        return Outcome("not_applicable", "成功读取的 DKMS 清单为空，没有可供此规则核对的登记模块；其他驱动仍需单独检查", reason_code='dkms_empty')
-    kernel, os_info = inputs.value("kernel"), inputs.value("os")
-    if not kernel or not os_info:
-        return Outcome("unknown", "当前内核或架构信息不足，不能匹配 DKMS 记录", "补充运行内核和架构信息", reason_code='dkms_system_unknown')
-    parsed, seen = [], set()
-    for line in entries:
-        # Recognize only the supported unannotated output form. Warnings,
-        # unfamiliar states and duplicate/conflicting rows remain unknown.
-        match = re.fullmatch(r"([^/,\s]+)/([^/,\s]+)(?:, ([^,\s]+), ([^,:\s]+))?: (added|built|installed)", line)
-        if not match:
-            return Outcome("unknown", "DKMS 记录包含警告、未知状态或无法完整解析的行", "核对 DKMS 版本及原始记录，再补充解析规则", reason_code='dkms_unrecognized')
-        name, version, release, arch, status = match.groups()
-        if (status in {"built", "installed"}) != (release is not None):
-            return Outcome("unknown", "DKMS 状态缺少匹配的内核字段或字段组合无法识别", "核对 DKMS 版本及原始记录", reason_code='dkms_fields_unknown')
-        key = (name, version, release, arch)
-        if key in seen:
-            return Outcome("unknown", "DKMS 清单包含重复或相互矛盾的登记记录", "重新采集并核对重复记录", reason_code='dkms_duplicate')
-        seen.add(key)
-        parsed.append((name, version, release, arch, status))
-    current = [row for row in parsed if row[2:4] == (kernel["release"], os_info["architecture"])]
-    incomplete = tuple(sorted(f"{name}/{version}" for name, version, _, _, state in current if state != "installed"))
-    if incomplete:
-        return Outcome("failed", "当前内核和架构有 DKMS 模块仅完成构建，未登记为已安装；是否需要安装须结合设备用途判断",
-                       "核对这些模块是否为当前设备所需，再制定有依据的维护计划", subjects=incomplete, reason_code='dkms_uninstalled')
-    # All registered module/version pairs need a current-kernel record for this
-    # narrow check to pass. Absence may be intentional, so it is not a failure.
-    unmatched = {(row[0], row[1]) for row in parsed} - {(row[0], row[1]) for row in current}
-    if unmatched:
-        return Outcome("unknown", "部分 DKMS 模块没有当前内核和架构的安装记录；不能推断缺失是否构成故障",
-                       "核对设备所需模块及目标内核，区分旧内核留存与实际缺口",
-                       subjects=tuple(sorted(f"{name}/{version}" for name, version in unmatched)), reason_code='dkms_unmatched')
-    return Outcome("passed", f"{len(current)} 个已登记 DKMS 模块有当前内核和架构的 installed 记录；未验证签名、加载、下次启动内核或设备功能", reason_code='dkms_installed')
-
-
 PROTOTYPE = "docs/prototype.md"
 DESIGN = "docs/inventory-and-health.md"
-DKMS_MANUAL = "https://manpages.ubuntu.com/manpages/noble/en/man8/dkms.8.html"
 
 # Versions change when semantics, required evidence or support scope changes.
 # Reorganizing code alone does not change collector versions or machine facts.
@@ -288,13 +241,8 @@ RULES = (
     Rule("drivers.modules", "模块清单读取", "1", ("drivers.modules", "kernel"), ("drivers.modules",),
          "能够读取动态模块清单的环境", "取得完整的本次模块清单",
          "不含内建模块，不证明签名、版本匹配或设备功能", (PROTOTYPE, "man:proc_modules(5)"), _modules, True),
-    Rule("drivers.dkms.current", "当前内核的 DKMS 安装记录", "1", ("drivers.dkms", "kernel", "os", "environment"), (),
-         "真实主机或虚拟机内可读取的 DKMS 登记模块；容器和 WSL 不适用此规则",
-         "所有已登记模块版本都有当前内核和架构的 installed 记录，且清单完整可解析",
-         "未安装工具记未知；无登记模块记不适用；缺少匹配记录记未知；仅 built 记该安装记录检查未通过；不验证设备功能",
-         (DKMS_MANUAL, PROTOTYPE), _dkms, True),
-    Rule("drivers.compatibility", "驱动与硬件兼容性", "2",
-         ("hardware.pci", "hardware.usb", "drivers.bindings", "drivers.modules", "drivers.secure_boot", "drivers.dkms", "kernel", "kernel.next_boot", "environment", "checks.drivers"), (),
+    Rule("drivers.compatibility", "驱动与硬件兼容性", "3",
+         ("hardware.pci", "hardware.usb", "drivers.bindings", "drivers.modules", "drivers.secure_boot", "kernel", "kernel.next_boot", "environment", "checks.drivers"), (),
          "真实主机或虚拟机中已经绑定的 PCI/USB 模块", "当前内核与模块元数据匹配；设备标识匹配；无换版等待及必要证据缺口",
          "固件声明可有可选项；签名存在不等于可信；不核实引导选择、所有用户态库或厂商完整支持矩阵",
          ("man:modinfo(8)", DESIGN), _compatibility, True),

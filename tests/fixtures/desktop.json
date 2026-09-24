@@ -23,7 +23,6 @@
     "drivers.bindings": {"value": {"pci:0000:01:00.0": {"driver": "example", "module": "example"}, "usb:1-1": {"driver": "usb", "module": null}}},
     "drivers.modules": {"value": {"example": {"state": "Live"}}},
     "drivers.secure_boot": {"value": {"enabled": true}},
-    "drivers.dkms": {"value": {"entries": []}},
     "reboot": {"value": {"required_marker": false}},
     "services": {"value": {}},
     "configs": {"coverage": ["/etc/example.conf"], "value": {"/etc/example.conf": {"exists": true, "sha256": "synthetic-config-a", "size": 10, "mode": 420}}}

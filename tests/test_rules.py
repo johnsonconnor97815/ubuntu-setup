@@ -99,12 +99,12 @@ class RuleTests(unittest.TestCase):
         self.assertEqual(after["rule_changes"], [{"check_id": "services", "kind": "updated", "before": "2", "after": "test-next"}])
 
     def test_added_and_removed_rules_are_not_machine_changes(self):
-        original = tuple(r for r in RULES if r.check_id != "drivers.dkms.current")
+        original = tuple(r for r in RULES if r.check_id != "services")
         before = assess(self.snapshot, rules=original)
         after = assess(self.snapshot, before)
-        self.assertEqual(after["rule_changes"], [{"check_id": "drivers.dkms.current", "kind": "added", "before": None, "after": "1"}])
+        self.assertEqual(after["rule_changes"], [{"check_id": "services", "kind": "added", "before": None, "after": "2"}])
         removed = invalidate(after, [], rules=original)
-        self.assertEqual([(c["check_id"], c["invalidated_by"]) for c in removed], [("drivers.dkms.current", ["rule_removed"])])
+        self.assertEqual([(c["check_id"], c["invalidated_by"]) for c in removed], [("services", ["rule_removed"])])
         self.assertEqual(compare(self.snapshot, deepcopy(self.snapshot)), [])
 
     def test_input_contract_change_is_detected_even_if_version_was_not_bumped(self):
@@ -131,6 +131,15 @@ class RuleTests(unittest.TestCase):
     def test_program_release_does_not_change_unchanged_collector_semantics(self):
         self.assertEqual(COLLECTOR_VERSION, "0.1.0")
         self.assertEqual(self.snapshot["observations"]["os"]["collector_version"], "0.1.0")
+
+    def test_dkms_rule_is_retired_but_historical_scope_is_readable(self):
+        self.snapshot["observations"]["drivers.dkms"] = observation(
+            "drivers.dkms", {"entries": ["synthetic/1.0, 6.8.0-example, x86_64: installed"]})
+        assessment = assess(self.snapshot)
+        check_ids = {check["check_id"] for check in assessment["checks"]}
+        self.assertNotIn("drivers.dkms.current", check_ids)
+        self.assertNotIn("drivers.dkms", assessment["rule_versions"])
+        self.assertNotIn("drivers.dkms", by_id(assessment, "drivers.compatibility")["input_scopes"])
 
     def test_duplicate_rule_identifiers_are_rejected(self):
         with self.assertRaises(DataError):
@@ -166,7 +175,8 @@ class RuleTests(unittest.TestCase):
         for check_id in ("packages.dependencies", "drivers.compatibility", "hardware.function", "updates", "configs"):
             with self.subTest(check_id=check_id):
                 self.assertEqual(descriptions[check_id]["implementation_status"], "implemented")
-                self.assertEqual(descriptions[check_id]["rule_version"], "2")
+                expected_version = "3" if check_id == "drivers.compatibility" else "2"
+                self.assertEqual(descriptions[check_id]["rule_version"], expected_version)
                 self.assertEqual(self.result(check_id)["result"], "unknown")
 
     def test_unimplemented_rule_cannot_accidentally_declare_success(self):
@@ -174,70 +184,6 @@ class RuleTests(unittest.TestCase):
         result = run_rule(rule, self.snapshot)
         self.assertEqual(result["result"], "unknown")
         self.assertEqual(result["error"]["code"], "rule_error")
-
-
-class DkmsRuleTests(unittest.TestCase):
-    def setUp(self):
-        self.snapshot = make_snapshot("b" * 32, "a" * 32, "fixture", observations())
-
-    def result(self, entries):
-        self.snapshot["observations"]["drivers.dkms"] = observation("drivers.dkms", {"entries": entries})
-        return by_id(assess(self.snapshot), "drivers.dkms.current")
-
-    def test_matching_install_record_passes_only_this_narrow_check(self):
-        result = self.result(["synthetic/1.0, 6.8.0-example, x86_64: installed"])
-        self.assertEqual(result["result"], "passed")
-        self.assertIn("未验证", result["reason"])
-        self.assertEqual(by_id(assess(self.snapshot), "drivers.compatibility")["result"], "unknown")
-
-    def test_only_built_current_module_fails_install_record_check(self):
-        result = self.result(["synthetic/1.0, 6.8.0-example, x86_64: built"])
-        self.assertEqual(result["result"], "failed")
-        self.assertEqual(result["subjects"], ["synthetic/1.0"])
-        self.assertIn("是否需要安装", result["reason"])
-
-    def test_absent_current_kernel_or_architecture_match_is_unknown(self):
-        for line in ("synthetic/1.0: added", "synthetic/1.0, 6.7.0-old, x86_64: installed",
-                     "synthetic/1.0, 6.8.0-example, aarch64: installed"):
-            with self.subTest(line=line):
-                self.assertEqual(self.result([line])["result"], "unknown")
-
-    def test_old_kernel_record_cannot_hide_an_unmatched_second_module(self):
-        result = self.result(["synthetic/1.0, 6.8.0-example, x86_64: installed", "another/1.0, 6.7.0-old, x86_64: installed"])
-        self.assertEqual(result["result"], "unknown")
-        self.assertEqual(result["subjects"], ["another/1.0"])
-
-    def test_other_kernel_for_same_module_does_not_fail_current_kernel_check(self):
-        result = self.result(["synthetic/1.0, 6.8.0-example, x86_64: installed", "synthetic/1.0, 6.7.0-old, x86_64: built"])
-        self.assertEqual(result["result"], "passed")
-
-    def test_empty_list_and_missing_tool_are_different(self):
-        self.assertEqual(self.result([])["result"], "not_applicable")
-        self.snapshot["observations"]["drivers.dkms"] = observation("drivers.dkms", status="unknown", reason="tool missing")
-        self.assertEqual(by_id(assess(self.snapshot), "drivers.dkms.current")["result"], "unknown")
-
-    def test_warnings_partial_unknown_or_duplicate_rows_cannot_pass(self):
-        installed = "synthetic/1.0, 6.8.0-example, x86_64: installed"
-        for entries in ([installed + " (WARNING! Diff between built and installed module!)"],
-                        [installed, "truncated"], [installed, installed], ["synthetic/1.0: broken"],
-                        ["synthetic/1.0: installed"], ["synthetic/1.0, 6.8.0-example, x86_64: added"], [""]):
-            with self.subTest(entries=entries):
-                self.assertEqual(self.result(entries)["result"], "unknown")
-
-    def test_container_and_wsl_records_do_not_check_host_kernel(self):
-        for kind in ("container", "wsl"):
-            with self.subTest(kind=kind):
-                self.snapshot["observations"]["environment"] = observation("environment", {"kind": kind, "technology": "synthetic"})
-                self.assertEqual(self.result(["synthetic/1.0, 6.8.0-example, x86_64: installed"])["result"], "not_applicable")
-
-    def test_missing_kernel_or_environment_keeps_result_unknown(self):
-        for scope in ("kernel", "environment", "os"):
-            with self.subTest(scope=scope):
-                old = self.snapshot["observations"][scope]
-                self.snapshot["observations"][scope] = observation(scope, status="unknown", reason="not read")
-                self.assertEqual(self.result(["synthetic/1.0, 6.8.0-example, x86_64: installed"])["result"], "unknown")
-                self.snapshot["observations"][scope] = old
-
 
 if __name__ == "__main__":
     unittest.main()

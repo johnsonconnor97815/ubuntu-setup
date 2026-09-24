@@ -45,7 +45,7 @@ class FakeProbe:
                          "snap": CommandResult(0, "Name Version Rev Tracking Publisher Notes\n"),
                          "flatpak.system": CommandResult(0, ""), "flatpak.user": CommandResult(0, ""),
                          "secure_boot": CommandResult(0, "SecureBoot enabled\n"),
-                         "dkms": CommandResult(0, ""), "services": CommandResult(0, ""),
+                         "services": CommandResult(0, ""),
                          "sysctl_config": CommandResult(0, "# /etc/sysctl.d/example.conf\nvm.swappiness=60\n"),
                          "unit_config": CommandResult(0, "Id=example.service\nLoadState=loaded\nNeedDaemonReload=no\nFragmentPath=/usr/lib/systemd/system/example.service\nDropInPaths=\n"),
                          "graphics": CommandResult(0, '{"status":"unavailable","stage":"synthetic"}')}

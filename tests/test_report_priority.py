@@ -74,7 +74,7 @@ class ReportPriorityTests(unittest.TestCase):
         self.assertCountEqual(ids, [c["check_id"] for c in checks])
         self.assertEqual(len(ids), len(set(ids)))
         self.assertFalse(any(tag == "details" for tag, _ in doc.tags))
-        for term in ("配套库", "管理接口", "离屏", "重载", "NVML", "llvmpipe", "DKMS", "unit-99", "nvidia-cdi-refresh.service"):
+        for term in ("配套库", "管理接口", "离屏", "重载", "NVML", "llvmpipe", "unit-99", "nvidia-cdi-refresh.service"):
             self.assertNotIn(term, front)
         self.assertIn("llvmpipe", html)
         self.assertIn("nvidia-cdi-refresh.service", html)
@@ -168,7 +168,6 @@ class ReportPriorityTests(unittest.TestCase):
     def test_all_failed_checks_and_pending_items_remain_in_highlights(self):
         self.background_failure()
         self.set_value("storage", {"total_bytes": 100, "available_bytes": 0, "read_only": False})
-        self.set_value("drivers.dkms", {"entries": ["example/1.0, 6.8.0-example, x86_64: built"]})
         self.set_value("reboot", {"required_marker": True})
         records = self.records()
         shown = attention_checks(records)
@@ -233,7 +232,6 @@ class ReportPriorityTests(unittest.TestCase):
         self.assertEqual(reading_plan(scenarios[-1]).next_owner, "程序维护者")
 
     def test_missing_information_for_extended_checks_remains_visible_as_a_limit(self):
-        self.snapshot["observations"]["drivers.dkms"] = observation("drivers.dkms", status="unknown", reason="synthetic missing")
         records = self.records()
         notes = coverage_notes(records)
         self.assertTrue(any(n.startswith("还没查清") and "驱动" in n for n in notes))
