@@ -464,12 +464,13 @@ install_swkit_path() {
 # --- Skill deployment ----------------------------------------------------------
 # Skills shipped to the user's machine. Add a directory under skills/ and its name here.
 
-SKILLS=(ubuntu-install zsh-setup claude-extensions ubuntu-update-review)
+SKILLS=(ubuntu-inspect ubuntu-install zsh-setup claude-extensions ubuntu-update-review)
 
 deploy_skills() {
   step "Deploy skills"
-  local target_home name src claude_dst codex_prompts
+  local target_home name src claude_dst codex_skills codex_prompts
   target_home="$(resolve_target_home)"
+  codex_skills="$target_home/.agents/skills"
   codex_prompts="$target_home/.codex/prompts"
 
   for name in "${SKILLS[@]}"; do
@@ -486,7 +487,15 @@ deploy_skills() {
     maybe_chown_user "$claude_dst"
     info "Claude Code skill -> $claude_dst/"
 
-    # Codex: skill body (frontmatter stripped) as a custom prompt, /$name.
+    # Current Codex loads standalone skills from ~/.agents/skills.
+    local codex_skill_dst="$codex_skills/$name"
+    ensure_user_dir "$codex_skill_dst"
+    cp -R "$src/." "$codex_skill_dst/"
+    maybe_chown_user "$codex_skill_dst"
+    info "Codex skill -> $codex_skill_dst/"
+
+    # Older Codex versions use top-level custom prompts. Keep this path until
+    # the supported minimum Codex version loads standalone skills.
     ensure_user_dir "$codex_prompts"
     strip_frontmatter "$src/SKILL.md" >"$codex_prompts/$name.md"
     maybe_chown_user "$codex_prompts/$name.md"

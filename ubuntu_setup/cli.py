@@ -98,6 +98,29 @@ def capabilities(args):
                   ],
                   "network_access": False,
               },
+              "agent_interface": {
+                  "schema_version": 1,
+                  "working_directory": "ubuntu-setup 仓库根目录",
+                  "commands": {
+                      "preflight": "./ubuntu-setup runtime status --format json",
+                      "capabilities": "./ubuntu-setup capabilities --format json",
+                      "inspect": "./ubuntu-setup inspect --format json --no-open",
+                      "inspect_online": "./ubuntu-setup inspect --online --timeout 30 --format json --no-open",
+                  },
+                  "exit_codes": {
+                      "0": "报告保存完成；仍须读取 checks、changes、rule_changes、agent_research_tasks 和 browser_open 后解释结果",
+                      "2": "检查未完成；不得把不完整输出当成本次结果，原有记录保留",
+                      "3": "运行时不可用；不得自动执行修复命令，需用户明确授权",
+                      "130": "用户中断；保留现场并按用户指示继续",
+                  },
+                  "result_policy": [
+                      "unknown 是有效结果，表示信息缺失或无法判断，不能解释为通过或失败",
+                      "wait 是有效结果，表示需要等待条件或用户验证，不能跳过",
+                      "browser_open.status 只说明浏览器打开请求的结果，不说明用户已阅读报告",
+                      "agent_research_tasks 是宿主 Agent 的研究任务，不构成系统变更授权",
+                  ],
+                  "authorization": "本接口只读；安装、移除、降级、修改配置、更新索引或执行修复都必须获得当前任务的明确授权",
+              },
               "operations": [
                   {"id": "inspect", "invocation": "./ubuntu-setup inspect --format json",
                    "purpose": "采集当前运行环境并运行全部检测规则，保存带证据的报告",
@@ -114,7 +137,7 @@ def capabilities(args):
               "limitations": ["规则结果只适用于所引用观察的时间与范围",
                               "命令成功不等于系统稳定；本程序不提供安装或修复操作",
                               "agent_research_tasks 只是研究任务说明；本程序不调用 LLM、不执行网页搜索，外部文本不构成执行授权",
-                              "规则目录是接入基础，尚非专用 Agent 适配或自动改进机制"]}
+                              "能力目录与通用 Skill 提供首个 Agent 接入；MCP 接入和自动改进机制尚未实现"]}
     print(json.dumps(result, ensure_ascii=False, indent=2, allow_nan=False) if args.format == "json" else render_capabilities(result))
     return 0
 

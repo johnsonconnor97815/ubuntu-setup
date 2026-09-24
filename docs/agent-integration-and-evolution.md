@@ -1,6 +1,6 @@
 # Agent 接入与能力改进
 
-状态：开发应遵守的设计约定。`0.2.0` 已提供 Python 命令行程序、JSON 报告、独立检测规则和能力目录；独立离线检测入口、专用 Agent 接入及自动改进流程尚未实现。当前可用范围以 [只读原型](prototype.md) 和 [检测规则](detection-rules.md) 为准。
+状态：开发应遵守的设计约定。`0.9.0` 已提供 Python 命令行程序、JSON 报告、独立检测规则、能力目录、通用 Agent 检查 Skill 和公共接口约定；MCP 接入、自动改进流程和系统变更执行仍未实现。当前可用范围以 [只读原型](prototype.md) 和 [检测规则](detection-rules.md) 为准。
 
 本文补充 [工作流](workflow.md)，不改变系统与驱动维护优先的顺序。兼容性、权限、恢复及验证规则仍统一维护在 [AGENTS.md](../AGENTS.md)。
 
@@ -24,7 +24,9 @@ Agent 通过本地命令执行工具调用：
 | [report.py](../ubuntu_setup/report.py) | 生成 HTML 用户报告、终端摘要和 JSON 输出；HTML 样式与交互维护在模板中 |
 | [browser.py](../ubuntu_setup/browser.py) | 完整保存后请求桌面打开报告，失败时保留文件与路径 |
 
-当前 `inspect` 一次完成这些步骤。采集范围和规则以受版本管理的 Python 代码维护，各规则有独立版本，可通过 `capabilities` 查询用途、输入和限制。JSON 是便于程序读取的结构化文本，已有输出并不等于已经完成专用 Agent 接入。
+当前 `inspect` 一次完成这些步骤。采集范围和规则以受版本管理的 Python 代码维护，各规则有独立版本，可通过 `capabilities` 查询用途、输入和限制。JSON 是便于程序读取的结构化文本；宿主仍须按 `agent_interface` 和 Skill 处理退出码、失败与未知，不能只看命令成功。
+
+`capabilities --format json` 的 `agent_interface` 是宿主接入的公共约定，包含工作目录、运行时预检、能力查询、离线与联网检查命令、退出码含义、未知和等待结果的处理规则，以及只读授权边界。通用入口维护在 [`skills/ubuntu-inspect/SKILL.md`](../skills/ubuntu-inspect/SKILL.md)，由 `bootstrap.sh` 部署到 Claude Code 用户级 Skill、当前 Codex 用户级 Skill 和旧版 Codex 兼容 prompt；更新复核继续使用 [`skills/ubuntu-update-review/SKILL.md`](../skills/ubuntu-update-review/SKILL.md)。
 
 退出码 `0` 只表示报告保存完成。Agent 必须读取具体检查结果、依据和未知项，不能据此宣布系统稳定。当前异常退出主要通过退出码及标准错误文本报告；统一的结构化错误格式也尚未实现。
 
@@ -132,11 +134,11 @@ Codex 的 Skill 和 `AGENTS.md` 用法已按官方资料核对。Claude Code CLI
 | 次序 | 交付内容 | 怎样确认完成 |
 | --- | --- | --- |
 | 1 | 已提供首版独立检测规则及能力说明，继续扩展覆盖范围 | 现有 `inspect` 可继续使用；新增规则有依据、证据引用、未知处理与变化重查测试 |
-| 2 | 首个 Agent 接入及公共接口约定 | 正确发现并调用能力，读取 JSON，保留失败与未知；记录具体宿主版本的实测结果 |
+| 2 | 已提供首个 Agent 接入及公共接口约定 | `agent_interface` 与通用 Skill 声明同一命令链；2026-09-24 在 Codex CLI `0.139.0` 会话中实测运行时预检、能力目录和模拟 `inspect --format json --no-open`，失败、未知和授权边界有自动测试 |
 | 3 | 问题案例、候选修改和版本采用记录 | 完成一次“真实问题 → 脱敏案例 → 修改 → 比较验证 → 采用或否决 → 追溯”的流程 |
 | 4 | 在既有验证基础上增加自动化 | 先自动整理问题和运行测试，再在授权范围内自动采用合格改进；测量误判、复发、耗时等实际效果 |
 
-这四步应逐步实现。当前已有结构化记录和合成测试可复用，尚不能声称已经支持自动改进、自动升级或多 Agent 工具适配。
+这四步应逐步实现。当前已有结构化记录和合成测试可复用，尚不能声称已经支持自动改进、自动升级或多 Agent 工具适配。接入声明不能外推到未实测的宿主版本。
 
 ## 官方资料与适用范围
 

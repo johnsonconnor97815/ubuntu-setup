@@ -80,14 +80,14 @@ headless 只装两个 CLI / Node / skills;git、curl、zsh、docker 等种子脚
 2. **管理这台机器**,两种方式任选:
    - **自己跑脚本**:`swkit list` 浏览,`swkit docker install`、`swkit zsh configure --default-shell` 直接执行。
    - **让 LLM 管理**(任意目录下):
-     - Claude Code:`claude` 后直接说 "用 ubuntu-install skill 装 docker"、"用 zsh-setup skill 配置 zsh"、"用 ubuntu-update-review skill 检查待更新是否安全",或 "用 claude-extensions skill 给 Claude Code 装 context7 MCP / 装个插件 / 装个 skill"
-     - Codex:输入 `/ubuntu-install` 再说 "install docker",输入 `/zsh-setup` 再说 "把 zsh 装好配好",输入 `/ubuntu-update-review` 再说 "检查待更新是否安全",或输入 `/claude-extensions` 再说 "装个 MCP / 插件 / skill"
+     - Claude Code:`claude` 后直接说 "用 ubuntu-inspect skill 检查系统现状"、"用 ubuntu-install skill 装 docker"、"用 zsh-setup skill 配置 zsh"、"用 ubuntu-update-review skill 检查待更新是否安全",或 "用 claude-extensions skill 给 Claude Code 装 context7 MCP / 装个插件 / 装个 skill"
+     - Codex:输入 `$ubuntu-inspect` 再说 "检查系统现状",输入 `$ubuntu-install` 再说 "install docker",输入 `$zsh-setup` 再说 "把 zsh 装好配好",输入 `$ubuntu-update-review` 再说 "检查待更新是否安全",或输入 `$claude-extensions` 再说 "装个 MCP / 插件 / skill"
 
-LLM 会先用 `swkit list` / `swkit search` 发现脚本、给出要跑哪条命令的计划等你确认、再执行,失败即停并报告卡点,装完用 `status` 验证版本。**还没有脚本覆盖的软件**,在**本仓库**里加一个脚本(`cp scripts/TEMPLATE.sh`,用 `lib/common.sh` 的安全原语,往往十几行)、走正常 git 评审、重跑 bootstrap 部署——LLM 在你机器上只运行已有脚本,不在运行时生成脚本。守则见 [`skills/ubuntu-install/SKILL.md`](skills/ubuntu-install/SKILL.md)、[`skills/zsh-setup/SKILL.md`](skills/zsh-setup/SKILL.md)、[`skills/claude-extensions/SKILL.md`](skills/claude-extensions/SKILL.md) 与 [`skills/ubuntu-update-review/SKILL.md`](skills/ubuntu-update-review/SKILL.md)。
+LLM 会先用 `swkit list` / `swkit search` 发现脚本、给出要跑哪条命令的计划等你确认、再执行,失败即停并报告卡点,装完用 `status` 验证版本。**还没有脚本覆盖的软件**,在**本仓库**里加一个脚本(`cp scripts/TEMPLATE.sh`,用 `lib/common.sh` 的安全原语,往往十几行)、走正常 git 评审、重跑 bootstrap 部署——LLM 在你机器上只运行已有脚本,不在运行时生成脚本。守则见 [`skills/ubuntu-inspect/SKILL.md`](skills/ubuntu-inspect/SKILL.md)、[`skills/ubuntu-install/SKILL.md`](skills/ubuntu-install/SKILL.md)、[`skills/zsh-setup/SKILL.md`](skills/zsh-setup/SKILL.md)、[`skills/claude-extensions/SKILL.md`](skills/claude-extensions/SKILL.md) 与 [`skills/ubuntu-update-review/SKILL.md`](skills/ubuntu-update-review/SKILL.md)。
 
 > **关于 sudo 密码**:LLM 通过自己的 shell 执行 sudo,该环境**没有交互终端,无法输入密码**。所以 `bootstrap.sh`(此刻你有终端)在 TUI 的「设置」页提供一个**开关**让你开启免密 sudo;开启就让你输一次密码、写入 `/etc/sudoers.d/ubuntu-setup-llm`,使 LLM 之后免密装软件、全自动;同一开关也能随时关闭(删除该文件)。脚本里的 `sudo_run` 会先 `sudo -n true` 探测(按退出码,不看文案),通过就直接装,否则**打印出那条要你手动执行的命令并停下**,把特权交还你——**绝不经手、回显、管道或存储你的密码,绝不自行写 NOPASSWD**。这是你在 UI 里显式授予、可见可撤的边界。
 
-skill 部署位置:`~/.claude/skills/<name>/`(Claude Code 用户级 skill)与 `~/.codex/prompts/<name>.md`(Codex 自定义 prompt),`<name>` 为 `ubuntu-install`、`zsh-setup`、`claude-extensions`、`ubuntu-update-review`。重跑 `./bootstrap.sh` 会覆盖更新到最新版本。
+skill 部署位置:`~/.claude/skills/<name>/`(Claude Code 用户级 skill)、`~/.agents/skills/<name>/`(Codex 用户级 skill)与 `~/.codex/prompts/<name>.md`(旧版 Codex 兼容 prompt),`<name>` 为 `ubuntu-inspect`、`ubuntu-install`、`zsh-setup`、`claude-extensions`、`ubuntu-update-review`。重跑 `./bootstrap.sh` 会覆盖更新到最新版本。
 
 ## 开发者
 
@@ -117,7 +117,7 @@ shellcheck -x --source-path=SCRIPTDIR swkit scripts/*.sh lib/common.sh lib/ui.sh
 
 目前已实现只读检查原型：采集系统、软件、硬件与驱动信息，检查软件依赖、驱动匹配、设备功能、更新来源和部分设置的生效状态，保存机器档案并比较变化。该原型的安装、修复、任意新软件的版本选择和完整兼容性验证尚未实现。开发约定见 [AGENTS.md](AGENTS.md)。
 
-采集由 Python 命令行程序完成，Agent 可调用它并读取 JSON 结果。当前已提供独立检测规则、能力目录、证据引用和规则版本记录，详见 [检测规则](docs/detection-rules.md)。更新复核的专用 Skill 已提供，MCP 接入和自动自进化尚未实现，后续分工与实施顺序见 [Agent 接入与能力改进](docs/agent-integration-and-evolution.md)。
+采集由 Python 命令行程序完成，Agent 可调用它并读取 JSON 结果。当前已提供独立检测规则、能力目录、证据引用、规则版本记录、通用检查接入 Skill 和更新复核专用 Skill，详见 [检测规则](docs/detection-rules.md) 与 [Agent 接入与能力改进](docs/agent-integration-and-evolution.md)。MCP 接入和自动自进化尚未实现。
 
 ### 运行原型
 
@@ -157,7 +157,9 @@ Agent 可先查询已有能力，再决定如何使用检查结果。目录查�
 ./ubuntu-setup capabilities --check services
 ```
 
-`0.8.0` 提供 12 条已实现的规则，其中 3 条仅记录环境或清单信息。本版调整报告结构和文字，保留 `0.7.0` 的检测判断；5 项扩展检查的范围、依据和限制见 [扩展检查](docs/extended-checks.md)。检查已实现不代表结果一定通过；信息缺失、功能未确认和等待生效仍会单独列出。
+宿主 Agent 的通用检查入口见 [`skills/ubuntu-inspect/SKILL.md`](skills/ubuntu-inspect/SKILL.md)：先检查运行时，再读取能力目录，随后执行只读 `inspect --format json --no-open` 并解释检查、变化、失败、等待和未知项。该 Skill 不授权安装或修复。
+
+`0.9.0` 提供 12 条已实现的规则，其中 3 条仅记录环境或清单信息，并新增 Agent 接口约定。检测判断沿用 `0.8.0`；5 项扩展检查的范围、依据和限制见 [扩展检查](docs/extended-checks.md)。检查已实现不代表结果一定通过；信息缺失、功能未确认和等待生效仍会单独列出。
 
 默认更新检查使用本地缓存。要核实软件源签名、索引有效期和当前更新候选，可运行：
 
