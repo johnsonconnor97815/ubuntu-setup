@@ -397,7 +397,9 @@ _ghostty_xdg_set_first() {
   tmp="$(mktemp)"
   {
     printf '%s\n' "$id"
-    [[ -f "$file" ]] && grep -vxF -- "$id" "$file" || true
+    if [[ -f "$file" ]]; then
+      grep -vxF -- "$id" "$file" || true
+    fi
   } >"$tmp"
   mv "$tmp" "$file" || { rm -f "$tmp"; return 1; }
   log_info "Set $id as the preferred terminal in $file"

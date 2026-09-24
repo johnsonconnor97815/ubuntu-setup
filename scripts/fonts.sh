@@ -323,7 +323,9 @@ do_install() {
     meslolgs) _font_dl_meslolgs "$dir" || return 1 ;;
     *)        _font_dl_zip "$name" "$dir" || return 1 ;;
   esac
-  have_cmd fc-cache && fc-cache -f "$_FONTS_DIR" >/dev/null 2>&1 || true
+  if have_cmd fc-cache; then
+    fc-cache -f "$_FONTS_DIR" >/dev/null 2>&1 || true
+  fi
   log_info "Installed $(_font_family "$name") into $dir."
   _font_guidance "$name"
   return 0
@@ -342,7 +344,9 @@ do_remove() {
   fi
   local dir; dir="$_FONTS_DIR/$(_font_dir_name "$name")"
   rm -rf "${dir:?}"
-  have_cmd fc-cache && fc-cache -f "$_FONTS_DIR" >/dev/null 2>&1 || true
+  if have_cmd fc-cache; then
+    fc-cache -f "$_FONTS_DIR" >/dev/null 2>&1 || true
+  fi
   log_info "Removed $(_font_family "$name") ($dir)."
 }
 

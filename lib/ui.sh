@@ -211,7 +211,9 @@ _ui_restore() {
   _UI_ACTIVE=0
   if [[ -n "${_UI_FD:-}" ]]; then
     printf '\033[0m\033[?25h\033[?1049l' >&"$_UI_FD" || true
-    [[ -n "$_UI_STTY_SAVED" ]] && stty "$_UI_STTY_SAVED" <&"$_UI_FD" 2>/dev/null || true
+    if [[ -n "${_UI_STTY_SAVED:-}" ]]; then
+      stty "$_UI_STTY_SAVED" <&"$_UI_FD" 2>/dev/null || true
+    fi
     exec {_UI_FD}>&- 2>/dev/null || true
   fi
   _UI_FD=""

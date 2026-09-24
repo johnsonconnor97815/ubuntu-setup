@@ -337,8 +337,10 @@ default_lang() {
 load_config() {
   local f
   f="$(config_path)"
-  # shellcheck disable=SC1090
-  [[ -f "$f" ]] && source "$f" 2>/dev/null || true
+  if [[ -f "$f" ]]; then
+    # shellcheck disable=SC1090
+    source "$f" 2>/dev/null || true
+  fi
   case "${LANG_CODE:-}" in
     zh|en|ja) ;;
     *) LANG_CODE="$(default_lang)" ;;
