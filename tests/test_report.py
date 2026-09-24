@@ -84,10 +84,20 @@ class HtmlReportTests(unittest.TestCase):
         self.observations["services"] = observation("services", {"synthetic.service": {"load": "loaded", "active": "failed", "sub": "failed"}})
         self.observations["reboot"]["value"]["required_marker"] = True
         doc = Document(self.report())
-        states = [attrs["data-status"] for tag, attrs in doc.tags if tag == "article" and "data-status" in attrs]
-        self.assertEqual(states[0], "failed")
-        self.assertEqual(states[1], "pending")
-        self.assertLess(states.index("unknown"), states.index("passed"))
+        states_by_domain = {}
+        current_domain = None
+        for tag, attrs in doc.tags:
+            if tag == "details" and "data-domain" in attrs:
+                current_domain = attrs["data-domain"]
+            elif tag == "article" and "data-status" in attrs:
+                states_by_domain.setdefault(current_domain, []).append(attrs["data-status"])
+        self.assertEqual(states_by_domain["system"][0], "pending")
+        self.assertEqual(states_by_domain["services"][0], "failed")
+        priority = {"failed": 0, "pending": 1, "check_error": 2, "unknown": 3,
+                    "not_implemented": 4, "passed": 5, "info": 6, "not_applicable": 7}
+        for states in states_by_domain.values():
+            priorities = [priority[state] for state in states]
+            self.assertEqual(priorities, sorted(priorities))
 
     def test_all_changes_are_available_even_when_summary_is_long(self):
         changes = [{"scope": "packages.dpkg", "subject": f"synthetic-package-{index}", "kind": "added", "before": None, "after": {"version": "1"}} for index in range(43)]

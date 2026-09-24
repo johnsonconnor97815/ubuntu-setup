@@ -9,7 +9,7 @@ from collections import Counter
 from dataclasses import dataclass
 
 
-CONTENT_VERSION = "5"
+CONTENT_VERSION = "9"
 CATEGORY_LABELS = {
     "failed": "发现问题", "pending": "尚待完成", "check_error": "检查程序出错",
     "unknown": "本次没查清", "not_implemented": "尚未提供检查",
@@ -30,6 +30,34 @@ TITLES = {
     "configs": "设置是否生效",
 }
 INFO_CHECKS = {"platform", "environment", "drivers.modules"}
+DOMAIN_LABELS = {
+    "system": "系统和基础环境",
+    "software": "软件和更新",
+    "hardware": "驱动和设备",
+    "services": "后台任务和设置",
+    "other": "其他检查",
+}
+DOMAIN_DESCRIPTIONS = {
+    "system": "系统版本、磁盘空间和重启提示",
+    "software": "已装软件、依赖关系和可用更新",
+    "hardware": "驱动、屏幕、声音和键鼠",
+    "services": "后台任务和系统设置",
+    "other": "新增或尚未归类的检查",
+}
+DOMAIN_CHECK_IDS = {
+    "platform": "system",
+    "environment": "system",
+    "storage.basic": "system",
+    "reboot": "system",
+    "packages.state": "software",
+    "packages.dependencies": "software",
+    "updates": "software",
+    "drivers.modules": "hardware",
+    "drivers.compatibility": "hardware",
+    "hardware.function": "hardware",
+    "services": "services",
+    "configs": "services",
+}
 
 
 @dataclass(frozen=True)
@@ -208,6 +236,29 @@ def category(check):
     if state == "passed" and check["check_id"] in INFO_CHECKS:
         return "info"
     return state if state in CATEGORY_LABELS else "unknown"
+
+
+def domain(check):
+    return DOMAIN_CHECK_IDS.get(check["check_id"], "other")
+
+
+def domain_summary(checks):
+    totals = counts(checks)
+    statuses = []
+    if totals["failed"]:
+        statuses.append(f'{totals["failed"]} 项发现问题')
+    if totals["pending"]:
+        statuses.append(f'{totals["pending"]} 项待确认')
+    if totals["check_error"]:
+        statuses.append(f'{totals["check_error"]} 项检查没完成')
+    unclear = totals["unknown"] + totals["not_implemented"]
+    if unclear:
+        statuses.append(f'{unclear} 项没查清')
+    if statuses:
+        tone = next((state for state in ("failed", "pending", "check_error", "unknown")
+                     if totals[state]), "unknown")
+        return tone, " · ".join(statuses)
+    return "passed", "暂未发现问题"
 
 
 def explain(check):

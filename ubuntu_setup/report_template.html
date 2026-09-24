@@ -55,6 +55,20 @@
     .action-link { display:inline-block; margin-top:4px; }
     .agent-action p:not(.action-label) { color:#4e5d6a; }
     .footnote { font-size:12px; color:var(--muted); margin-top:9px; }
+    .domain-summary { margin-top:24px; }
+    .domain-summary>h2 { font-size:17px; margin-bottom:10px; }
+    .domain-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; }
+    .domain-card { display:grid; grid-template-columns:1fr auto; gap:3px 8px; min-height:132px; padding:14px;
+                   border:1px solid var(--line); border-left:4px solid #5f7788; background:#fbfcfd; color:inherit; text-decoration:none; }
+    .domain-card:hover,.domain-card:focus-visible { border-color:#9fb4c1; background:#f3f8fa; }
+    .domain-name { grid-column:1 / -1; font-weight:700; font-size:15px; color:#243b4d; }
+    .domain-state { font-size:14px; color:#43566a; }
+    .domain-count { font-size:12px; color:var(--muted); }
+    .domain-card p { grid-column:1 / -1; margin:8px 0 0; font-size:12px; color:var(--muted); }
+    .domain-card.failed { border-left-color:var(--red); } .domain-card.failed .domain-state { color:var(--red); }
+    .domain-card.pending,.domain-card.check_error { border-left-color:var(--amber); }
+    .domain-card.pending .domain-state,.domain-card.check_error .domain-state { color:var(--amber); }
+    .domain-card.unknown { border-left-color:#736a93; } .domain-card.unknown .domain-state { color:#60598a; }
     .quiet { color:var(--muted); font-size:14px; }
     .finding-group { margin-top:18px; }
     .finding-group>h3 { display:flex; gap:12px; align-items:baseline; font-size:15px; }
@@ -83,6 +97,7 @@
     .results-table th:first-child { width:24%; } .results-table th:nth-child(2) { width:16%; }
     .results-table tbody th a { color:var(--ink); text-decoration-color:#b2bec7; }
     .results-table td:last-child { color:#4b5e6b; font-size:13px; }
+    .results-table .domain-row td { background:#f6f8f9; color:#354e61; font-weight:600; font-size:13px; }
     .badge { display:inline-block; font-size:12px; font-weight:600; line-height:1.55; color:#566978; }
     .badge.failed { color:var(--red); } .badge.pending,.badge.check_error { color:var(--amber); }
     .badge.passed,.badge.observed { color:#25654f; }
@@ -99,7 +114,12 @@
     .toolbar label { display:flex; align-items:center; gap:8px; font-size:12px; }
     .toolbar .search { flex:1; min-width:180px; } .toolbar input { width:100%; min-width:0; }
     .result-count { font-size:12px; color:var(--muted); }
-    .group-title { color:var(--muted); font-size:14px; margin:22px 0 8px; }
+    .result-group { border:1px solid var(--line); border-radius:5px; padding:13px 16px; margin:12px 0; }
+    .result-group>summary { display:flex; align-items:baseline; justify-content:space-between; gap:10px; list-style:none; }
+    .result-group>summary::-webkit-details-marker { display:none; }
+    .result-group[open]>summary { padding-bottom:10px; border-bottom:1px solid var(--line); }
+    .group-title { color:#33495b; font-size:15px; font-weight:700; }
+    .group-title small { display:block; margin-top:2px; font-size:12px; font-weight:400; color:var(--muted); }
     .check { border:1px solid var(--line); padding:16px 18px; margin-bottom:12px; scroll-margin-top:16px; }
     .check:target { border-color:var(--accent); }
     .check-head { display:flex; justify-content:space-between; align-items:baseline; flex-wrap:wrap; gap:8px; }
@@ -129,11 +149,16 @@
       .document-section { margin-top:24px; } .section-heading { gap:9px; }
       .conclusion { padding-left:12px; } .conclusion-title { font-size:21px; } .conclusion-copy { font-size:14px; }
       .action-grid { grid-template-columns:1fr; gap:12px; } .action { padding:13px 15px; }
+      .domain-grid { grid-template-columns:1fr; } .domain-card { min-height:0; }
       .focus-item { grid-template-columns:minmax(0,1fr); gap:2px; } .focus-link { justify-self:start; }
       th,td { padding:9px 6px; } .results-table th:first-child { width:27%; } .results-table th:nth-child(2) { width:22%; }
       .results-table th,.results-table td:last-child { font-size:12px; } .results-table .badge { font-size:11px; }
       .facts { grid-template-columns:1fr; } .check { padding:13px; }
       .report-section>summary small { display:block; margin:4px 0 0 16px; }
+      .result-group { padding:11px 12px; } .result-group>summary { align-items:flex-start; flex-direction:column; }
+    }
+    @media(max-width:920px) and (min-width:651px) {
+      .domain-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
     }
     @page { size:A4; margin:16mm; }
     @media print {
@@ -146,6 +171,7 @@
       #appendix { break-before:page; } #appendix>.quiet { display:none; }
       h1 { font-size:23pt; } h2 { font-size:14pt; } .conclusion-title { font-size:16pt; }
       .document-section { margin-top:16px; } .action-grid { grid-template-columns:1.15fr 1fr; }
+      .domain-grid { grid-template-columns:repeat(4,1fr); } .domain-card { break-inside:avoid; }
       .focus-item { display:block; } .focus-item,.check,tr,.facts>div,.action { break-inside:avoid; }
       h2,h3,h4,.section-heading,caption { break-after:avoid; }
       .check[hidden],.result-group[hidden] { display:block!important; }
@@ -197,24 +223,30 @@
       </div>
     </section>
 
+    <section id="domain-summary" class="domain-summary" aria-labelledby="domain-heading">
+      <h2 id="domain-heading">按分类看结果</h2>
+      ${domain_cards}
+      <p class="footnote">点击一个分类，可以直接展开这一类的逐项说明。</p>
+    </section>
+
     <section id="attention" class="document-section" aria-labelledby="attention-heading">
-      <div class="section-heading"><span class="section-number" aria-hidden="true">01</span><h2 id="attention-heading">需要处理的事项</h2></div>
+      <div class="section-heading"><span class="section-number" aria-hidden="true">01</span><h2 id="attention-heading">现在需要关注什么</h2></div>
       ${highlights}
       ${coverage}
     </section>
 
     <section id="appendix" class="document-section" aria-labelledby="appendix-heading">
-      <div class="section-heading"><span class="section-number" aria-hidden="true">02</span><h2 id="appendix-heading">完整结果与详细记录</h2></div>
-      <p class="quiet">本次共 ${total_checks} 项检查。完整结果、电脑信息和技术记录可在这里展开。</p>
-      <details class="report-section" id="results-overview">
-        <summary>全部检查结果<small>共 ${total_checks} 项，含通过、尚待完成和未查清的项目</small></summary>
+      <div class="section-heading"><span class="section-number" aria-hidden="true">02</span><h2 id="appendix-heading">全部结果和技术附录</h2></div>
+      <p class="quiet">本次共 ${total_checks} 项检查。下面先给出总表；电脑信息和原始记录放在后面。</p>
+      <details class="report-section" id="results-overview" open>
+        <summary>全部检查结果<small>共 ${total_checks} 项，已按分类排列</small></summary>
         <ul class="detail-counts" aria-label="完整检查统计">${stats}</ul>
         ${results_table}
       </details>
       <details class="report-section" id="all-results">
-        <summary>逐项检查说明<small>影响、处理建议和判断依据</small></summary>
+        <summary>按分类查看逐项说明<small>影响、处理建议和判断依据</small></summary>
         <div class="toolbar no-print" id="filters" hidden>
-          <label>筛选 <select id="status-filter"><option value="all">全部结果</option><option value="attention">发现问题或尚待完成</option><option value="failed">发现问题</option><option value="pending">尚待完成</option><option value="check_error">检查程序出错</option><option value="unknown">本次没查清</option><option value="not_implemented">尚未提供检查</option><option value="passed">此项未见异常</option><option value="info">仅记录信息</option><option value="not_applicable">本次不适用</option></select></label>
+          <label>筛选 <select id="status-filter"><option value="all">全部结果</option><option value="attention">需要关注</option><option value="failed">发现问题</option><option value="pending">尚待完成</option><option value="check_error">检查程序出错</option><option value="unknown">本次没查清</option><option value="not_implemented">尚未提供检查</option><option value="passed">此项未见异常</option><option value="info">仅记录信息</option><option value="not_applicable">本次不适用</option></select></label>
           <label class="search">搜索 <input id="check-search" type="search" placeholder="检查内容或技术名称" autocomplete="off"></label>
           <span id="visible-count" class="result-count" role="status" aria-live="polite"></span>
         </div>
@@ -263,7 +295,7 @@
     cards.forEach(card => {
       const state = card.dataset.category;
       const matches = select.value === 'all' || select.value === state ||
-        (select.value === 'attention' && (state === 'failed' || state === 'pending'));
+        (select.value === 'attention' && ['failed', 'pending', 'check_error', 'unknown', 'not_implemented'].includes(state));
       card.hidden = !(matches && card.textContent.toLocaleLowerCase().includes(query));
       if (!card.hidden) count++;
     });
@@ -289,11 +321,16 @@
     if (overviewBeforePrint !== null) overview.open = overviewBeforePrint;
     overviewBeforePrint = null;
   });
-  function revealTarget() {
+    function revealTarget() {
     let id;
     try { id = decodeURIComponent(window.location.hash.slice(1)); } catch { return; }
-    const target = document.getElementById(id);
-    if (!target) return;
+      const target = document.getElementById(id);
+      if (!target) return;
+      if (target.classList.contains('result-group')) {
+        select.value = 'all';
+        search.value = '';
+        filter();
+      }
     if (target.classList.contains('check')) {
       if (target.hidden) {
         select.value = 'all';

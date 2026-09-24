@@ -24,7 +24,7 @@ SCOPE_LABELS = {
     "sources.apt": "软件源配置摘要", "metadata.apt": "本地软件索引", "hardware.pci": "PCI 设备（如显卡、网卡）",
     "hardware.usb": "USB 设备", "drivers.bindings": "设备与驱动的对应关系",
     "drivers.modules": "已加载的内核模块", "drivers.secure_boot": "启动签名检查状态",
-    "drivers.dkms": "外部驱动构建记录", "reboot": "重启提示", "services": "失败系统服务", "configs": "额外监测的配置",
+    "reboot": "重启提示", "services": "失败系统服务", "configs": "额外监测的配置",
     "checks.packages": "软件依赖与更新模拟", "checks.drivers": "设备、内核和驱动文件核对",
     "checks.hardware": "自动绘制测试与人工使用确认", "checks.updates": "更新候选与软件源核实",
     "checks.configs": "设置文件与生效状态核对",
@@ -205,38 +205,58 @@ def _ordered_checks(checks):
     return sorted(checks, key=lambda c: order[report_text.category(c)])
 
 
+def _domain_cards(checks):
+    pieces = []
+    for domain, label in report_text.DOMAIN_LABELS.items():
+        items = [check for check in checks if report_text.domain(check) == domain]
+        if not items:
+            continue
+        tone, status = report_text.domain_summary(items)
+        pieces.append('<a class="domain-card ' + _h(tone) + '" href="#' + quote('domain-details-' + domain, safe='') +
+                      '" data-domain="' + _h(domain) + '"><span class="domain-name">' + _h(label) +
+                      '</span><strong class="domain-state">' + _h(status) + '</strong>' +
+                      '<span class="domain-count">' + str(len(items)) + ' 项</span>' +
+                      '<p>' + _h(report_text.DOMAIN_DESCRIPTIONS[domain]) + '</p></a>')
+    if not pieces:
+        return '<p class="empty">本次没有可分类的检查结果。</p>'
+    return '<div class="domain-grid">' + ''.join(pieces) + '</div>'
+
+
 def _results_table(checks):
     """Keep every recorded check in the optional, script-independent overview."""
-    rows = []
-    for check in _ordered_checks(checks):
-        explanation = report_text.explain(check)
-        rows.append('<tr data-result-id="' + _h(check["check_id"]) + '"><th scope="row"><a class="evidence-link" href="#' +
-                    quote('check-' + check["check_id"], safe='') + '" aria-label="查看' + _h(explanation.title) + '的依据">' +
-                    _h(explanation.title) + '</a></th><td>' + _badge(explanation.category) + '</td><td>' +
-                    _h(explanation.summary) + '</td></tr>')
-    if not rows:
+    bodies = []
+    for domain, label in report_text.DOMAIN_LABELS.items():
+        items = _ordered_checks([check for check in checks if report_text.domain(check) == domain])
+        if not items:
+            continue
+        rows = ['<tr class="domain-row"><td colspan="3">' + _h(label) + '</td></tr>']
+        for check in items:
+            explanation = report_text.explain(check)
+            rows.append('<tr data-result-id="' + _h(check["check_id"]) + '"><th scope="row"><a class="evidence-link" href="#' +
+                        quote('check-' + check["check_id"], safe='') + '" aria-label="查看' + _h(explanation.title) + '的依据">' +
+                        _h(explanation.title) + '</a></th><td>' + _badge(explanation.category) + '</td><td>' +
+                        _h(explanation.summary) + '</td></tr>')
+        bodies.append('<tbody id="domain-' + _h(domain) + '" data-domain="' + _h(domain) + '">' + ''.join(rows) + '</tbody>')
+    if not bodies:
         return '<p>本次没有可列出的检查结果。</p>'
     return ('<div class="table-wrap"><table class="results-table"><caption>共 ' + str(len(checks)) +
             ' 项。<span class="no-print">点击检查项目可查看依据。</span>仅记录信息不代表功能验证通过。</caption>' +
             '<thead><tr><th scope="col">检查项目</th><th scope="col">结果</th><th scope="col">本次发现</th></tr></thead>' +
-            '<tbody>' + ''.join(rows) + '</tbody></table></div>')
+            ''.join(bodies) + '</table></div>')
 
 
 def _check_sections(checks, snapshot):
-    ordered = _ordered_checks(checks)
-    groups = (
-        ("attention", [c for c in ordered if report_text.category(c) in {"failed", "pending", "check_error", "unknown"}]),
-        ("unimplemented", [c for c in ordered if report_text.category(c) == "not_implemented"]),
-        ("completed", [c for c in ordered if report_text.category(c) in {"passed", "info", "not_applicable"}]),
-    )
     pieces = []
-    for name, items in groups:
+    for domain, label in report_text.DOMAIN_LABELS.items():
+        items = _ordered_checks([check for check in checks if report_text.domain(check) == domain])
         if not items:
             continue
         cards = '<div class="checks">' + ''.join(_check_card(c, snapshot) for c in items) + '</div>'
-        heading = {"attention": "异常、等待验证与未完成的检查", "unimplemented": "程序尚未提供的检查",
-                   "completed": "基础检查与信息记录"}[name]
-        pieces.append('<div class="result-group"><h3 class="group-title">' + heading + '</h3>' + cards + '</div>')
+        _, status = report_text.domain_summary(items)
+        summary = str(len(items)) + ' 项 · ' + status
+        pieces.append('<details class="result-group" data-domain="' + _h(domain) + '" id="domain-details-' +
+                      _h(domain) + '"><summary><span class="group-title">' + _h(label) +
+                      '<small>' + _h(summary) + '</small></span></summary>' + cards + '</details>')
     return ''.join(pieces)
 
 
@@ -404,6 +424,7 @@ def render(snapshot, result):
         captured_at=_h(_display_time(snapshot["captured_at"])), captured_at_raw=_h(snapshot["captured_at"]),
         system_label=_h(system), environment_label=_h(environment.get(value("environment").get("kind"), "未读到")),
         stats=stats, results_table=_results_table(result["checks"]),
+        domain_cards=_domain_cards(result["checks"]),
         run_id=_h(snapshot["run_id"]),
         facts=facts_html(facts), technical_facts=facts_html(technical_facts),
         checks=_check_sections(result["checks"], snapshot), inventory_summary=_h(inventory_summary),

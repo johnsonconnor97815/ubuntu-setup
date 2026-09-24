@@ -5,7 +5,8 @@ import unittest
 from ubuntu_setup.analysis import assess, make_snapshot
 from ubuntu_setup.model import observation
 from ubuntu_setup.report import build_result, render
-from ubuntu_setup.report_text import attention_checks, conclusion, coverage_notes, explain, highlight, reading_plan
+from ubuntu_setup.report_text import (DOMAIN_LABELS, attention_checks, conclusion, coverage_notes, domain,
+                                      explain, highlight, reading_plan)
 from ubuntu_setup.rules import registry, run_rule
 from helpers import observations
 from test_report import Document
@@ -136,20 +137,24 @@ class ReportPriorityTests(unittest.TestCase):
         doc = Document(html)
         sections = {a["id"]: a for tag, a in doc.tags if tag == "details" and "id" in a}
         for key in ("results-overview", "inventory", "changes", "all-results", "inventory-details", "technical-info", "records"):
-            self.assertNotIn("open", sections[key])
+            if key == "results-overview":
+                self.assertIn("open", sections[key])
+            else:
+                self.assertNotIn("open", sections[key])
         self.assertEqual(sum(tag == "h1" for tag, _ in doc.tags), 1)
         self.assertIn('<h1 id="report-title">系统检查报告</h1>', html)
 
     def test_folded_overview_retains_every_check_without_requiring_javascript(self):
         self.background_failure()
         self.set_value("reboot", {"required_marker": True})
-        self.snapshot["observations"]["drivers.dkms"] = observation("drivers.dkms", status="unknown", reason="missing")
         records = self.records()
-        overview = self.report().split('<details class="report-section" id="results-overview">', 1)[1].split('</details>', 1)[0]
+        overview = self.report().split('<details class="report-section" id="results-overview" open>', 1)[1].split('</details>', 1)[0]
         doc = Document(overview)
         ids = [a["data-result-id"] for tag, a in doc.tags if tag == "tr" and "data-result-id" in a]
         self.assertCountEqual(ids, [c["check_id"] for c in records])
-        self.assertEqual(ids[:2], ["services", "reboot"])
+        domain_order = {key: index for index, key in enumerate(DOMAIN_LABELS)}
+        self.assertEqual([domain_order[domain(next(c for c in records if c["check_id"] == check_id))] for check_id in ids],
+                         sorted(domain_order[domain(c)] for c in records))
         self.assertFalse(any(tag == "details" or "hidden" in attrs for tag, attrs in doc.tags))
         self.assertEqual(sum(tag == "th" and a.get("scope") == "row" for tag, a in doc.tags), len(records))
         self.assertEqual(sum(tag == "th" and a.get("scope") == "col" for tag, a in doc.tags), 3)
@@ -157,6 +162,27 @@ class ReportPriorityTests(unittest.TestCase):
         for record in records:
             self.assertIn(explain(record).summary, overview)
         self.assertIn("仅记录信息不代表功能验证通过", overview)
+
+    def test_results_are_grouped_by_domain_without_losing_checks(self):
+        records = self.records()
+        html = self.report()
+        expected = [label for key, label in DOMAIN_LABELS.items()
+                    if any(domain(check) == key for check in records)]
+        positions = [html.index('<span class="group-title">' + label) for label in expected]
+        self.assertEqual(positions, sorted(positions))
+        for label in expected:
+            self.assertIn('<tr class="domain-row"><td colspan="3">' + label, html)
+        self.assertNotIn('<h3 class="group-title">其他检查', html)
+        doc = Document(html)
+        domain_cards = [attrs for tag, attrs in doc.tags if tag == "a" and "domain-card" in attrs.get("class", "")]
+        self.assertEqual([card["data-domain"] for card in domain_cards],
+                         [key for key in DOMAIN_LABELS if any(domain(check) == key for check in records)])
+        for card in domain_cards:
+            self.assertIn(card["href"][1:], doc.ids)
+        self.assertLess(html.index('id="domain-summary"'), html.index('id="attention"'))
+        all_results = html.split('<details class="report-section" id="all-results">', 1)[1]
+        for record in records:
+            self.assertIn('id="check-' + record["check_id"] + '"', all_results)
 
     def test_conclusion_counts_checks_instead_of_failed_objects(self):
         self.background_failure()

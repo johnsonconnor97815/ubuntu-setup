@@ -7,7 +7,7 @@ import unittest
 from ubuntu_setup.analysis import assess, make_snapshot
 from ubuntu_setup.model import observation
 from ubuntu_setup.report import build_result, render
-from ubuntu_setup.report_text import CATEGORY_LABELS, CONTENT_VERSION, counts, explain
+from ubuntu_setup.report_text import CATEGORY_LABELS, CONTENT_VERSION, counts, domain_summary, explain
 from ubuntu_setup.rules import registry, run_rule
 from helpers import observations
 
@@ -159,6 +159,13 @@ class UserWordingTests(unittest.TestCase):
                 message = explain(record)
                 self.assertIn(message.category, CATEGORY_LABELS)
                 self.assertNotIn("当前没有对应的详细说明", message.impact)
+
+    def test_domain_summary_keeps_pending_and_unknown_visible(self):
+        records = [
+            {"check_id": "hardware.function", "result": "pending"},
+            {"check_id": "drivers.compatibility", "result": "unknown"},
+        ]
+        self.assertEqual(domain_summary(records), ("pending", "1 项待确认 · 1 项没查清"))
 
     def test_main_cards_keep_uncertainty_and_hide_technical_identifiers(self):
         self.set_value("services", {"synthetic.service": {"load": "loaded", "active": "failed", "sub": "failed"}})

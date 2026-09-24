@@ -10,7 +10,7 @@
 
 ## 当前状态
 
-- 仓库已有 Python 实现的只读检查原型、合成数据和自动测试；`0.7.0` 补齐依赖、驱动匹配、设备功能、更新来源和部分配置生效检查。该原型的安装、修复、任意新软件的版本选择及完整兼容性验证尚未实现。实际边界见 [扩展检查](docs/extended-checks.md)。
+- 仓库已有 Python 实现的只读检查原型、合成数据和自动测试；当前版本 `0.8.0` 提供运行时感知启动器和 HTML 报告，`0.7.0` 补齐依赖、驱动匹配、设备功能、更新来源和部分配置生效检查。该原型的安装、修复、任意新软件的版本选择及完整兼容性验证尚未实现。实际边界见 [扩展检查](docs/extended-checks.md)。
 - 仓库另有 Bash 软件管理脚本，入口为 `./bootstrap.sh` 和 `swkit`，用法见 [README.md](README.md)，组件约定见 [CLAUDE.md](CLAUDE.md)。两部分目前各自运行，检查原型尚未接入这些安装脚本。
 - 已确定的工作流维护在 [docs/workflow.md](docs/workflow.md)；信息采集、数据保存与交互细节的草案入口见 [README.md](README.md)。草案不代表已实现或已验证的能力。
 - 原型入口为 `./ubuntu-setup inspect`，能力查询为 `./ubuntu-setup capabilities --format json`，测试为 `python3 -m unittest discover -s tests -v`。启动器先选择现有的 Python 3.10+ 解释器；没有合适解释器时只报告运行时阻塞，不自动安装。实际采集与保存范围见 [docs/prototype.md](docs/prototype.md)，规则接口见 [docs/detection-rules.md](docs/detection-rules.md)；各 Agent 工具的专用接入尚未实现。
