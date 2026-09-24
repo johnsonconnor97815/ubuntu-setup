@@ -464,7 +464,7 @@ install_swkit_path() {
 # --- Skill deployment ----------------------------------------------------------
 # Skills shipped to the user's machine. Add a directory under skills/ and its name here.
 
-SKILLS=(ubuntu-install zsh-setup claude-extensions)
+SKILLS=(ubuntu-install zsh-setup claude-extensions ubuntu-update-review)
 
 deploy_skills() {
   step "Deploy skills"

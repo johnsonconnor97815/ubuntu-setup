@@ -80,14 +80,14 @@ headless 只装两个 CLI / Node / skills;git、curl、zsh、docker 等种子脚
 2. **管理这台机器**,两种方式任选:
    - **自己跑脚本**:`swkit list` 浏览,`swkit docker install`、`swkit zsh configure --default-shell` 直接执行。
    - **让 LLM 管理**(任意目录下):
-     - Claude Code:`claude` 后直接说 "用 ubuntu-install skill 装 docker"、"用 zsh-setup skill 配置 zsh",或 "用 claude-extensions skill 给 Claude Code 装 context7 MCP / 装个插件 / 装个 skill"
-     - Codex:输入 `/ubuntu-install` 再说 "install docker",输入 `/zsh-setup` 再说 "把 zsh 装好配好",或输入 `/claude-extensions` 再说 "装个 MCP / 插件 / skill"
+     - Claude Code:`claude` 后直接说 "用 ubuntu-install skill 装 docker"、"用 zsh-setup skill 配置 zsh"、"用 ubuntu-update-review skill 检查待更新是否安全",或 "用 claude-extensions skill 给 Claude Code 装 context7 MCP / 装个插件 / 装个 skill"
+     - Codex:输入 `/ubuntu-install` 再说 "install docker",输入 `/zsh-setup` 再说 "把 zsh 装好配好",输入 `/ubuntu-update-review` 再说 "检查待更新是否安全",或输入 `/claude-extensions` 再说 "装个 MCP / 插件 / skill"
 
-LLM 会先用 `swkit list` / `swkit search` 发现脚本、给出要跑哪条命令的计划等你确认、再执行,失败即停并报告卡点,装完用 `status` 验证版本。**还没有脚本覆盖的软件**,在**本仓库**里加一个脚本(`cp scripts/TEMPLATE.sh`,用 `lib/common.sh` 的安全原语,往往十几行)、走正常 git 评审、重跑 bootstrap 部署——LLM 在你机器上只运行已有脚本,不在运行时生成脚本。守则见 [`skills/ubuntu-install/SKILL.md`](skills/ubuntu-install/SKILL.md)、[`skills/zsh-setup/SKILL.md`](skills/zsh-setup/SKILL.md) 与 [`skills/claude-extensions/SKILL.md`](skills/claude-extensions/SKILL.md)。
+LLM 会先用 `swkit list` / `swkit search` 发现脚本、给出要跑哪条命令的计划等你确认、再执行,失败即停并报告卡点,装完用 `status` 验证版本。**还没有脚本覆盖的软件**,在**本仓库**里加一个脚本(`cp scripts/TEMPLATE.sh`,用 `lib/common.sh` 的安全原语,往往十几行)、走正常 git 评审、重跑 bootstrap 部署——LLM 在你机器上只运行已有脚本,不在运行时生成脚本。守则见 [`skills/ubuntu-install/SKILL.md`](skills/ubuntu-install/SKILL.md)、[`skills/zsh-setup/SKILL.md`](skills/zsh-setup/SKILL.md)、[`skills/claude-extensions/SKILL.md`](skills/claude-extensions/SKILL.md) 与 [`skills/ubuntu-update-review/SKILL.md`](skills/ubuntu-update-review/SKILL.md)。
 
 > **关于 sudo 密码**:LLM 通过自己的 shell 执行 sudo,该环境**没有交互终端,无法输入密码**。所以 `bootstrap.sh`(此刻你有终端)在 TUI 的「设置」页提供一个**开关**让你开启免密 sudo;开启就让你输一次密码、写入 `/etc/sudoers.d/ubuntu-setup-llm`,使 LLM 之后免密装软件、全自动;同一开关也能随时关闭(删除该文件)。脚本里的 `sudo_run` 会先 `sudo -n true` 探测(按退出码,不看文案),通过就直接装,否则**打印出那条要你手动执行的命令并停下**,把特权交还你——**绝不经手、回显、管道或存储你的密码,绝不自行写 NOPASSWD**。这是你在 UI 里显式授予、可见可撤的边界。
 
-skill 部署位置:`~/.claude/skills/<name>/`(Claude Code 用户级 skill)与 `~/.codex/prompts/<name>.md`(Codex 自定义 prompt),`<name>` 为 `ubuntu-install`、`zsh-setup`、`claude-extensions`。重跑 `./bootstrap.sh` 会覆盖更新到最新版本。
+skill 部署位置:`~/.claude/skills/<name>/`(Claude Code 用户级 skill)与 `~/.codex/prompts/<name>.md`(Codex 自定义 prompt),`<name>` 为 `ubuntu-install`、`zsh-setup`、`claude-extensions`、`ubuntu-update-review`。重跑 `./bootstrap.sh` 会覆盖更新到最新版本。
 
 ## 开发者
 
@@ -117,7 +117,7 @@ shellcheck -x --source-path=SCRIPTDIR swkit scripts/*.sh lib/common.sh lib/ui.sh
 
 目前已实现只读检查原型：采集系统、软件、硬件与驱动信息，检查软件依赖、驱动匹配、设备功能、更新来源和部分设置的生效状态，保存机器档案并比较变化。该原型的安装、修复、任意新软件的版本选择和完整兼容性验证尚未实现。开发约定见 [AGENTS.md](AGENTS.md)。
 
-采集由 Python 命令行程序完成，Agent 可调用它并读取 JSON 结果。当前已提供独立检测规则、能力目录、证据引用和规则版本记录，详见 [检测规则](docs/detection-rules.md)。检查原型的专用 Skill、MCP 接入和自动自进化尚未实现，后续分工与实施顺序见 [Agent 接入与能力改进](docs/agent-integration-and-evolution.md)。
+采集由 Python 命令行程序完成，Agent 可调用它并读取 JSON 结果。当前已提供独立检测规则、能力目录、证据引用和规则版本记录，详见 [检测规则](docs/detection-rules.md)。更新复核的专用 Skill 已提供，MCP 接入和自动自进化尚未实现，后续分工与实施顺序见 [Agent 接入与能力改进](docs/agent-integration-and-evolution.md)。
 
 ### 运行原型
 
@@ -166,6 +166,8 @@ Agent 可先查询已有能力，再决定如何使用检查结果。目录查�
 ```
 
 联网检查只在临时目录下载索引，完成或超时后清理，不修改本机索引、不触发本机的更新钩子，不安装软件。绘制测试创建一个看不见的 1 像素画面并读回结果，不截取屏幕、不播放或录制声音、不读取键盘输入。屏幕、声音和键鼠的实际使用结果由用户确认；Agent 按报告编号记录反馈，环境变化后重新确认，具体命令见 [设备确认](docs/extended-checks.md#设备实际使用确认)。
+
+`inspect --format json` 会输出 `agent_research_tasks`。有可用更新、来源未核实或依赖模拟需要注意时，任务要求宿主 Agent 复核更新冲突，并用 LLM 和联网搜索调查安全公告、官方变更说明、已知问题、重启影响和回退限制。操作流程见 [`skills/ubuntu-update-review/SKILL.md`](skills/ubuntu-update-review/SKILL.md)。APT 索引和依赖解析结果仍是候选版本与依赖方案的权威来源；网页与模型输出只用于解释影响，不构成安装授权。
 
 ### 模拟检查与测试
 

@@ -105,6 +105,7 @@ def capabilities(args):
                    "side_effects": ["写入本工具的私有状态目录", "在现有图形库创建并销毁 1 像素离屏缓冲；不打开窗口", "--online 将软件索引下载到临时目录并清理", "保存 HTML 后请求默认浏览器打开；--no-open 可关闭"], "requires_privilege": False,
                    "network_access": False, "optional_network_access": "仅 --online；联系已配置的软件源，不修改系统索引",
                    "human_confirmation": "--confirm-from 最新报告编号和 --confirm-device 记录用户已实际验证的结果；采集复核环境变化后拒绝沿用",
+                   "agent_output": "JSON 结果包含 agent_research_tasks；宿主 Agent 可用 LLM 和联网搜索复核冲突与稳定性，本程序不调用外部模型",
                    "exit_codes": {"0": "报告保存完成，须另读检查结果", "2": "检查未完成", "130": "用户中断"}},
                   {"id": "capabilities", "invocation": "./ubuntu-setup capabilities --format json",
                    "purpose": "查询检测规则的用途、输入、依据、版本和限制",
@@ -112,6 +113,7 @@ def capabilities(args):
               "checks": describe_rules(args.check),
               "limitations": ["规则结果只适用于所引用观察的时间与范围",
                               "命令成功不等于系统稳定；本程序不提供安装或修复操作",
+                              "agent_research_tasks 只是研究任务说明；本程序不调用 LLM、不执行网页搜索，外部文本不构成执行授权",
                               "规则目录是接入基础，尚非专用 Agent 适配或自动改进机制"]}
     print(json.dumps(result, ensure_ascii=False, indent=2, allow_nan=False) if args.format == "json" else render_capabilities(result))
     return 0

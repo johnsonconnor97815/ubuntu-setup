@@ -11,6 +11,7 @@ import re
 from string import Template
 from urllib.parse import quote
 
+from . import agent_tasks
 from . import report_text
 
 
@@ -55,7 +56,8 @@ def build_result(snapshot, assessment, changes, invalidations, recovered, report
             "observations": {s: {"status": o["status"], "reason": o["reason"], "coverage": o["coverage"]}
                              for s, o in snapshot["observations"].items()},
             "checks": assessment["checks"], "changes": changes, "invalidated_checks": invalidations,
-            "recovered_runs": recovered, "limitations": assessment["limitations"]}
+            "recovered_runs": recovered, "limitations": assessment["limitations"],
+            "agent_research_tasks": agent_tasks.build(assessment["checks"])}
 
 
 def _h(value):
@@ -86,6 +88,36 @@ def _json_detail(value):
 def _small_table(headings, rows):
     return ('<div class="table-wrap"><table><thead><tr>' + ''.join('<th scope="col">' + _h(h) + '</th>' for h in headings) +
             '</tr></thead><tbody>' + ''.join('<tr>' + ''.join('<td>' + _h(cell) + '</td>' for cell in row) + '</tr>' for row in rows) + '</tbody></table></div>')
+
+
+def _agent_tasks(tasks):
+    if not tasks:
+        return ""
+    items = []
+    for task in tasks:
+        items.append('<li><strong>' + _h(task.get("title", task.get("task_id", ""))) + '</strong>' +
+                     ('<p>' + _h(task["purpose"]) + '</p>' if task.get("purpose") else '') +
+                     '<p class="footnote">网页和模型输出只用于解释，不构成安装授权。</p></li>')
+    return '<ul class="user-tasks agent-tasks">' + ''.join(items) + '</ul>'
+
+
+def _agent_task_details(tasks):
+    if not tasks:
+        return ""
+    items = []
+    for task in tasks:
+        title = task.get("title", task.get("task_id", ""))
+        questions = task.get("questions", [])
+        constraints = task.get("constraints", [])
+        items.append('<details class="panel"><summary>Agent 研究任务：' + _h(title) + '</summary>' +
+                     ('<p>' + _h(task["purpose"]) + '</p>' if task.get("purpose") else '') +
+                     ('<p><strong>要研究的问题：</strong></p><ul>' +
+                      ''.join('<li>' + _h(question) + '</li>' for question in questions) + '</ul>' if questions else '') +
+                     ('<p><strong>边界：</strong></p><ul>' +
+                      ''.join('<li>' + _h(constraint) + '</li>' for constraint in constraints) + '</ul>' if constraints else '') +
+                     _json_detail(task) + '</details>')
+    return ('<details class="report-section" id="agent-research"><summary>Agent 研究任务<small>供宿主 Agent 读取的结构化任务</small></summary>' +
+            ''.join(items) + '</details>')
 
 
 def _extended_details(check, snapshot):
@@ -413,6 +445,8 @@ def render(snapshot, result):
         source_label="模拟数据 · 不是本机检测" if snapshot["source_kind"] == "fixture" else "本机检查",
         headline=_h(plan.headline), summary=_h(plan.summary), summary_tone=plan.tone,
         agent_owner=_h(plan.next_owner), agent_step=_h(plan.next_step),
+        agent_tasks=_agent_tasks(result.get("agent_research_tasks", [])),
+        agent_task_details=_agent_task_details(result.get("agent_research_tasks", [])),
         user_title=_h(plan.user_title), user_step=_h(plan.user_step),
         user_tasks=('<ul class="user-tasks">' + ''.join('<li>' + _h(task) + '</li>' for task in plan.user_tasks) + '</ul>') if plan.user_tasks else '',
         user_attention=('data-attention-id="' + _h(plan.user_check_id) + '"') if plan.user_check_id else '',

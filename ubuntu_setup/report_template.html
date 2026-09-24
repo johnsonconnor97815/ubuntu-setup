@@ -218,6 +218,7 @@
         <div class="action agent-action">
           <p class="action-label">建议${agent_owner}接下来做</p>
           <p id="agent-step">${agent_step}</p>
+          ${agent_tasks}
           <p class="footnote">以上为后续建议，尚未执行。</p>
         </div>
       </div>
@@ -272,6 +273,7 @@
         <p class="meta">${inventory_summary}</p>
         ${observations}
       </details>
+      ${agent_task_details}
       <details class="report-section" id="records">
         <summary>记录文件与检查限制<small>供核对结果或继续处理时使用</small></summary>
         ${records}

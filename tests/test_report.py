@@ -105,6 +105,24 @@ class HtmlReportTests(unittest.TestCase):
         self.assertIn("展开其余 3 项变化", content)
         self.assertIn("synthetic-package-42", content)
 
+    def test_update_research_tasks_are_visible_but_not_executed(self):
+        snapshot = make_snapshot("b" * 32, "a" * 32, "fixture", self.observations)
+        assessment = assess(snapshot)
+        for record in assessment["checks"]:
+            if record["check_id"] == "updates":
+                record["result"] = "pending"
+                record["reason_code"] = "updates_available"
+                record["context"] = {"candidate_count": 1, "security_candidate_count": 0}
+        result = build_result(snapshot, assessment, [], [], [],
+                              Path("/private/state/runs") / snapshot["run_id"] / "report.html")
+        content = render(snapshot, result)
+        self.assertTrue(result["agent_research_tasks"])
+        self.assertIn("复核更新是否会造成冲突", content)
+        self.assertIn("调查更新是否稳定", content)
+        self.assertIn("模拟方案是否要求新增安装、移除或降级", content)
+        self.assertIn("更新后哪些服务可能需要重载或重启", content)
+        self.assertIn("不构成执行授权", content)
+
 
 if __name__ == "__main__":
     unittest.main()
