@@ -1,8 +1,8 @@
-# 只读检查原型
+# 检查原型与磁盘清理
 
-版本：`0.10.0`。当前实现负责采集、存档、比较变化和生成有限检查报告，提供 [独立检测规则与能力目录](detection-rules.md)、保存后默认打开的 [HTML 报告](html-reports.md)、供宿主 Agent 使用的公共接口约定和通用检查 Skill，以及能力改进记录命令。报告先说明具体问题和用户、助手各自的下一步，再分别列出已发现的问题、后续维护与未查清事项。完整检查表、电脑信息和技术记录放在后面展开查看。5 项扩展检查和设备确认接口见 [扩展检查](extended-checks.md)。完整维护工作流见 [workflow.md](workflow.md)。
+版本：`0.13.0`。当前实现负责采集、存档、比较变化和生成有限检查报告，提供 [独立检测规则与能力目录](detection-rules.md)、保存后默认打开的 [HTML 报告](html-reports.md)、供宿主 Agent 使用的公共接口约定和通用检查 Skill，以及能力改进记录命令。`inspect` 及其采集流程仍为只读。`cleanup` 另行提供 JEV 初筛、独立 LLM 风险复核、HTML 报告和逐项显式选择的删除入口，见 [磁盘清理与双模型风险报告](disk-cleanup.md)。报告先说明具体问题和用户、助手各自的下一步，再分别列出已发现的问题、后续维护与未查清事项。完整检查表、电脑信息、前后变化和技术记录放在后面展开查看。5 项扩展检查和设备确认接口见 [扩展检查](extended-checks.md)。完整维护工作流见 [workflow.md](workflow.md)。
 
-主程序使用 Python 标准库，运行环境为 Linux、Python 3.10 或更新版本；实测使用 Python 3.12.3。新增探测还调用已有的 python3-apt、modinfo 和图形库等系统组件；缺少组件时不自动安装。没有安装、修复、修改本机索引、切换驱动、重启或后台监听操作。程序写入自己的状态目录，可选联网索引与图形测试的临时文件用完清理。
+主程序使用 Python 标准库，运行环境为 Linux、Python 3.10 或更新版本；实测使用 Python 3.12.3。检查探测还调用已有的 python3-apt、modinfo 和图形库等系统组件；缺少组件时不自动安装。检查流程没有安装、修复、修改本机索引、切换驱动、重启或后台监听操作。程序写入自己的状态目录，可选联网索引与图形测试的临时文件用完清理；磁盘清理仅在用户确认执行后删除计划条目。
 
 当前由 Agent 的本地命令执行工具调用此程序；已提供通用检查 Skill 和公共接口约定，但没有内置语言模型、MCP 接入或自动改进机制。后续设计和实施顺序见 [Agent 接入与能力改进](agent-integration-and-evolution.md)。
 
@@ -17,6 +17,7 @@
 ./ubuntu-setup inspect --watch-config /etc/apt/sources.list
 ./ubuntu-setup inspect --help
 ./ubuntu-setup capabilities --format json
+./ubuntu-setup cleanup --state-dir ~/.local/state/ubuntu-setup/cleanup --format json
 ```
 
 | 参数 | 行为 |
@@ -120,6 +121,8 @@ runs/<run-id>/
 
 `0.10.0` 新增 `improvement` 命令，用于保存能力改进案例。记录包含问题证据、脱敏案例、候选修改、比较验证、限制和采用决定；`current.json` 指向最新状态，`revisions/000N.json` 不可覆盖。验证通过与采用必须分成连续版本，后续版本不能改写已保存的问题、案例、候选和验证内容。该命令只写入指定私有状态目录，不修改系统。
 
+`0.13.0` 新增 `cleanup` 命令。计划阶段扫描缓存、临时目录和回收站中的旧条目，把相对路径、类型、大小和修改年龄发送给 PackyApi JEV `/v1/systemone` 初筛，不发送文件内容；初筛通过条目再交给独立 LLM 的 OpenAI 兼容 `/chat/completions` 接口复核，输出删除建议、风险等级、风险分数和理由。命令保存 JSON 计划与 HTML 报告，不会自动删除。执行阶段要求精确匹配 `plan_id` 并显式提供至少一个条目 ID，执行前复核条目指纹，只删除用户选择且未被修改的条目。清理状态保存在独立的 `plans/`、`reports/` 与 `executions/` 目录，不进入检查档案。
+
 版本 `6` 起，Agent 后续建议包含结构化研究任务：更新冲突复核使用 APT 模拟结果，稳定性调查要求宿主 Agent 用 LLM 和联网搜索查官方公告、已知问题、重启影响和回退限制。本程序不调用外部模型或网页搜索。
 
 一个目录使用随机生成的本地机器编号。真实目标通过 `/etc/machine-id` 的加密摘要核对，摘要使用本目录专用的随机密钥，不保存原始 machine-id；这个核对用于关联记录，不是身份认证。不同目标或真实与模拟来源冲突时拒绝混用。复制同一系统镜像且保留相同 machine-id 的机器不能仅凭该标识可靠区分，不能将目录当作跨机器授权凭据。
@@ -163,6 +166,7 @@ runs/<run-id>/
 | `0.9.0` Agent 接入命令链 | 2026-09-24 在 Codex CLI `0.139.0` 会话中实测 `runtime status --format json`、`capabilities --format json` 和模拟 `inspect --format json --no-open`；命令链可返回结构化结果并保存报告 | 本项不等于宿主 Skill 加载验证 |
 | `0.9.0` 宿主 Skill 加载 | Codex CLI `0.156.0` 的 `debug prompt-input` 可见 `ubuntu-inspect`；无命令调用 `$ubuntu-inspect` 能复述预检、能力目录、只读检查、JSON 字段和授权边界，并把 `unknown`、`wait` 均判为未通过。Claude Code CLI `2.1.273` 无界面模式自动加载该 Skill，复述相同语义 | 仅验证 Skill 说明加载与解释，未让宿主执行真实机器检查；MCP、自动改进和系统变更执行仍待实现 |
 | `0.10.0` 自动测试 | 211 项通过；验证改进记录格式、验证与采用分版、历史版本不可改写、CLI 与启动器入口不探测主机、能力目录声明 `improvement` 操作和私有记录副作用 | 只验证记录逻辑，不构成自动改进或系统功能验证 |
+| `0.13.0` 自动测试 | 新增磁盘清理扫描、符号链接与新文件排除、批量 JEV 请求、独立 LLM 复核、概率阈值、风险输出、HTML 报告、私有计划写入、执行前指纹复核、只删除显式选择条目、同计划不可重放、CLI 与启动器分发及能力目录边界测试 | 模型请求使用模拟 HTTP 响应；未调用真实 PackyApi 或 Ollama，也未在本机执行真实清理 |
 | `0.10.0` 首个改进案例 | `tests/fixtures/improvement-codex-skill-loading.json` 保存 Codex `0.156.0` Skill 加载问题的脱敏证据、候选修改、比较验证和限制；本地私有状态另存验证与采用两个版本 | 公共 fixture 不包含本机私有记录；自动整理、自动采用和系统变更执行仍未实现 |
 | HTML 浏览器验证 | Chrome `153.0.8010.47` 的独立临时浏览器环境；桌面与窄屏布局、筛选、搜索、空结果提示、证据展开和打印样式检查通过；无页面错误和外部资源请求 | 没有逐一验证其他浏览器；不构成硬件或驱动验证 |
 | Python 版本检查 | 实际运行 Python `3.12.3`；所有 Python 文件通过按 Python 3.10 语法解析 | 未在 Python 3.10 解释器实际运行 |

@@ -68,6 +68,11 @@ else
   bad "inspection command did not receive the checkout first on PYTHONPATH"
 fi
 
+out="$(UBUNTU_SETUP_PYTHON="$OK" "$HERE/ubuntu-setup" cleanup --help)"
+[[ "$out" == *'dispatched:-m ubuntu_setup cleanup --help'* ]] \
+  && ok "compatible Python receives the cleanup command" \
+  || bad "cleanup command was not dispatched to Python"
+
 CONTROL_PATH="$TMP/python"$'\x01'
 make_fake "$CONTROL_PATH" 3.8.10
 if out="$(UBUNTU_SETUP_PYTHON="$CONTROL_PATH" "$HERE/ubuntu-setup" runtime --format json 2>/dev/null)"; then

@@ -1,9 +1,9 @@
 # ubuntu-setup
 
-仓库包含两部分：Bash 软件管理脚本负责安装与配置，Python 只读检查原型负责检查机器状态并生成报告。两者目前各自运行，尚未接入统一的安装与检查流程。
+仓库包含两部分：Bash 软件管理脚本负责安装与配置，Python 原型负责检查机器状态、生成报告，并提供需要二次确认的磁盘清理命令。两者目前各自运行，尚未接入统一的安装与检查流程。
 
 - 软件管理：`./bootstrap.sh` 或 `swkit`，见[快速开始](#快速开始)。
-- 只读检查：`./ubuntu-setup inspect`，见[只读检查原型](#只读检查原型)。
+- 检查与清理：`./ubuntu-setup inspect` 和 `./ubuntu-setup cleanup`，见[检查原型与磁盘清理](#检查原型与磁盘清理)。
 
 ## Bash 软件管理
 
@@ -15,7 +15,7 @@
 
 脚本统一在**本仓库**里维护。要新增软件覆盖或修过时的脚本,在仓库里加 / 改一个脚本(`cp scripts/TEMPLATE.sh`)、走正常 git 评审、再重跑 `bootstrap.sh` 部署——脚本提供稳定、确定、可测的执行,这是唯一权威来源。
 
-> 软件管理部分采用纯 Bash，每个软件一个手写脚本；TUI 通过读各脚本自报的 `meta` 动态发现并归类它们。原先由数据驱动的 catalog 安装引擎已放弃。下文的 Python 原型只做检查，不执行安装脚本。
+> 软件管理部分采用纯 Bash，每个软件一个手写脚本；TUI 通过读各脚本自报的 `meta` 动态发现并归类它们。原先由数据驱动的 catalog 安装引擎已放弃。下文的 Python 原型不执行安装脚本；`cleanup` 是唯一的删除入口，且必须先生成计划再由用户确认。
 
 ## 快速开始
 
@@ -105,7 +105,7 @@ shellcheck -x --source-path=SCRIPTDIR swkit scripts/*.sh lib/common.sh lib/ui.sh
 
 复制 `scripts/TEMPLATE.sh` 到 `scripts/<key>.sh`,保留其结构(`set -Eeuo pipefail`、`source lib/common.sh`、末尾 `kit_dispatch "$@"`),填好 `meta` / `status` / `do_install` / `do_remove`(以及可选的 `do_configure`)。所有提权 / 装包 / 改文件都走 `lib/common.sh` 的原语(`sudo_run`、`apt_install`、`backup_file` 等),不写裸 `sudo` / `apt-get` / `apt-key` / `sudo npm`。`meta` 的 `ops` 必须与实际实现的操作一致,`category` ∈ `essentials | common | ai | runtime`。**交互界面**:省略 `ui()` 即可白嫖一个由 `meta` 的 `ops` 合成的菜单(`ui_default_menu`);要更丰富就用 `lib/ui.sh` 的原语(`ui_run` / `ui_pick` / `ui_confirm` / `ui_input` / `ui_badge` / `ui_header`/`ui_footer`/`ui_row`/`ui_read_key`)手写 `ui()`——`ui` 是入口模式,**不要写进 `ops`**(`scripts/TEMPLATE.sh` 有完整注释样例,`scripts/zsh.sh` 是旗舰范例)。写完 TUI 与 `swkit list` 会自动收录。
 
-## 只读检查原型
+## 检查原型与磁盘清理
 
 计划开发一个 Ubuntu 系统初始化与维护 Agent，帮助用户了解机器现状、维护系统和驱动、补齐日常能力，再按个人用途安装软件和调整配置。
 
@@ -115,9 +115,9 @@ shellcheck -x --source-path=SCRIPTDIR swkit scripts/*.sh lib/common.sh lib/ui.sh
 
 已确定的主流程是：每次运行先收集或更新机器信息，补充用途与约束，统一规划，再依次完成系统与驱动维护、通用能力补充、个性化配置。每组变更后验证实际功能；软件、配置或硬件发生变化时，重新检查受影响的部分。
 
-目前已实现只读检查原型：采集系统、软件、硬件与驱动信息，检查软件依赖、驱动匹配、设备功能、更新来源和部分设置的生效状态，保存机器档案并比较变化。该原型的安装、修复、任意新软件的版本选择和完整兼容性验证尚未实现。开发约定见 [AGENTS.md](AGENTS.md)。
+目前已实现只读检查原型：采集系统、软件、硬件与驱动信息，检查软件依赖、驱动匹配、设备功能、更新来源和部分设置的生效状态，保存机器档案并比较变化。磁盘清理另走 `cleanup` 的计划与确认流程。检查原型的安装、修复、任意新软件的版本选择和完整兼容性验证尚未实现。开发约定见 [AGENTS.md](AGENTS.md)。
 
-采集由 Python 命令行程序完成，Agent 可调用它并读取 JSON 结果。当前已提供独立检测规则、能力目录、证据引用、规则版本记录、通用检查接入 Skill、更新复核专用 Skill 和手动改进记录命令，详见 [检测规则](docs/detection-rules.md) 与 [Agent 接入与能力改进](docs/agent-integration-and-evolution.md)。MCP 接入和自动自进化尚未实现。
+采集由 Python 命令行程序完成，Agent 可调用它并读取 JSON 结果。当前已提供独立检测规则、能力目录、证据引用、规则版本记录、通用检查接入 Skill、更新复核专用 Skill、手动改进记录命令和 JEV 磁盘清理命令，详见 [检测规则](docs/detection-rules.md) 与 [Agent 接入与能力改进](docs/agent-integration-and-evolution.md)。MCP 接入和自动自进化尚未实现。
 
 ### 运行原型
 
@@ -165,9 +165,11 @@ Agent 可先查询已有能力，再决定如何使用检查结果。目录查�
 
 该命令只写入指定私有记录，不修改系统、不安装软件、不自动采用代码版本。
 
+`0.13.0` 新增磁盘清理报告流程。它先用 PackyApi 提供的 JEV 模型初筛缓存、临时和回收站条目，再用独立 LLM 复核并给出删除建议和风险等级；只发送相对路径、类型、大小和修改年龄，不发送文件内容。默认只生成 JSON 计划与 HTML 报告；删除必须提供计划文件、精确的 `plan_id` 和至少一个条目 ID，执行前还会复核条目是否变化。详见 [磁盘清理与双模型风险报告](docs/disk-cleanup.md)。
+
 宿主 Agent 的通用检查入口见 [`skills/ubuntu-inspect/SKILL.md`](skills/ubuntu-inspect/SKILL.md)：先检查运行时，再读取能力目录，随后执行只读 `inspect --format json --no-open` 并解释检查、变化、失败、等待和未知项。该 Skill 不授权安装或修复。
 
-`0.10.0` 提供 12 条已实现的规则，其中 3 条仅记录环境或清单信息，并新增 Agent 接口约定和改进记录命令。检测判断沿用 `0.8.0`；5 项扩展检查的范围、依据和限制见 [扩展检查](docs/extended-checks.md)。检查已实现不代表结果一定通过；信息缺失、功能未确认和等待生效仍会单独列出。
+`0.13.0` 提供 12 条已实现的规则，其中 3 条仅记录环境或清单信息，并新增 Agent 接口约定、改进记录命令和双模型磁盘清理报告命令。检测判断沿用 `0.8.0`；5 项扩展检查的范围、依据和限制见 [扩展检查](docs/extended-checks.md)。检查已实现不代表结果一定通过；信息缺失、功能未确认和等待生效仍会单独列出。
 
 默认更新检查使用本地缓存。要核实软件源签名、索引有效期和当前更新候选，可运行：
 
@@ -198,7 +200,7 @@ python3 -m unittest discover -s tests -v
 git diff --check
 ```
 
-测试覆盖启动器解释器选择与阻塞输出，重复检查、软件与硬件变化、配置修改、检测失败、待重启、档案损坏、并发写入、检查中断，以及 HTML 内容转义、文案是否保持判断含义、旧报告续接和浏览器打开失败。自动测试不安装 Python、不实际弹出浏览器。`git diff --check` 只检查已跟踪差异；新增文件需另外检查。
+测试覆盖启动器解释器选择与阻塞输出，重复检查、软件与硬件变化、配置修改、检测失败、待重启、档案损坏、并发写入、检查中断，以及 HTML 内容转义、文案是否保持判断含义、旧报告续接和浏览器打开失败。磁盘清理测试覆盖扫描、批量 JEV 请求、独立 LLM 复核、风险报告、计划写入和执行前复核，使用临时目录和模拟模型响应，不调用真实 PackyApi 或 Ollama、不删除本机文件。自动测试不安装 Python、不实际弹出浏览器。`git diff --check` 只检查已跟踪差异；新增文件需另外检查。
 
 首批只读实测环境为 Ubuntu 24.04、x86_64、Python 3.12.3。其他系统、架构、真实虚拟化环境和设备功能尚未实测；模拟结果不构成实机支持证明。实际验证记录见 [只读原型](docs/prototype.md)。
 
@@ -210,6 +212,7 @@ git diff --check
 | --- | --- |
 | [检测规则与能力目录](docs/detection-rules.md) | 已实现：能力查询、规则范围、证据字段、版本变化与扩展方法 |
 | [HTML 报告与自动打开](docs/html-reports.md) | 已实现：交互报告、默认打开浏览器、无桌面环境处理与旧记录兼容 |
+| [磁盘清理与 JEV 判断](docs/disk-cleanup.md) | 已实现：PackyApi JEV 候选判断、两步确认、执行前复核与永久删除边界 |
 | [工作流](docs/workflow.md) | 已确定的阶段顺序、变化处理与执行边界 |
 | [机器信息与稳定性检查](docs/inventory-and-health.md) | 细节草案：采集范围、检查结果、通过条件 |
 | [数据保存与任务执行](docs/storage-and-execution.md) | 细节草案：本地文件、记录字段、任务状态与中断恢复 |

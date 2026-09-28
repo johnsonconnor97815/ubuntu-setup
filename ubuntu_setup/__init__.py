@@ -1,3 +1,3 @@
-"""Read-only Ubuntu inventory prototype. No installation or repair actions."""
+"""Ubuntu inventory prototype and explicitly selected disk cleanup reporting."""
 
-__version__ = "0.10.0"
+__version__ = "0.13.0"

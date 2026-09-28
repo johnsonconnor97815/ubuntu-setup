@@ -5,7 +5,9 @@
 # This file deliberately uses only Bash and common POSIX commands before it has
 # found a usable Python interpreter.  Starting a command must not install a
 # runtime, update APT, or make a network request.  `improvement` only writes a
-# caller-selected private state directory.
+# caller-selected private state directory.  `cleanup` planning calls PackyApi
+# and a review LLM only after a runtime is selected; deletion needs explicit
+# entry selection and confirmation.
 
 set -Eeuo pipefail
 
@@ -34,9 +36,10 @@ Commands:
   inspect       Read the machine and save a check report
   capabilities  Show the available checks and their limits
   improvement   Save a validated capability improvement record
+  cleanup       Build a two-model cleanup report; deletion needs explicit IDs
   runtime       Check the Python runtime without starting the inspection command
 
-The launcher selects an existing Python 3.10+ interpreter. Starting a command
+The launcher selects an existing Python 3.10+ interpreter. Runtime selection
 never installs Python or updates the system. If no suitable interpreter exists
 and you explicitly authorize changes, run:
 
@@ -285,7 +288,7 @@ run_python_command() {
 main() {
   local command="${1:-}"
   case "$command" in
-    inspect|capabilities|improvement)
+    inspect|capabilities|improvement|cleanup)
       shift
       run_python_command "$command" "$@"
       ;;
