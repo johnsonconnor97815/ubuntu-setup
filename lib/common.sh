@@ -119,18 +119,25 @@ sudo_run() {
 # re-updating for every package in a multi-step install).
 apt_update_once() {
   [[ -n "${_KIT_APT_UPDATED:-}" ]] && return 0
-  sudo_run env DEBIAN_FRONTEND=noninteractive apt-get update
+  sudo_run env DEBIAN_FRONTEND=noninteractive apt-get update || return
   _KIT_APT_UPDATED=1
 }
 
 apt_install() {
-  apt_update_once
+  apt_update_once || return
   sudo_run env DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends "$@"
 }
 
 # Uses `remove` (not `purge`) so user configuration survives — the conservative default.
 apt_remove() {
   sudo_run env DEBIAN_FRONTEND=noninteractive apt-get remove -y "$@"
+}
+
+# Read-only dependency preview using cached indexes; never updates indexes or uses sudo.
+apt_plan() {
+  local action="${1:-}"; shift || return 2
+  case "$action" in install|remove) ;; *) log_err "Expected install or remove."; return 2 ;; esac
+  LC_ALL=C apt-get --simulate "$action" --no-install-recommends "$@"
 }
 
 # --- Files (back up before editing; idempotent append) -------------------------

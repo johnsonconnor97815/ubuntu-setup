@@ -91,6 +91,29 @@ skill 部署位置:`~/.claude/skills/<name>/`(Claude Code 用户级 skill)、`~/
 
 ## 开发者
 
+### IDA / Qt 缺少鼠标光标库
+
+当启动日志提示缺少 `libxcb-cursor.so.0`，可用下面的脚本管理 `libxcb-cursor0`：
+
+```bash
+swkit libxcb-cursor0 plan       # 只读预览，使用本机缓存的软件索引，不提权、不刷新
+swkit libxcb-cursor0 install    # 刷新索引、重新检查依赖后安装；已安装则跳过
+swkit libxcb-cursor0 status     # 查询本机架构的软件包版本
+swkit libxcb-cursor0 plan remove
+swkit libxcb-cursor0 remove     # 仅显式调用时卸载；若会连带卸载其他包则拒绝
+```
+
+脚本适用于 Ubuntu/Debian，通过已配置的 APT 软件源选择本机架构的候选版本。
+预览会列出来源和依赖变化；缓存的最近成功刷新时间未核实时会明确提示。
+安装与卸载使用逐命令 `sudo`，安装拒绝升级、降级或删除已有软件，允许补齐新依赖。
+卸载不清除配置、不自动清理其他依赖；手动安装的 IDA 等软件也可能依赖此库，卸载前须确认用途。
+需要恢复时重新执行 `install`，但不能保证源中仍保留旧版本。
+`status` 只证明软件包已安装；修复后还应重新运行 IDA 验证窗口能否打开。
+本脚本不会安装或修改 IDA 本体、许可证或 Qt 配置，也不保证解决所有 `xcb` 启动错误。
+依赖依据：[Qt 官方 Linux 依赖表](https://doc.qt.io/qt-6/linux-requirements.html)；实际故障仍须检查本机插件缺少的库。
+
+校验命令：`bash test/libxcb_cursor_test.sh`（模拟安装、依赖冲突、失败和重复执行，不修改系统）。
+
 ### 校验脚本
 
 ```bash
