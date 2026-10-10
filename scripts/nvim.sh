@@ -1587,6 +1587,30 @@ _nvim_option_value_valid() {
   esac
   [[ "$1" =~ ^[A-Za-z0-9_.,:/-]+$ ]]
 }
+# The option's real type, asked from nvim itself (no user config loaded): prints
+# boolean|number|string, or 'unknown' for a name nvim does not have. Prints nothing when nvim is
+# absent / the query fails — callers then skip the type check. $1 is pre-validated (^[a-z_]+$).
+_nvim_option_type() {
+  have_cmd nvim || return 0
+  nvim --clean --headless \
+    -c "lua local ok, i = pcall(vim.api.nvim_get_option_info2, '$1', {}); io.write(ok and i.type or 'unknown')" \
+    -c 'qa!' 2>/dev/null || true
+}
+# Does <value> fit option <name>'s type? A mismatch (`vim.opt.scrolloff = true`) raises at startup
+# and LazyVim swallows the error, silently dropping every later line of options.lua — so reject it
+# here. on|off only for booleans, an integer only for numbers (a string option may hold digits,
+# e.g. colorcolumn=80; the generator quotes those). Logs the reason; returns 2 on mismatch.
+_nvim_option_type_check() {
+  local name="$1" val="$2" t
+  t="$(_nvim_option_type "$name")"
+  case "$t" in
+    unknown) log_err "Unknown Neovim option: $name."; return 2 ;;
+    boolean) case "$val" in on|off) ;; *) log_err "Option '$name' is a boolean — use on|off (got: $val)."; return 2 ;; esac ;;
+    number)  case "$val" in ''|*[!0-9]*) log_err "Option '$name' is a number — use an integer (got: $val)."; return 2 ;; esac ;;
+    string)  case "$val" in on|off) log_err "Option '$name' is a string — on|off would be written as a boolean (got: $val)."; return 2 ;; esac ;;
+  esac
+  return 0
+}
 # Curated, commonly-changed options surfaced in the ui()/help (set-option accepts ANY valid name).
 readonly NVIM_OPTION_CURATED="relativenumber wrap scrolloff shiftwidth tabstop conceallevel background spell"
 # A keymap mode: one of Neovim's single-letter mode short-names.
@@ -1624,7 +1648,14 @@ _nvim_gen_options_block() {
   if [[ -f "${_NV_PREF:-}" ]]; then
     while IFS='=' read -r key val; do
       case "$key" in
-        OPT_*) name="${key#OPT_}"; printf 'vim.opt.%s = %s\n' "$name" "$(_nvim_lua_value "$val")" ;;
+        OPT_*)
+          name="${key#OPT_}"
+          # An all-digit value on a string option (colorcolumn=80) must be a Lua string, not a number.
+          if [[ "$val" =~ ^[0-9]+$ && "$(_nvim_option_type "$name")" == string ]]; then
+            printf 'vim.opt.%s = "%s"\n' "$name" "$val"
+          else
+            printf 'vim.opt.%s = %s\n' "$name" "$(_nvim_lua_value "$val")"
+          fi ;;
       esac
     done < <(grep -E '^OPT_[a-z_]+=' "$_NV_PREF" 2>/dev/null || true)
   fi
@@ -1738,6 +1769,7 @@ do_set_option() {
       *) log_err "set-option autoformat takes on|off."; return 2 ;;
     esac
   else
+    _nvim_option_type_check "$name" "$val" || return 2
     _nvim_conf_set "OPT_$name" "$val"
     # Hint when the name is outside the commonly-changed set (still accepted — any valid option works).
     local w curated=0
