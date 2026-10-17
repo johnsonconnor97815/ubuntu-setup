@@ -89,6 +89,44 @@ LLM 会先用 `swkit list` / `swkit search` 发现脚本、给出要跑哪条命
 
 skill 部署位置:`~/.claude/skills/<name>/`(Claude Code 用户级 skill)、`~/.agents/skills/<name>/`(Codex 用户级 skill)与 `~/.codex/prompts/<name>.md`(旧版 Codex 兼容 prompt),`<name>` 为 `ubuntu-inspect`、`ubuntu-install`、`zsh-setup`、`claude-extensions`、`ubuntu-update-review`。重跑 `./bootstrap.sh` 会覆盖更新到最新版本。
 
+## Codex 配置 Skill
+
+同系列 Skill 的源文件统一放在 `skills/`，通过仓库内 `.agents/skills/` 的相对软链供 Codex 发现；在完整克隆的仓库中使用，不需要另存一份全局实现。
+
+| Skill | 用途 |
+| --- | --- |
+| [`codex-research-setup`](skills/codex-research-setup/SKILL.md) | 恢复 Exa、Context7 与主动查证配置，调用仓库脚本 |
+| [`codex-response-setup`](skills/codex-response-setup/SKILL.md) | 恢复简洁完整的回复标准与推理事件显示设置，含预览、验证和恢复流程 |
+| [`codex-terminal-setup`](skills/codex-terminal-setup/SKILL.md) | Codex CLI / Agent Views 的滚动历史、tmux vi 复制模式配置与排查流程 |
+| [`codex-response-setup`](skills/codex-response-setup/SKILL.md) | 恢复回复标准与推理事件显示偏好，保留已有配置并提供备份与验收步骤 |
+
+`$codex-terminal-setup` 保存了客户端重开与新 Session 的区别、配置合并、tmux 上限、生效验证和恢复步骤，以及 Codex CLI 0.163.0 / tmux 3.6 的依据。它没有新增自动配置命令；重开客户端后的实际长回答浏览仍待验证。后续扩展执行能力在仓库组件中维护，不能把静态配置通过写成功能已正常。
+
+## 重装或换机器后恢复 Codex 查证配置
+
+仓库内的 `$codex-research-setup` Skill 可恢复 Exa、Context7 和主动查证规则。也可以在仓库根目录直接运行：
+
+```bash
+./swkit codex-research plan
+./swkit codex-research install --with-requires
+```
+
+安装命令按需补齐 Codex CLI 与 `jq`，保留目标机已有兼容配置及凭证；账号登录和额度仍由目标机提供。配置完成后须在新 Codex 会话验证 MCP 调用。预览、报告、冲突处理和恢复方式见 [配置说明](docs/codex-research-setup.md)。此配置由仓库维护，通用 bootstrap 不会自动启用。
+
+## 重装或换机器后恢复 Codex 回复与显示偏好
+
+在本仓库的 Codex 会话中调用 `$codex-response-setup`，即可按项目保存的标准配置回复：事项不遗漏，重点先显示，难点和不确定事项解释清楚，避免自造术语。也可直接执行：
+
+```bash
+./swkit codex-response plan
+./swkit codex-response configure
+./swkit codex-response status
+```
+
+需要已安装的 Codex CLI 和 Python 3.11+。缺 Codex 时可运行 `./swkit codex-response install --with-requires`；不会自动安装 Python。脚本保留账号和无关配置，部署全局回复规则，并设置 `hide_agent_reasoning = true`；不承诺折叠所有工具结果。执行时保存备份及 HTML/JSON 报告，测试可加 `--no-open`。新会话仍需验证规则加载和实际回复。流程、验收、冲突处理与恢复见 [配置 Skill](skills/codex-response-setup/SKILL.md)。通用 bootstrap 不会自动启用此偏好。
+
+开发检查：`python3 -m unittest discover -s test -p 'codex_response_test.py' -v`、`bash -n scripts/codex-response.sh`、`shellcheck -x --source-path=SCRIPTDIR scripts/codex-response.sh`、`bash test/meta_test.sh`。
+
 ## 开发者
 
 ### 校验脚本

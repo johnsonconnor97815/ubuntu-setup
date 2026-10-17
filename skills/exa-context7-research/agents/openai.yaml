@@ -1,0 +1,6 @@
+interface:
+  display_name: "Exa 与 Context7 查证"
+  short_description: "用 Exa 与 Context7 补足外部依据，核对版本、时效与未知项"
+
+policy:
+  allow_implicit_invocation: true
