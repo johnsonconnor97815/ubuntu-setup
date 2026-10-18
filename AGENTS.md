@@ -19,12 +19,26 @@
 
 - Python 程序已提供只读检查 `inspect`、能力查询 `capabilities`、能力改进记录 `improvement`，以及磁盘清理计划与显式选择删除入口 `cleanup`。该程序的通用安装、修复、任意新软件版本选择及完整兼容性验证仍未实现。程序版本以 [版本定义](ubuntu_setup/__init__.py) 为准，具体范围见 [检查原型](docs/prototype.md)、[扩展检查](docs/extended-checks.md) 和 [磁盘清理](docs/disk-cleanup.md)。
 - 仓库另有 Bash 软件管理脚本，入口为 `./bootstrap.sh` 和 `swkit`，用法见 [README.md](README.md)，组件约定见 [CLAUDE.md](CLAUDE.md)。两部分目前各自运行，检查原型尚未接入这些安装脚本。
-- 已提供项目内的 [Codex 查证配置 Skill](skills/codex-research-setup/SKILL.md) 和对应脚本，用于重装或换机后配置 Exa、Context7 与查证规则，见 [配置说明](docs/codex-research-setup.md)。这是外部工具的客户端配置能力，不代表本项目已实现 MCP 服务或通用系统维护接入。
+- 已提供 4 个 Codex 相关 Skill：3 个配置与排查入口、1 个日常查证规则，范围和实现见下节。查证与回复配置已有脚本，终端滚动配置目前提供操作流程。这些能力不代表本项目已实现 MCP 服务或通用系统维护接入。
 - 已确定的工作流维护在 [docs/workflow.md](docs/workflow.md)；信息采集、数据保存与交互细节的草案入口见 [README.md](README.md)。草案不代表已实现或已验证的能力。
 - 检查入口为 `./ubuntu-setup inspect`，能力与副作用查询为 `./ubuntu-setup capabilities --format json`，Python 测试为 `python3 -m unittest discover -s tests -v`。启动器先选择现有的 Python 3.10+ 解释器；没有合适解释器时只报告运行时阻塞，不自动安装。实际采集与保存范围见 [docs/prototype.md](docs/prototype.md)，规则接口见 [docs/detection-rules.md](docs/detection-rules.md)。
 - `inspect --online --timeout 30` 只能刷新临时目录的索引，禁止继承执行本机更新钩子。`--confirm-from` 与 `--confirm-device` 仅记录用户明确给出的实际使用结果；采集发现环境变化时不沿用旧确认。不得为了让报告通过而伪造确认或执行修复。
 - `improvement` 只校验并保存私有改进记录，不自动修改或切换代码。`cleanup` 计划会联网调用模型并保存报告，执行会在重新核对条目状态后永久删除用户明确选择的条目；模型建议、评分和计划生成成功都不构成删除授权。不能把整个 Python 程序笼统称为只读。
 - 引入代码时同步补充真实的运行、检查和测试命令；不要把规划中的功能写成已经可用。
+
+## Codex Skill 接入与维护
+
+| Skill | 适用任务与实现 |
+| --- | --- |
+| [codex-research-setup](skills/codex-research-setup/SKILL.md) | 重装、换机或明确要求恢复查证配置；调用 `scripts/codex-research.sh`，由 `swkit codex-research` 提供预览、执行与状态检查 |
+| [codex-response-setup](skills/codex-response-setup/SKILL.md) | 恢复仓库保存的回复标准与推理事件显示偏好；由 `scripts/codex-response.sh` 调用 `lib/codex_response.py`，需要 Python 3.11+ 和 Codex CLI |
+| [codex-terminal-setup](skills/codex-terminal-setup/SKILL.md) | 排查或配置 Codex CLI / Agent Views 的滚动历史与 tmux vi 复制模式；当前没有专用自动配置命令，按 Skill 流程检查与执行 |
+| [exa-context7-research](skills/exa-context7-research/SKILL.md) | 日常任务缺少适用外部依据时查证；不负责安装 MCP 或恢复客户端配置 |
+
+- 源文件统一维护在 `skills/`。三个 `codex-*-setup` 的仓库发现入口位于 `.agents/skills/`，使用相对软链；解析资源路径时先定位实际源目录。`exa-context7-research` 由查证配置脚本部署到目标 `CODEX_HOME/skills/exa-context7-research/`，并写入引用该路径的全局触发入口；未设置 `CODEX_HOME` 时使用 `~/.codex`。查证与回复规则分别以对应源文件为准，避免维护内容不同的多份规则。
+- 全局配置只在用户要求配置目标机器且授权覆盖时执行。通用 bootstrap 不自动启用这些偏好；维护仓库文档或 Skill 不构成修改当前主机配置的授权。具体执行、冲突处理、报告和恢复要求沿用相应 Skill。
+- 校验范围分别记录：隔离测试、原生 CLI 配置检查、MCP 实际调用、模型实际回复和终端交互。2026-10-17 已通过查证配置 13 项、回复配置 17 项隔离测试，并在本机 Codex CLI 0.163.0 的临时目录验证配置与重复执行；不能外推为新机器已通过验收。终端流程核对过 Codex CLI 0.163.0 / tmux 3.6，重开客户端后的长回答浏览、Session 切换、分屏和 vi 复制仍待交互验证。
+- 命令与验证记录见 [README](README.md#校验脚本)、[查证配置说明](docs/codex-research-setup.md)和[回复配置依据与恢复](skills/codex-response-setup/references/verification-and-recovery.md)。涉及发现入口或目录迁移时，同时核对软链、交叉引用和部署路径。
 
 ## 开发原则
 
