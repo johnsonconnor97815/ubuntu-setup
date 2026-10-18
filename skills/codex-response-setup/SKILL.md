@@ -13,7 +13,7 @@ description: Restore this repository's Codex reply style and reasoning-display p
 2. 在仓库根目录执行 `./swkit codex-response plan`。预览不创建目录、不安装依赖、不调用模型。检查拟改动及现有规则的语义冲突；脚本只能识别同名规则节的内容差异，不能判断其他章节是否语义冲突。
 3. 在已授权范围内执行 `./swkit codex-response configure`，随后运行 `./swkit codex-response status`。自动化测试或不需要打开报告时用 `--no-open`。需要明确目标目录时给 `plan`、`configure` 加 `--codex-home /绝对路径`；状态检查可直接运行 `python3 lib/codex_response.py status --codex-home /绝对路径`。
 4. 查看生成的 HTML/JSON 报告。候选配置在临时目录通过原生 CLI 类型与解析检查后才写入；写前备份，保留权限与属主。完整匹配的规则和设置不重写。前检查阻止执行时不创建报告；开始执行后记录每个文件的状态，失败停止后续写入。
-5. 新启动目标 Codex，核对规则确实加载。支持 `codex debug prompt-input` 的版本可在本机过滤诊断输出确认完整规则，不保存或打印完整上下文；不支持时在新会话要求列出当前回复约束。再按下方场景验收。没有实际执行的检查保持“待验证”。
+5. 新启动目标 Codex，核对生效的全局指令，并按下方场景验收实际回复。需要读取诊断时，仅过滤所需规则，不保存或打印完整上下文。没有实际执行的检查保持“待验证”。
 
 需要 Python 3.11+（标准库 `tomllib`）和已安装的 Codex CLI。缺 Python 时先核对目标系统支持的解释器，不替换系统 Python。缺 Codex 时可沿用仓库安装器 `./swkit codex-response install --with-requires`；它不会安装 Python 或迁移登录信息。普通 `configure` 不安装依赖。
 
@@ -22,7 +22,7 @@ description: Restore this repository's Codex reply style and reasoning-display p
 - 按 `AGENTS.override.md` / `AGENTS.md` 的优先级选取有效全局文件，追加完整标准，不依赖原机器路径。已有同名标准完全相同时跳过，不额外添加标记；内容不同时保留并报告差异，不能为了让检查通过而覆盖定制。
 - 仅把顶层 `hide_agent_reasoning` 设为 `true`。不修改模型、推理强度、`model_verbosity`、快捷键、终端模式、MCP、账号或密钥，不复制原机器的整个配置。
 - 项目指令、配置覆盖、组织策略或启动参数仍可能改变实际效果。不要把静态匹配、CLI 解析成功或规则加载成功写成模型行为已验证。
-- 工具结果折叠由 CLI 控制。不要虚构“全部自动折叠”设置，也不要从隐藏推理事件推断工具结果已隐藏。快捷键需核对目标版本；本次来源与已知限制见 [依据与恢复](references/verification-and-recovery.md)。
+- 工具结果折叠由 CLI 控制。不要虚构“全部自动折叠”设置，也不要从隐藏推理事件推断工具结果已隐藏。设置依据、检查边界与恢复方法见 [配置检查与恢复](references/verification-and-recovery.md)。
 - 沿用授权继续，不逐条重复确认；出现不在授权内的配置取舍或用户定制冲突时，先列出具体差异。修订回复标准属于仓库维护，不能在目标机临时改安装脚本绕过检查。
 
 ## 验收标准
@@ -38,4 +38,4 @@ description: Restore this repository's Codex reply style and reasoning-display p
 
 这些是回复验收标准，不替代任务本身的调查和验证。一次样例通过也不保证长期效果；后续依据具体失败回复作窄范围修订。
 
-恢复时读取报告列出的 `manifest.json`、`before/` 和 `after/`，比较当前内容，保留后续修改，只撤销本次规则和显示设置。不同机器各自保留恢复资料，不把含凭据的备份提交仓库。
+恢复或中断后继续时，按 [配置检查与恢复](references/verification-and-recovery.md) 比较当前文件与运行记录，保留后续修改。

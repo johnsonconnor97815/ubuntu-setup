@@ -89,20 +89,19 @@ LLM 会先用 `swkit list` / `swkit search` 发现脚本、给出要跑哪条命
 
 skill 部署位置:`~/.claude/skills/<name>/`(Claude Code 用户级 skill)、`~/.agents/skills/<name>/`(Codex 用户级 skill)与 `~/.codex/prompts/<name>.md`(旧版 Codex 兼容 prompt),`<name>` 为 `ubuntu-inspect`、`ubuntu-install`、`zsh-setup`、`claude-extensions`、`ubuntu-update-review`。重跑 `./bootstrap.sh` 会覆盖更新到最新版本。
 
-## Codex 配置与查证 Skill
+## Codex 配置 Skill
 
-已提供 **4 个 Skill：3 个配置与排查入口，1 个日常查证规则**。源文件统一保存在 `skills/`，用途和入口如下。
+已提供 **3 个配置与排查 Skill**。源文件统一保存在 `skills/`，用途和入口如下；写入目标机的日常查证规则属于查证配置的产物。
 
 | Skill | 用途 | 使用入口 |
 | --- | --- | --- |
-| [`codex-research-setup`](skills/codex-research-setup/SKILL.md) | 恢复 Exa、Context7、全局触发入口和查证规则 | 仓库会话中调用 `$codex-research-setup`，执行 `swkit codex-research` 配置流程 |
+| [`codex-research-setup`](skills/codex-research-setup/SKILL.md) | 配置 Exa、Context7，并把完整查证规则写入全局指令 | 仓库会话中调用 `$codex-research-setup`，执行 `swkit codex-research` 配置流程 |
 | [`codex-response-setup`](skills/codex-response-setup/SKILL.md) | 恢复回复标准与推理事件显示偏好，提供预览、备份和恢复步骤 | 仓库会话中调用 `$codex-response-setup`，执行 `swkit codex-response` 配置流程 |
 | [`codex-terminal-setup`](skills/codex-terminal-setup/SKILL.md) | 配置与排查 Codex CLI / Agent Views 的滚动历史和 tmux vi 复制模式 | 仓库会话中调用 `$codex-terminal-setup`；当前提供操作流程 |
-| [`exa-context7-research`](skills/exa-context7-research/SKILL.md) | 日常任务缺少适用的外部依据时，使用 Exa、Context7 补足证据 | 由查证配置脚本部署，并由目标用户的全局指令触发 |
 
-三个 `codex-*-setup` 通过仓库内 `.agents/skills/` 的相对软链供 Codex 发现，在完整克隆的仓库中使用。`exa-context7-research` 由 `scripts/codex-research.sh` 复制到目标 `CODEX_HOME/skills/exa-context7-research/`，全局指令引用目标机上的路径；未设置 `CODEX_HOME` 时使用 `~/.codex`。通用 bootstrap 不会自动启用这些配置偏好。
+三个 `codex-*-setup` 通过仓库内 `.agents/skills/` 的相对软链供 Codex 发现，在完整克隆的仓库中使用。查证规则模板保存在 [`codex-research-setup/assets/research-rules.md`](skills/codex-research-setup/assets/research-rules.md)，由脚本合并到目标 `CODEX_HOME` 下有效的 `AGENTS.override.md` 或 `AGENTS.md`；未设置 `CODEX_HOME` 时使用 `~/.codex`。通用 bootstrap 不会自动启用这些配置偏好。
 
-`$codex-terminal-setup` 保存了客户端重开与新 Session 的区别、配置合并、tmux 上限、生效验证和恢复步骤，以及 Codex CLI 0.163.0 / tmux 3.6 的依据。它没有新增自动配置命令；重开客户端后的实际长回答浏览仍待验证。后续扩展执行能力在仓库组件中维护，不能把静态配置通过写成功能已正常。
+`$codex-terminal-setup` 目前提供操作流程，覆盖目标版本核对、配置合并、生效验证和恢复；没有专用自动配置命令。配置后需要在目标客户端实际验证长回答浏览、Session 切换、分屏和复制。
 
 ## 重装或换机器后恢复 Codex 查证配置
 
@@ -147,7 +146,7 @@ python3 -m unittest discover -s test -p 'codex_response_test.py' -v
 bash test/meta_test.sh
 ```
 
-2026-10-17 已通过查证配置 13 项、回复配置 17 项隔离测试，以及脚本语法、ShellCheck、Skill 格式、发现软链和文档链接检查。另在本机 Codex CLI 0.163.0 的临时配置目录完成首次配置与重复执行验证，详见[查证配置记录](docs/codex-research-setup.md#开发验证)和[回复配置记录](skills/codex-response-setup/references/verification-and-recovery.md#维护时验证)。这些检查不代替新机器的 MCP 连通、实际回复或终端交互验收。
+隔离测试不代替目标机的规则加载、MCP 连通、实际回复或终端交互验收。具体配置与验证方法见各 Skill；仅在预览报告需要迁移已有查证部署时，读取[迁移与恢复说明](docs/codex-research-migration.md)。
 
 ### 新增一个软件
 

@@ -1,21 +1,14 @@
-# 依据、验证与恢复
+# 配置检查与恢复
 
-本标准由 2026-10-17 的用户讨论确定，作为回复偏好部署，不保证模型始终遵守。修改过程是：审查现有规则 → 保留无关配置 → 预览候选差异 → 备份 → 写入 → 检查加载 → 用真实回复验收。
-
-## 已有依据与边界
+## 设置依据与检查边界
 
 - [OpenAI：全局 AGENTS.md](https://learn.chatgpt.com/docs/agent-configuration/agents-md)：全局覆盖文件优先、项目指令可能覆盖、新启动时加载、默认指令大小限制。
 - [OpenAI：配置参考](https://learn.chatgpt.com/docs/config-file/config-reference)：`hide_agent_reasoning` 隐藏推理事件；`model_verbosity` 是另一项设置，本方案不修改它。
 - [OpenAI：Skill 发现](https://learn.chatgpt.com/docs/build-skills)：仓库入口为 `.agents/skills`，支持指向实际 Skill 目录的软链。
-- [NN/g](https://www.nngroup.com/articles/accordions-on-desktop/)：必要信息应直接可见，折叠本身也有操作成本。
-- [GOV.UK](https://guidance.publishing.service.gov.uk/writing-to-gov-uk-standards/writing-guidelines/clear-language/)：采用常用词，必要术语首次解释，区分要求和可选事项。
-- [Microsoft HAX](https://www.microsoft.com/en-us/haxtoolkit/guideline/make-clear-why-the-system-did-what-it-did/)：解释可能增加信任，却不能证明结果正确。
 
-以上来源在 2026-10-17 已读取。可复用仍适用的依据；目标版本不匹配、配置不支持或官方行为变化时再核实，不能把本机结果外推为所有机器兼容。
+以目标机安装的 Codex CLI 为准。脚本在隔离目录中确认 CLI 会拒绝错误类型的 `hide_agent_reasoning`，再用 `codex features list` 读取完整候选配置；任一步失败都不写入目标文件。无法确认支持时，先核对对应版本的官方文档。
 
-原始配置过程在 `codex-cli 0.163.0` 上检查过：`codex debug prompt-input` 包含完整回复规则；本机帮助列出 F4（Inspect activity）与 Ctrl+T（完整记录）。普通用户 Shell 输出在滚动及全屏模式测试未折叠，未证明所有工具结果可折叠；不能把这些快捷键当成跨版本保证。
-
-脚本在执行阶段用隔离目录测试错误类型会被拒绝，再让原生 CLI 读取完整候选配置；不调用模型、不迁移账号。它不使用 `--strict-config`：本次 CLI 不支持对 `features` 使用该参数，原有未知字段也可能与本任务无关。解析检查不代表所有设置生效，后续仍要验证实际加载。
+这些检查不调用模型、不迁移账号，只确认目标设置的类型支持和候选配置可解析；不能证明所有配置项生效、全局规则已加载或实际回复符合标准。部署后仍需完成 [Skill 中的加载与回复验收](../SKILL.md#验收标准)。
 
 ## 恢复与中断续接
 
@@ -38,6 +31,4 @@ shellcheck -x --source-path=SCRIPTDIR scripts/codex-response.sh
 bash test/meta_test.sh
 ```
 
-测试使用临时目录和模拟 CLI；它证明配置保护、重复执行和失败处理，不证明另一台机器的原生 CLI、浏览器或模型回复。目标机仍需进行 SKILL.md 中的加载与行为验收。
-
-2026-10-17 在本机完成了 17 项隔离测试、Bash 语法与 ShellCheck 检查、仓库组件元数据测试和 Skill 格式检查。另用原生 `codex-cli 0.163.0` 在临时目录完成首次配置和重复运行，确认已匹配文件的内容、修改时间与文件标识不变，生成了 HTML/JSON 报告且未迁移账号；`codex debug prompt-input` 确认能发现本 Skill。未调用模型验证实际回复，也未验证浏览器显示。
+测试使用临时目录和模拟 CLI，覆盖配置保护、重复执行和失败处理。它们不能代替目标机的原生 CLI 检查、浏览器显示及实际回复验收。
