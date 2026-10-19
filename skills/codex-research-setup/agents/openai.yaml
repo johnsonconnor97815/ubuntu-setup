@@ -1,0 +1,7 @@
+interface:
+  display_name: "恢复 Codex 查证配置"
+  short_description: "从当前仓库配置 Exa、Context7 与主动查证规则"
+  default_prompt: "使用 $codex-research-setup 在目标机器恢复本仓库维护的 Codex 查证配置。"
+
+policy:
+  allow_implicit_invocation: true

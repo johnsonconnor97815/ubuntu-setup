@@ -1,0 +1,4 @@
+interface:
+  display_name: "恢复 Codex 回复与显示偏好"
+  short_description: "跨机器恢复简洁完整的 Codex 回复规则和推理事件显示设置"
+  default_prompt: "使用 $codex-response-setup 在这台机器恢复项目中的 Codex 回复与显示偏好。"

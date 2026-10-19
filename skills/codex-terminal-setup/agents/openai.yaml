@@ -1,0 +1,3 @@
+interface:
+  display_name: "Codex 终端滚动配置"
+  short_description: "配置与排查 Codex CLI、Agent Views 和 tmux vi 复制模式的滚动历史"

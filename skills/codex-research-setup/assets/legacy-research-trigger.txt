@@ -1,0 +1,1 @@
+当当前实现或结论依赖尚未证实的第三方接口、版本兼容性、当前状态或外部方案等事实时，必须读取并应用 [exa-context7-research](<{{CODEX_HOME}}/skills/exa-context7-research/SKILL.md>)，主动补足依据。模型熟悉感不能作为跳过理由；已有直接适用证据时避免重复查询。完整查证规则只维护在该 Skill 中。
