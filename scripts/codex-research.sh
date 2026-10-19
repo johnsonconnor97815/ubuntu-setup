@@ -5,6 +5,7 @@ set -Eeuo pipefail
 _kit_here="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # shellcheck source=../lib/common.sh
 source "$_kit_here/lib/common.sh"
+_RESEARCH_SCOPE=full
 
 meta() {
   cat <<'META'
@@ -13,7 +14,7 @@ name=Codex Exa + Context7
 category=ai
 tags=cli
 requires=codex
-ops=install,configure,plan
+ops=install,configure,plan,rules
 desc=Deploy global research rules and Exa / Context7 MCP configuration
 META
 }
@@ -237,11 +238,13 @@ _research_agents() {
         if ($text | split($start) | length) != 2 or ($text | split($end) | length) != 2 then
           . + {action:"conflict"}
         else
-          ($text | index($start)) as $first | ($text | index($end)) as $last |
-          if $last < $first then . + {action:"conflict"}
+          # jq 1.7 index() returns byte offsets while slices use code points.
+          # Split on the ASCII markers to preserve Unicode prefix/body/suffix.
+          ($text | split($start)) as $parts | ($parts[1] | split($end)) as $rest |
+          if ($rest | length) != 2 then . + {action:"conflict"}
           else
-            ($text[:$first]) as $prefix | ($text[$last + ($end|length):]) as $suffix |
-            ($text[$first:$last + ($end|length)]) as $found |
+            $parts[0] as $prefix | $rest[1] as $suffix |
+            ($start + $rest[0] + $end) as $found |
             if ($prefix | reserved) or ($suffix | reserved) or
                ($prefix != "" and ($prefix | endswith("\n") | not)) or
                ($suffix != "" and ($suffix | startswith("\n") | not)) then . + {action:"conflict"}
@@ -274,18 +277,23 @@ _research_agents() {
 
 _research_check_targets() {
   local observed legacy
-  observed="$(_research_observe_globals)" && [[ "$observed" == "$_RESEARCH_GLOBAL_SNAPSHOT" ]] &&
-    legacy="$(_research_legacy_snapshot)" && [[ "$legacy" == "$_RESEARCH_LEGACY_SNAPSHOT" ]] || {
+  if ! { observed="$(_research_observe_globals)" && [[ "$observed" == "$_RESEARCH_GLOBAL_SNAPSHOT" ]] &&
+    legacy="$(_research_legacy_snapshot)" && [[ "$legacy" == "$_RESEARCH_LEGACY_SNAPSHOT" ]]; }; then
     _RESEARCH_FAILURE='Global instructions or the legacy skill changed after inspection. Changes were preserved; inspect state before retrying.'
     return 1
-  }
+  fi
 }
 
 _research_preflight() {
   _research_reset
   _research_paths || return 1
   _research_dependencies || return 1
-  _research_servers || true
+  if [[ "${_RESEARCH_SCOPE:-full}" == rules ]]; then
+    _RESEARCH_EXA_STATE=outside_scope
+    _RESEARCH_CONTEXT7_STATE=outside_scope
+  else
+    _research_servers || true
+  fi
   _research_legacy
   _research_agents
   if ((${#_RESEARCH_ISSUES[@]} == 0 && ${#_RESEARCH_ACTIONS[@]} == 0)); then
@@ -297,9 +305,12 @@ _research_preflight() {
 _research_print_plan() {
   local item
   printf 'Codex home: %s\nGlobal rule: %s\n' "$_RESEARCH_HOME" "$_RESEARCH_AGENTS"
+  if [[ "${_RESEARCH_SCOPE:-full}" == rules ]]; then
+    printf 'Scope: global research rules only; MCP configuration is not inspected or changed.\n'
+  fi
   for item in "${_RESEARCH_ISSUES[@]}"; do printf 'Blocked: %s\n' "$item"; done
   for item in "${_RESEARCH_ACTIONS[@]}"; do printf 'Planned: %s\n' "$item"; done
-  if [[ "$_RESEARCH_COMPLETE" == true ]]; then printf 'Configuration is complete; no configuration writes are needed.\n'; fi
+  if [[ "$_RESEARCH_COMPLETE" == true ]]; then printf 'Selected scope is complete; no configuration writes are needed.\n'; fi
   printf 'MCP connectivity and model behavior require verification in a new Codex session.\n'
 }
 
@@ -314,11 +325,19 @@ do_plan() {
 status() {
   local item
   if _research_preflight && [[ "$_RESEARCH_COMPLETE" == true ]]; then
-    printf 'Research configuration complete (MCP connectivity and model behavior not verified).\n'
+    if [[ "${_RESEARCH_SCOPE:-full}" == rules ]]; then
+      printf 'Global research rules complete; MCP configuration is outside this check.\n'
+    else
+      printf 'Research configuration complete (MCP connectivity and model behavior not verified).\n'
+    fi
     return 0
   fi
   for item in "${_RESEARCH_ISSUES[@]}"; do printf 'Blocked: %s\n' "$item"; done
-  printf 'Research configuration incomplete; run: swkit codex-research plan\n'
+  if [[ "${_RESEARCH_SCOPE:-full}" == rules ]]; then
+    printf 'Global research rules incomplete; run: swkit codex-research rules plan\n'
+  else
+    printf 'Research configuration incomplete; run: swkit codex-research plan\n'
+  fi
   return 1
 }
 
@@ -490,6 +509,7 @@ _research_report() {
   _research_report_directory || return 1
   report_dir="$_RESEARCH_REPORT_DIR"
   jq -n --arg outcome "$outcome" --arg time "$(date -u +%FT%TZ)" \
+    --arg scope "${_RESEARCH_SCOPE:-full}" \
     --arg target "$_RESEARCH_HOME" --arg agents "$_RESEARCH_AGENTS" \
     --arg exa "$_RESEARCH_EXA_STATE" --arg context7 "$_RESEARCH_CONTEXT7_STATE" \
     --arg legacy "$_RESEARCH_LEGACY_STATE" --arg rule "$_RESEARCH_AGENTS_STATE" \
@@ -500,7 +520,9 @@ _research_report() {
     --argjson backups "$(_research_json_array "${_RESEARCH_BACKUPS[@]}")" \
     --argjson issues "$(_research_json_array "${_RESEARCH_ISSUES[@]}")" \
     '{outcome: $outcome, checked_at: $time, codex_home: $target, global_agents: $agents,
-      configuration_complete: $complete, global_rules_loaded: false, connection_verified: false, model_behavior_verified: false,
+      scope: $scope, scope_complete: $complete,
+      configuration_complete: (if $scope == "full" then $complete else null end),
+      global_rules_loaded: false, connection_verified: false, model_behavior_verified: false,
       checks: {exa_mcp: $exa, context7_mcp: $context7, global_rules: $rule, legacy_skill_cleanup: $legacy},
       recovery_manifest: $recovery, retired_skill_paths: $archives,
       before: $before, changes: $changes, backups: $backups, issues: $issues, failure: $failure,
@@ -513,11 +535,15 @@ _research_report() {
     def e: tostring | @html;
     def items: map("<li>" + (. | e) + "</li>") | join("");
     def state: if . == "configured" then "配置已核对" elif . == "missing" then "待配置"
-      elif . == "conflict" then "存在冲突，保留现有内容" else "未查清" end;
+      elif . == "conflict" then "存在冲突，保留现有内容"
+      elif . == "outside_scope" then "本次未检查，保留现有连接" else "未查清" end;
     "<!doctype html><html lang=\"zh-CN\"><meta charset=\"utf-8\"><title>Codex research configuration</title>" +
     "<style>body{max-width:960px;margin:3rem auto;padding:0 1.5rem;font:16px/1.7 sans-serif}td,th{padding:.6rem;border:1px solid #ccc;text-align:left}table{border-collapse:collapse}code{overflow-wrap:anywhere}</style>" +
     "<h1>Codex 外部事实查证配置</h1><p>检查时间：" + (.checked_at|e) + "</p>" +
-    "<h2>结论与重点问题</h2><p>结果：" + (.outcome|e) + "；配置完整：" + (.configuration_complete|e) +
+    "<h2>结论与重点问题</h2><p>结果：" + (.outcome|e) + "；范围：" +
+    (if .scope == "rules" then "仅全局查证规则" else "规则与 MCP 配置" end) +
+    "；当前范围完成：" + (.scope_complete|e) + "；完整配置检查：" +
+    (if .configuration_complete == null then "不在本次范围" else (.configuration_complete|e) end) +
     "。新会话规则加载、MCP 连通性和模型触发行为尚未验证。</p><p>" + (.failure|e) + "</p><ul>" + (.issues|items) + "</ul>" +
     "<h2>用户待办与 Agent 后续建议</h2><ul>" + (.pending|items) + "</ul>" +
     "<h2>完整结果总表</h2><table><tr><th>范围</th><th>结果</th></tr>" +
@@ -527,7 +553,9 @@ _research_report() {
     (.codex_home|e) + "</code><br>全局规则：<code>" + (.global_agents|e) + "</code></p>" +
     "<h2>前后变化</h2><ul>" + (.changes|items) + "</ul><p>恢复清单：" + (.recovery_manifest|e) + "</p><ul>" +
     (.retired_skill_paths|items) + "</ul><p>恢复限制：" + (.restoration|e) + "</p><ul>" + (.backups|items) + "</ul>" +
-    "<h2>依据附录</h2><p>依据：仓库完整规则比较、旧版文件固定指纹、原生 Codex MCP JSON 与两份全局 AGENTS 文件。配置读取成功不代表工具可用。</p>" +
+    "<h2>依据附录</h2><p>依据：仓库完整规则比较、旧版文件固定指纹与两份全局 AGENTS 文件。" +
+    (if .scope == "full" then "已读取原生 Codex MCP JSON。" else "仅规则模式没有读取或验证 MCP 配置。" end) +
+    "配置读取成功不代表工具可用。</p>" +
     "<p><a href=\"report.json\">JSON 记录（不包含 MCP 原始配置或凭据）</a></p></html>"
   ' "$report_dir/report.json" >"$report_dir/report.html" || return 1
   printf 'Report: %s/report.html\nJSON: %s/report.json\n' "$report_dir" "$report_dir"
@@ -583,12 +611,13 @@ _research_install() (
   else
     _research_print_plan
     _RESEARCH_BEFORE="$(jq -n \
+      --arg scope "${_RESEARCH_SCOPE:-full}" \
       --argjson config_exists "$([[ -f "$_RESEARCH_HOME/config.toml" ]] && printf true || printf false)" \
       --argjson agents_exists "$([[ -f "$_RESEARCH_AGENTS" ]] && printf true || printf false)" \
       --argjson absent_servers "$(_research_json_array "${_RESEARCH_ADD_MCP[@]}")" \
       --arg legacy_state "$_RESEARCH_LEGACY_STATE" \
       '{config_existed: $config_exists, agents_existed: $agents_exists,
-        missing_mcp_servers: $absent_servers, legacy_skill_state: $legacy_state}')"
+        missing_mcp_servers: (if $scope == "full" then $absent_servers else null end), legacy_skill_state: $legacy_state}')"
     if ! _research_apply; then
       outcome=partial
       rc=1
@@ -610,9 +639,27 @@ _research_install() (
 do_install() { _research_install 1 "$@"; }
 do_configure() { _research_install 0 "$@"; }
 
+# A separate deployment scope, not acceptance of conflicting MCP configuration.
+# Keep it in a subshell so subsequent full-profile checks retain their safeguards.
+do_rules() (
+  local _RESEARCH_SCOPE=rules operation="${1:-help}"
+  (($# == 0)) || shift
+  case "$operation" in
+    plan) do_plan "$@" ;;
+    configure) do_configure "$@" ;;
+    status)
+      (($# == 0)) || { log_err 'rules status takes no arguments.'; return 2; }
+      status
+      ;;
+    help|-h|--help) usage ;;
+    *) log_err 'Usage: swkit codex-research rules <plan|configure|status> [--no-open]'; return 2 ;;
+  esac
+)
+
 usage() {
   cat <<'USAGE'
-Usage: swkit codex-research <install|configure|plan|status|meta|help|ui> [--no-open]
+Usage: swkit codex-research <install|configure|plan|status|rules|meta|help|ui> [--no-open]
+       swkit codex-research rules <plan|configure|status> [--no-open]
 
   install    Install jq if missing, then write complete global research rules
              and register missing Exa / Context7 HTTP MCP entries.
@@ -621,6 +668,9 @@ Usage: swkit codex-research <install|configure|plan|status|meta|help|ui> [--no-o
   plan       Inspect changes or conflicts without changing configuration or installing
              dependencies. The native CLI may create its own runtime temporary files.
   status     Exit 0 only when the configuration matches; no connectivity test.
+  rules      Deploy/check only global research rules, preserving all MCP settings.
+             Uses the same backups, conflict checks and legacy-rule migration.
+             Does not install dependencies or certify existing MCP configuration.
   --no-open  Save install/configure HTML + JSON reports without opening a browser.
 
 Targets CODEX_HOME (default: ~/.codex). Preserves existing matching MCP credentials

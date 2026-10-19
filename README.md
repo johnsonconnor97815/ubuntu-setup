@@ -114,6 +114,8 @@ skill 部署位置:`~/.claude/skills/<name>/`(Claude Code 用户级 skill)、`~/
 
 安装命令按需补齐 Codex CLI 与 `jq`，保留目标机已有兼容配置及凭证；账号登录和额度仍由目标机提供。配置完成后须在新 Codex 会话验证 MCP 调用。预览、报告、冲突处理和恢复方式见 [配置说明](docs/codex-research-setup.md)。此配置由仓库维护，通用 bootstrap 不会自动启用。
 
+保留已有 MCP 连接、只补齐全局查证规则时，使用 `./swkit codex-research rules plan`、`./swkit codex-research rules configure` 和 `./swkit codex-research rules status`。该范围不读取或修改 MCP 配置、不安装依赖，也不代表完整连接配置已通过检查；需单独验证现有工具可用。
+
 ## 重装或换机器后恢复 Codex 回复与显示偏好
 
 在本仓库的 Codex 会话中调用 `$codex-response-setup`，即可按项目保存的标准配置回复：事项不遗漏，重点先显示，难点和不确定事项解释清楚，避免自造术语。也可直接执行：

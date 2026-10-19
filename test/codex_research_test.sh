@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # Regression checks for the portable research setup. All Codex writes and CLI
 # responses are isolated fixtures; no credentials or network access are needed.
+# Fixture overrides below are invoked indirectly by the sourced implementation.
+# shellcheck disable=SC2317
 set -Eeuo pipefail
 
 RESEARCH_TEST_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -666,6 +668,105 @@ test_report_failure_after_retirement() (
   complete_report
 )
 
+test_rules_scope_preserves_connections() {
+  local kind before config_before report
+  for kind in proxy disabled absent; do
+    fixture "rules-$kind"
+    printf 'model = "fixture-model"\n# fixture-auth-private-marker\n' >"$RESEARCH_FIXTURE_CODEX_DIR/config.toml"
+    chmod 640 "$RESEARCH_FIXTURE_CODEX_DIR/config.toml"
+    printf '保留中文说明和 emoji：🔎。\nKeep existing user instructions.\n' >"$RESEARCH_FIXTURE_CODEX_DIR/AGENTS.md"
+    chmod 640 "$RESEARCH_FIXTURE_CODEX_DIR/AGENTS.md"
+    if [[ "$kind" != absent ]]; then
+      fixture_server exa 'https://example.invalid/exa?tools=web_search_exa&key=fixture-auth-private-marker'
+      fixture_server context7 https://example.invalid/context7
+      if [[ "$kind" == disabled ]]; then fixture_edit_servers '.[0].enabled = false'; fi
+    fi
+    config_before="$(stat -c '%a:%u:%g:%y' "$RESEARCH_FIXTURE_CODEX_DIR/config.toml") $(sha256sum "$RESEARCH_FIXTURE_CODEX_DIR/config.toml")"
+    before="$(tree_snapshot)"
+    do_rules plan >"$RESEARCH_FIXTURE_LOG" 2>&1 || return 1
+    if do_rules status >>"$RESEARCH_FIXTURE_LOG" 2>&1; then return 1; fi
+    [[ "$(tree_snapshot)" == "$before" && ! -s "$RESEARCH_FIXTURE_CALLS" ]] || return 1
+    do_rules configure --no-open >>"$RESEARCH_FIXTURE_LOG" 2>&1 || return 1
+    do_rules status >>"$RESEARCH_FIXTURE_LOG" 2>&1 || return 1
+    full_rules_present "$RESEARCH_FIXTURE_CODEX_DIR/AGENTS.md" || return 1
+    rg -q '^保留中文说明和 emoji：🔎。$' "$RESEARCH_FIXTURE_CODEX_DIR/AGENTS.md" || return 1
+    rg -q '^Keep existing user instructions\.$' "$RESEARCH_FIXTURE_CODEX_DIR/AGENTS.md" || return 1
+    [[ "$(stat -c '%a' "$RESEARCH_FIXTURE_CODEX_DIR/AGENTS.md")" == 640 ]] || return 1
+    [[ "$(stat -c '%a:%u:%g:%y' "$RESEARCH_FIXTURE_CODEX_DIR/config.toml") $(sha256sum "$RESEARCH_FIXTURE_CODEX_DIR/config.toml")" == "$config_before" ]] || return 1
+    [[ ! -s "$RESEARCH_FIXTURE_ADDS" && ! -s "$RESEARCH_FIXTURE_CALLS" ]] || return 1
+    report="$(latest_report)" || return 1
+    jq -e '.scope == "rules" and .scope_complete == true and .configuration_complete == null and
+      .checks.exa_mcp == "outside_scope" and .checks.context7_mcp == "outside_scope" and
+      .checks.global_rules == "configured" and .before.missing_mcp_servers == null and
+      .connection_verified == false and .model_behavior_verified == false and .global_rules_loaded == false and
+      (.backups | length == 1) and (.backups[0] | contains("AGENTS.md"))' "$report" >/dev/null || return 1
+    if rg -q 'fixture-auth-private-marker' "$RESEARCH_FIXTURE_LOG" "$report" "${report%.json}.html"; then return 1; fi
+    # Non-ASCII text after the block must also survive repeated inspection.
+    printf '\n保留末尾自定义说明。\n' >>"$RESEARCH_FIXTURE_CODEX_DIR/AGENTS.md"
+    before="$(configuration_snapshot)"
+    do_rules configure --no-open >>"$RESEARCH_FIXTURE_LOG" 2>&1 || return 1
+    [[ "$(configuration_snapshot)" == "$before" && ! -s "$RESEARCH_FIXTURE_CALLS" ]] || return 1
+    # Rules success must not leak into later full-profile checks.
+    if status >>"$RESEARCH_FIXTURE_LOG" 2>&1; then return 1; fi
+    if [[ "$kind" != absent ]]; then
+      if do_configure --no-open >>"$RESEARCH_FIXTURE_LOG" 2>&1; then return 1; fi
+      [[ "$(configuration_snapshot)" == "$before" ]] || return 1
+    fi
+  done
+}
+
+test_rules_scope_fresh_target_and_override() {
+  fixture rules-fresh
+  rmdir "$RESEARCH_FIXTURE_CODEX_DIR"
+  do_rules plan >"$RESEARCH_FIXTURE_LOG" 2>&1 || return 1
+  [[ ! -e "$RESEARCH_FIXTURE_CODEX_DIR" && ! -s "$RESEARCH_FIXTURE_CALLS" ]] || return 1
+  do_rules configure --no-open >>"$RESEARCH_FIXTURE_LOG" 2>&1 || return 1
+  full_rules_present "$RESEARCH_FIXTURE_CODEX_DIR/AGENTS.md" || return 1
+  [[ ! -e "$RESEARCH_FIXTURE_CODEX_DIR/config.toml" && ! -s "$RESEARCH_FIXTURE_CALLS" ]] || return 1
+  fixture rules-override
+  printf 'Keep normal instructions unchanged.\n' >"$RESEARCH_FIXTURE_CODEX_DIR/AGENTS.md"
+  printf 'Keep override instructions.\n' >"$RESEARCH_FIXTURE_CODEX_DIR/AGENTS.override.md"
+  cp -p "$RESEARCH_FIXTURE_CODEX_DIR/AGENTS.md" "$RESEARCH_FIXTURE_DIR/agents.before"
+  # Exercise the real dispatcher used by swkit, including the nested status operation.
+  kit_dispatch rules configure --no-open >"$RESEARCH_FIXTURE_LOG" 2>&1 || return 1
+  kit_dispatch rules status >>"$RESEARCH_FIXTURE_LOG" 2>&1 || return 1
+  full_rules_present "$RESEARCH_FIXTURE_CODEX_DIR/AGENTS.override.md" || return 1
+  cmp -s "$RESEARCH_FIXTURE_CODEX_DIR/AGENTS.md" "$RESEARCH_FIXTURE_DIR/agents.before" || return 1
+  [[ ! -s "$RESEARCH_FIXTURE_CALLS" ]]
+}
+
+test_rules_scope_preserves_conflicts() {
+  local kind before
+  for kind in global legacy symlink; do
+    fixture "rules-conflict-$kind"
+    case "$kind" in
+      global) printf '<!-- ubuntu-setup:codex-research:start -->\nCustom rule\n' >"$RESEARCH_FIXTURE_CODEX_DIR/AGENTS.md" ;;
+      legacy)
+        mkdir -p "$RESEARCH_FIXTURE_CODEX_DIR/skills/exa-context7-research"
+        printf 'User skill\n' >"$RESEARCH_FIXTURE_CODEX_DIR/skills/exa-context7-research/SKILL.md"
+        ;;
+      symlink)
+        printf 'User instructions\n' >"$RESEARCH_FIXTURE_DIR/real-agents"
+        ln -s "$RESEARCH_FIXTURE_DIR/real-agents" "$RESEARCH_FIXTURE_CODEX_DIR/AGENTS.md"
+        ;;
+    esac
+    before="$(configuration_tree_snapshot)"
+    if do_rules configure --no-open >"$RESEARCH_FIXTURE_LOG" 2>&1; then return 1; fi
+    [[ "$(configuration_tree_snapshot)" == "$before" && ! -s "$RESEARCH_FIXTURE_CALLS" ]] || return 1
+  done
+}
+
+test_rules_scope_invalid_operations() {
+  fixture rules-invalid
+  local before
+  before="$(tree_snapshot)"
+  if do_rules install >"$RESEARCH_FIXTURE_LOG" 2>&1; then return 1; fi
+  if do_rules configure --with-requires >>"$RESEARCH_FIXTURE_LOG" 2>&1; then return 1; fi
+  if do_rules status --unknown >>"$RESEARCH_FIXTURE_LOG" 2>&1; then return 1; fi
+  if do_rules plan --unknown >>"$RESEARCH_FIXTURE_LOG" 2>&1; then return 1; fi
+  [[ "$(tree_snapshot)" == "$before" && ! -s "$RESEARCH_FIXTURE_CALLS" ]]
+}
+
 RESEARCH_TEST_FAILURES=0
 run_case() {
   if "$2"; then
@@ -703,6 +804,10 @@ run_case 'changes made while recording retirement are retained before the final 
 run_case 'old mv preserves legacy deployments without blocking fresh configuration' test_old_mv_retirement_protection
 run_case 'private global instructions never enter jq process arguments or public reports' test_private_instructions_stay_out_of_argv
 run_case 'a report failure after retirement leaves durable recovery data and safe retry' test_report_failure_after_retirement
+run_case 'rules-only deployment preserves proxy, disabled and absent connections without certifying them' test_rules_scope_preserves_connections
+run_case 'rules-only preview preserves absent targets and the dispatcher honors override precedence' test_rules_scope_fresh_target_and_override
+run_case 'rules-only scope retains global, legacy and symbolic-link conflict protection' test_rules_scope_preserves_conflicts
+run_case 'rules-only scope rejects installation and unknown arguments without changes' test_rules_scope_invalid_operations
 
 if (( RESEARCH_TEST_FAILURES )); then
   printf '%s portable research setup check(s) failed.\n' "$RESEARCH_TEST_FAILURES" >&2

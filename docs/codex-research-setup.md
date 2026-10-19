@@ -29,6 +29,20 @@
 
 `status` 成功和配置报告都不能替代这些运行验证。项目指令、配置覆盖、组织策略或启动参数可能影响会话中的实际行为；全局规则加载也不证明模型始终遵守。
 
+### 保留现有连接，只部署规则
+
+用户选择保留已有 MCP 连接时，可以使用独立的规则部署范围：
+
+```bash
+./swkit codex-research rules plan
+./swkit codex-research rules configure --no-open
+./swkit codex-research rules status
+```
+
+这些命令不调用 MCP 管理命令、不读取或修改连接配置、不安装依赖；沿用完整规则、备份、重复执行保护及旧规则迁移检查。执行前单独核对现有工具是否能支持查证任务；已有中转地址或工具筛选不因此获得完整兼容认证。缺少或禁用工具时，规则本身不能使工具可用。
+
+报告中的 `scope=rules` 与 `scope_complete` 仅描述规则范围；`configuration_complete=null` 表示未检查完整配置，MCP 项标为 `outside_scope`。普通 `plan` / `status` / `configure` 仍使用原有官方端点和工具限制检查，不因规则部署成功而放宽。规则写入成功仍需另行验证加载、连接与实际触发。
+
 ## 保存哪些内容
 
 | 仓库内容 | 安装后的作用 |
