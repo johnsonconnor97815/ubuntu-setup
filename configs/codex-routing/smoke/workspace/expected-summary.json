@@ -1,0 +1,9 @@
+{
+  "valid_records": 30,
+  "unique_events": 20,
+  "duplicate_records": 10,
+  "invalid_lines": [34, 35, 36, 37, 38, 39, 40, 41],
+  "ignored_lines": 10,
+  "error_ids_by_service": {"api": ["e03", "e12", "e20"], "worker": ["e07", "e16"]},
+  "retry_ids": ["e05", "e07", "e12", "e18"]
+}

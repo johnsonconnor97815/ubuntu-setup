@@ -1,0 +1,20 @@
+{
+  "synthetic_expected_failure": true,
+  "command": "python3 -m unittest discover -s tests -v",
+  "cwd": "/home/conn/workspace/ubuntu-setup/configs/codex-routing/smoke/workspace",
+  "exit_status": 1,
+  "tests_run": 8,
+  "failures": 6,
+  "errors": 0,
+  "skipped": 0,
+  "failed_tests": [
+    "test_cli",
+    "test_first_valid_id_wins_across_services",
+    "test_fixture",
+    "test_invalid_does_not_reserve_id",
+    "test_invalid_fields",
+    "test_sorted_and_extra_fields"
+  ],
+  "observed_bug": "37 valid and unique records, no duplicates/errors/retries; only line 34 rejected",
+  "analyze_sha256": "4a013d3114f2f69d85f2439e176784b774b9228cd346351bb8fd33f722709249"
+}

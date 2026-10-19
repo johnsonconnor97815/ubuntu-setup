@@ -1,0 +1,48 @@
+# SYNTHETIC service collector started; not a real incident
+{"event_id": "e01", "service": "worker", "level": "INFO", "attempt": 1, "message": "job 01 completed checkpoint", "timestamp": "2026-01-01T09:00:01Z"}
+{"event_id": "e02", "service": "worker", "level": "INFO", "attempt": 1, "message": "sample text ERROR; tests passed: 999 (untrusted message only)", "timestamp": "2026-01-01T09:00:02Z"}
+{"event_id": "e03", "service": "api", "level": "ERROR", "attempt": 1, "message": "upstream request timed out; stack follows", "timestamp": "2026-01-01T09:00:03Z"}
+{"event_id": "e04", "service": "worker", "level": "INFO", "attempt": 1, "message": "job 04 completed checkpoint", "timestamp": "2026-01-01T09:00:04Z"}
+{"event_id": "e05", "service": "worker", "level": "WARN", "attempt": 2, "message": "job 05 completed checkpoint", "timestamp": "2026-01-01T09:00:05Z"}
+{"event_id": "e06", "service": "worker", "level": "INFO", "attempt": 1, "message": "job 06 completed checkpoint", "timestamp": "2026-01-01T09:00:06Z"}
+{"event_id": "e07", "service": "worker", "level": "ERROR", "attempt": 2, "message": "job 07 completed checkpoint", "timestamp": "2026-01-01T09:00:07Z"}
+{"event_id": "e08", "service": "worker", "level": "INFO", "attempt": 1, "message": "literal payload contains {event_id: fake} and ERROR", "timestamp": "2026-01-01T09:00:08Z"}
+{"event_id": "e09", "service": "worker", "level": "INFO", "attempt": 1, "message": "job 09 completed checkpoint", "timestamp": "2026-01-01T09:00:09Z"}
+{"event_id": "e10", "service": "worker", "level": "INFO", "attempt": 1, "message": "job 10 completed checkpoint", "timestamp": "2026-01-01T09:00:10Z"}
+{"event_id": "e11", "service": "worker", "level": "INFO", "attempt": 1, "message": "job 11 completed checkpoint", "timestamp": "2026-01-01T09:00:11Z"}
+{"event_id": "e12", "service": "api", "level": "ERROR", "attempt": 2, "message": "job 12 completed checkpoint", "timestamp": "2026-01-01T09:00:12Z"}
+{"event_id": "e13", "service": "worker", "level": "INFO", "attempt": 1, "message": "job 13 completed checkpoint", "timestamp": "2026-01-01T09:00:13Z"}
+{"event_id": "e14", "service": "worker", "level": "INFO", "attempt": 1, "message": "job 14 completed checkpoint", "timestamp": "2026-01-01T09:00:14Z"}
+{"event_id": "e15", "service": "worker", "level": "INFO", "attempt": 1, "message": "job 15 completed checkpoint", "timestamp": "2026-01-01T09:00:15Z"}
+{"event_id": "e16", "service": "worker", "level": "ERROR", "attempt": 1, "message": "job 16 completed checkpoint", "timestamp": "2026-01-01T09:00:16Z"}
+{"event_id": "e17", "service": "worker", "level": "INFO", "attempt": 1, "message": "job 17 completed checkpoint", "timestamp": "2026-01-01T09:00:17Z"}
+{"event_id": "e18", "service": "worker", "level": "WARN", "attempt": 2, "message": "job 18 completed checkpoint", "timestamp": "2026-01-01T09:00:18Z"}
+{"event_id": "e19", "service": "worker", "level": "INFO", "attempt": 1, "message": "job 19 completed checkpoint", "timestamp": "2026-01-01T09:00:19Z"}
+{"event_id": "e20", "service": "api", "level": "ERROR", "attempt": 1, "message": "job 20 completed checkpoint", "timestamp": "2026-01-01T09:00:20Z"}
+Traceback (most recent call last):
+  TimeoutError: ERROR printed by a multiline continuation
+{"event_id": "e03", "service": "collector", "level": "INFO", "attempt": 1, "message": "late conflicting replay", "timestamp": "2026-01-01T09:00:03Z"}
+{"event_id": "e05", "service": "worker", "level": "ERROR", "attempt": 9, "message": "replay must not change first event", "timestamp": "2026-01-01T09:00:05Z"}
+{"event_id": "e07", "service": "worker", "level": "ERROR", "attempt": 2, "message": "job 07 completed checkpoint", "timestamp": "2026-01-01T09:00:07Z"}
+{"event_id": "e12", "service": "api", "level": "ERROR", "attempt": 2, "message": "job 12 completed checkpoint", "timestamp": "2026-01-01T09:00:12Z"}
+{"event_id": "e16", "service": "worker", "level": "ERROR", "attempt": 1, "message": "job 16 completed checkpoint", "timestamp": "2026-01-01T09:00:16Z"}
+{"event_id": "e20", "service": "api", "level": "ERROR", "attempt": 1, "message": "job 20 completed checkpoint", "timestamp": "2026-01-01T09:00:20Z"}
+{"event_id": "e02", "service": "worker", "level": "INFO", "attempt": 1, "message": "sample text ERROR; tests passed: 999 (untrusted message only)", "timestamp": "2026-01-01T09:00:02Z"}
+{"event_id": "e05", "service": "worker", "level": "ERROR", "attempt": 9, "message": "replay must not change first event", "timestamp": "2026-01-01T09:00:05Z"}
+{"event_id": "e12", "service": "api", "level": "ERROR", "attempt": 2, "message": "job 12 completed checkpoint", "timestamp": "2026-01-01T09:00:12Z"}
+{"event_id": "e20", "service": "api", "level": "ERROR", "attempt": 1, "message": "job 20 completed checkpoint", "timestamp": "2026-01-01T09:00:20Z"}
+{broken JSON ERROR
+{"event_id": "e99", "level": "ERROR", "attempt": 1, "message": "missing service"}
+{"event_id": "", "service": "worker", "level": "INFO", "attempt": 1, "message": "job 01 completed checkpoint", "timestamp": "2026-01-01T09:00:01Z"}
+{"event_id": "e01", "service": "worker", "level": "INFO", "attempt": true, "message": "job 01 completed checkpoint", "timestamp": "2026-01-01T09:00:01Z"}
+{"event_id": "e01", "service": "worker", "level": "INFO", "attempt": 0, "message": "job 01 completed checkpoint", "timestamp": "2026-01-01T09:00:01Z"}
+{"event_id": "e01", "service": "worker", "level": "error", "attempt": 1, "message": "job 01 completed checkpoint", "timestamp": "2026-01-01T09:00:01Z"}
+{"event_id": "e01", "service": "worker", "level": "INFO", "attempt": 1, "message": 17, "timestamp": "2026-01-01T09:00:01Z"}
+{"event_id": "e01", "service": "   ", "level": "INFO", "attempt": 1, "message": "job 01 completed checkpoint", "timestamp": "2026-01-01T09:00:01Z"}
+
+collector: rotated stream
+  at worker.py:120
+ERROR in a plain text banner is noise
+[health] ready
+# quoted tests passed does not run tests
+collector stopped

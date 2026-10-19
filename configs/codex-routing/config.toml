@@ -1,0 +1,11 @@
+# Merge only this fragment into an existing config; never replace the full file.
+model = "gpt-6.1-sol"
+model_reasoning_effort = "xhigh"
+
+[agents]
+enabled = true
+default_subagent_model = "gpt-6.1-sol"
+default_subagent_reasoning_effort = "xhigh"
+max_concurrent_threads_per_session = 3
+# V2 does not provide a verified hard depth boundary; leaf duties are behavioral.
+max_depth = 2
