@@ -26,6 +26,11 @@ swkit deepseek stop
 系统包、现有 Ollama 或 Shell 配置。不会自动删除模型。`status` 检查文件大小和程序
 版本；`verify` 重新读取全部 233 GB 校验，二者都不等于推理验收。
 
+下载固定使用 HTTPS 上的 HTTP/1.1，避开已在目标机器观察到的 HTTP/2 协议中断。
+临时连接错误最多额外续传 4 次，每次按磁盘上实际保留的长度续传；HTTP 权限或
+不存在错误、证书校验错误、磁盘错误及最终 SHA256 不匹配不会被当作临时传输错误重试。
+参数含义以 [curl 官方手册](https://curl.se/docs/manpage.html) 及目标机器版本为准。
+
 `deploy` 顺序执行安装和服务配置；`background` 将其交给用户的 systemd 管理器，
 内存限制 1 GiB。后台任务通过 `journalctl --user -u deepseek-deploy` 查看；
 `stop-download` 仅停止这个任务，保留所有已下载内容。后台任务可跨终端关闭继续运行，

@@ -44,11 +44,38 @@ class DeepSeekDeploymentTests(unittest.TestCase):
             def interrupted(command, **kwargs):
                 Path(command[command.index('--output') + 1]).write_bytes(b'partial')
                 raise deepseek.subprocess.CalledProcessError(18, command)
-            with patch.object(deepseek.subprocess, 'run', side_effect=interrupted):
+            with patch.object(deepseek.subprocess, 'run', side_effect=interrupted), patch.object(deepseek.time, 'sleep'):
                 with self.assertRaises(deepseek.subprocess.CalledProcessError):
                     deepseek.download('https://example.com/model', path, {'size':100, 'sha256':'0'*64})
             self.assertFalse(path.exists())
             self.assertEqual(path.with_suffix('.gguf.part').read_bytes(), b'partial')
+
+    def test_interrupted_transfer_resumes_without_duplicating_bytes(self):
+        with tempfile.TemporaryDirectory() as temp:
+            path = Path(temp) / 'model.gguf'
+            partial = path.with_suffix('.gguf.part')
+            partial.write_bytes(b'ab')
+            offsets = []
+            def transfer(command, **kwargs):
+                existing = partial.read_bytes()
+                offsets.append(len(existing))
+                if existing == b'ab':
+                    partial.write_bytes(b'abcd')
+                    raise deepseek.subprocess.CalledProcessError(56, command)
+                self.assertEqual(existing, b'abcd')
+                partial.write_bytes(b'abcdef')
+            with patch.object(deepseek.subprocess, 'run', side_effect=transfer), patch.object(deepseek.time, 'sleep'):
+                deepseek.download('https://example.com/model', path, {'size':6, 'sha256':hashlib.sha256(b'abcdef').hexdigest()})
+            self.assertEqual(offsets, [2, 4])
+            self.assertEqual(path.read_bytes(), b'abcdef')
+            self.assertFalse(partial.exists())
+
+    def test_http_error_is_not_retried_as_transport_failure(self):
+        with tempfile.TemporaryDirectory() as temp:
+            with patch.object(deepseek.subprocess, 'run', side_effect=deepseek.subprocess.CalledProcessError(22, ['curl'])) as run:
+                with self.assertRaises(deepseek.subprocess.CalledProcessError):
+                    deepseek.download('https://example.com/missing', Path(temp)/'model', {'size':1, 'sha256':'0'*64})
+            self.assertEqual(run.call_count, 1)
 
     def test_service_privacy_and_mount_dependency(self):
         text = deepseek.unit_text(Path('/mnt/disk/model'), Path('/mnt/disk'), 'tester')

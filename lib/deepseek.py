@@ -68,10 +68,23 @@ def download(url, path, item):
     if partial.is_symlink():
         raise ValueError(f"Refusing linked partial file: {partial}")
     print(f"Downloading {path.name} ({item['size']} bytes)", flush=True)
-    subprocess.run(['curl', '--fail', '--location', '--proto', '=https', '--proto-redir', '=https',
-                    '--silent', '--show-error', '--retry', '4', '--retry-delay', '3',
-                    '--connect-timeout', '30', '--speed-limit', '1024', '--speed-time', '120',
-                    '--continue-at', '-', '--output', str(partial), url], check=True)
+    command = ['curl', '--http1.1', '--fail', '--location', '--proto', '=https', '--proto-redir', '=https',
+               '--silent', '--show-error', '--retry', '4', '--retry-delay', '3',
+               '--connect-timeout', '30', '--speed-limit', '1024', '--speed-time', '120',
+               '--continue-at', '-', '--output', str(partial), url]
+    # Reinvoke curl so each retry resumes from the new on-disk offset. Do not
+    # retry HTTP permission/not-found responses, certificate errors or disk errors.
+    transport_errors = {5, 6, 7, 16, 18, 28, 35, 52, 55, 56, 92}
+    for attempt in range(1, 6):
+        try:
+            subprocess.run(command, check=True)
+            break
+        except subprocess.CalledProcessError as exc:
+            if exc.returncode not in transport_errors or attempt == 5:
+                raise
+            offset = partial.stat().st_size if partial.exists() else 0
+            print(f"Transport error {exc.returncode}; retry {attempt}/4 from byte {offset}", flush=True)
+            time.sleep(min(2 ** attempt, 30))
     check(partial, item)
     partial.replace(path)
     print(f"SHA256 OK {path.name}", flush=True)
