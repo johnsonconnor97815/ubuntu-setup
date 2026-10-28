@@ -11,6 +11,8 @@
 ```bash
 swkit deepseek plan --data-dir /mnt/ssd/deepseek --backing-mount /mnt/ssd
 swkit deepseek install --data-dir /mnt/ssd/deepseek --backing-mount /mnt/ssd
+# Or keep the download running after the terminal closes (requires a user systemd bus):
+swkit deepseek background --data-dir /mnt/ssd/deepseek --backing-mount /mnt/ssd
 swkit deepseek status
 swkit deepseek verify
 swkit deepseek configure
@@ -23,6 +25,12 @@ swkit deepseek stop
 供重跑续传。安装目录和运行记录分别由显式参数和 XDG 状态目录决定，不修改驱动、
 系统包、现有 Ollama 或 Shell 配置。不会自动删除模型。`status` 检查文件大小和程序
 版本；`verify` 重新读取全部 233 GB 校验，二者都不等于推理验收。
+
+`deploy` 顺序执行安装和服务配置；`background` 将其交给用户的 systemd 管理器，
+内存限制 1 GiB。后台任务通过 `journalctl --user -u deepseek-deploy` 查看；
+`stop-download` 仅停止这个任务，保留所有已下载内容。后台任务可跨终端关闭继续运行，
+不能跨重启继续运行，重启后重新运行 `background` 续传。完成下载后的服务配置仍需
+当时有效的 sudo 授权；配置失败不删除已校验的模型。后台任务不等于部署完成。
 
 `configure` 校验并安装 `/etc/systemd/system/deepseek-local.service`，需 sudo。
 不覆盖无管理标记的同名服务；更新已有受管服务前备份。默认不启动、不启用开机启动。

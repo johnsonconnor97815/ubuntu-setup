@@ -11,7 +11,7 @@ key=deepseek
 name=DeepSeek local model
 category=ai
 tags=cli
-ops=plan,install,verify,configure,start,stop
+ops=plan,install,deploy,background,stop-download,verify,configure,start,stop
 desc=Pinned DeepSeek-V4.1-Flash-1017 UD-IQ1_S and Unsloth llama.cpp (233 GB)
 META
 }
@@ -21,6 +21,24 @@ status() { _deepseek status; }
 do_plan() { _deepseek plan "$@"; }
 do_install() { _deepseek install "$@"; }
 do_verify() { _deepseek verify; }
+do_deploy() { do_install "$@"; do_configure; }
+_deepseek_user_bus() {
+  local runtime
+  runtime="/run/user/$(id -u)"
+  [[ -S "$runtime/bus" ]] || { log_err "No user systemd bus at $runtime/bus"; return 2; }
+  env XDG_RUNTIME_DIR="$runtime" DBUS_SESSION_BUS_ADDRESS="unix:path=$runtime/bus" "$@"
+}
+do_background() {
+  do_plan "$@"
+  _deepseek_user_bus systemd-run --user --collect --unit=deepseek-deploy \
+    --description='Download, verify and prepare DeepSeek local service' \
+    --property=Type=oneshot --property=TimeoutStartSec=infinity \
+    --property=MemoryMax=1G --property=Nice=10 \
+    "$KIT_ROOT/scripts/deepseek.sh" deploy "$@"
+  log_info "Background download started; journalctl --user -u deepseek-deploy -f"
+  log_info "Survives closing the terminal, but not reboot. Re-run background after reboot to resume."
+}
+do_stop_download() { _deepseek_user_bus systemctl stop deepseek-deploy.service; }
 do_configure() {
   local candidate
   candidate="$(_deepseek unit)"
@@ -52,13 +70,16 @@ do_remove() {
 }
 usage() {
   cat <<'HELP'
-swkit deepseek plan|install --data-dir ABS_PATH --backing-mount ABS_MOUNT
+swkit deepseek plan|install|deploy|background --data-dir ABS_PATH --backing-mount ABS_MOUNT
 swkit deepseek status|verify|configure|start|stop
 plan: read-only source, space and mount checks. install: resumable pinned downloads,
 SHA256 verification and user-owned runtime extraction. Requires curl, Python 3.12+.
 configure: verify and install a system service as the current user; needs sudo.
 The service listens only on 127.0.0.1:18080 and is NOT started/enabled automatically.
 start requires a working NVIDIA driver. verify rehashes every model shard.
+deploy: install, then configure. background: run deploy in the user service manager.
+stop-download: stop that job, preserving partial downloads; background resumes them.
+Background jobs survive terminal closure, not reboot.
 HELP
 }
 kit_dispatch "$@"
