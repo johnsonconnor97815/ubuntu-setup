@@ -179,6 +179,8 @@ bash test/meta_test.sh
 
 ## 检查原型与磁盘清理
 
+明确目录的数据盘迁移另有维护工具 `scripts/storage_move.py`：先复制与校验，保留原路径入口，经应用检查后移除旧副本；不自动选择数据或修改软件配置。需要已授权的具体目录和已挂载目标，使用与恢复限制见[数据迁移](docs/storage-migration.md)。验证命令为 `python3 -m unittest discover -s tests -p test_storage_move.py -v`。
+
 计划开发一个 Ubuntu 系统初始化与维护 Agent，帮助用户了解机器现状、维护系统和驱动、补齐日常能力，再按个人用途安装软件和调整配置。
 
 目标是在 Codex CLI、Claude Code CLI 或其他 Agent 工具中使用，暂以 Ubuntu 为首个目标平台。
