@@ -1,0 +1,50 @@
+# DeepSeek 本机部署
+
+`swkit deepseek` 部署固定版本 `DeepSeek-V4.1-Flash-1017` 的 `UD-IQ1_S` GGUF。
+这是 Unsloth 的低位量化权重，质量与原始精度存在差别。5 个分片约 233 GB；
+运行程序为 Unsloth `b11876-mix-ec42614` 的 Linux x86_64 CUDA 12 portable 构建。
+模型修订号、每个文件大小和 SHA256 在 `configs/deepseek/manifest.json`，不随运行自动升级。
+
+需要 Python 3.12+、curl、Linux x86_64 和独立挂载的磁盘。安装前用 `plan` 检查，
+再对相同位置执行 `install`。路径必须是绝对路径，不能含空格、引号、反斜杠或 `%`。
+
+```bash
+swkit deepseek plan --data-dir /mnt/ssd/deepseek --backing-mount /mnt/ssd
+swkit deepseek install --data-dir /mnt/ssd/deepseek --backing-mount /mnt/ssd
+swkit deepseek status
+swkit deepseek verify
+swkit deepseek configure
+swkit deepseek start
+curl http://127.0.0.1:18080/health
+swkit deepseek stop
+```
+
+`plan` 只读；`install` 使用当前用户下载、逐文件校验 SHA256 后改名，断线保留 `.part`
+供重跑续传。安装目录和运行记录分别由显式参数和 XDG 状态目录决定，不修改驱动、
+系统包、现有 Ollama 或 Shell 配置。不会自动删除模型。`status` 检查文件大小和程序
+版本；`verify` 重新读取全部 233 GB 校验，二者都不等于推理验收。
+
+`configure` 校验并安装 `/etc/systemd/system/deepseek-local.service`，需 sudo。
+不覆盖无管理标记的同名服务；更新已有受管服务前备份。默认不启动、不启用开机启动。
+服务以配置时的普通用户运行，只监听 `127.0.0.1:18080`，提供 llama-server 的网页和
+OpenAI 兼容接口。SSD 掉线时由挂载依赖停止；运行数据不能移动后直接沿用旧配置。
+
+初始上下文 4096 tokens、并发 1、CPU 线程 24；GPU 自动分配，Engram 使用 mmap
+和按需读取。内存软限制 112 GiB、硬限制 118 GiB，禁用服务交换，防止拖垮桌面。
+这不是对所有硬件的自动适配：发布方估计需要 128–145 GB 内存加显存，
+还要考虑桌面占用。GPU 驱动不正常时 `start` 拒绝启动。完整推理、可接受速度、
+重启后访问和内存余量仍须在目标机器验证；不把官方支持、文件完整或程序启动当作通过。
+
+恢复：`stop` 停止服务且保留全部模型。恢复服务文件前检查本次备份与之后的改动，
+只还原相应配置，然后 `systemctl daemon-reload`。不提供自动数据删除或驱动回滚。
+
+依据：
+
+- [DeepSeek 官方发布](https://api-docs.deepseek.com/news/news261017/)
+- [Unsloth 运行指南、内存与量化结果](https://unsloth.ai/docs/models/deepseek-v4.1-flash)
+- [固定模型来源](https://huggingface.co/unsloth/DeepSeek-V4.1-Flash-1017-GGUF/tree/60ad3651641b5c97679c807e064ab1d7a3ca1455)
+- [运行程序发布与 DeepSeek 支持提交](https://github.com/unslothai/llama.cpp/releases/tag/b11876-mix-ec42614)
+
+检查命令：`bash -n scripts/deepseek.sh`、
+`shellcheck -x --source-path=SCRIPTDIR scripts/deepseek.sh`、
+`python3 -m unittest discover -s tests -p test_deepseek.py -v`。
