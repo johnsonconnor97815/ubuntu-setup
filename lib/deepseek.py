@@ -104,7 +104,8 @@ def installed(full=False):
     binary = data / 'runtime/llama-server'
     if not os.access(binary, os.X_OK):
         raise ValueError(f"Runtime unavailable: {binary}")
-    subprocess.run([str(binary), '--version'], check=True, timeout=30)
+    version = subprocess.run([str(binary), '--version'], check=True, timeout=30, capture_output=True, text=True)
+    print(version.stdout + version.stderr, end='', flush=True)
     print(f"DeepSeek-V4.1-Flash-1017 UD-IQ1_S: {data}", flush=True)
     return data
 

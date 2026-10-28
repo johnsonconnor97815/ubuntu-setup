@@ -30,7 +30,7 @@ _deepseek_user_bus() {
 }
 do_background() {
   do_plan "$@"
-  _deepseek_user_bus systemd-run --user --collect --unit=deepseek-deploy \
+  _deepseek_user_bus systemd-run --user --no-block --collect --unit=deepseek-deploy \
     --description='Download, verify and prepare DeepSeek local service' \
     --property=Type=oneshot --property=TimeoutStartSec=infinity \
     --property=MemoryMax=1G --property=Nice=10 \
