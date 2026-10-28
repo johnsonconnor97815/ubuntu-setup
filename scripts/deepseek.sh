@@ -38,7 +38,7 @@ do_background() {
   log_info "Background download started; journalctl --user -u deepseek-deploy -f"
   log_info "Survives closing the terminal, but not reboot. Re-run background after reboot to resume."
 }
-do_stop_download() { _deepseek_user_bus systemctl stop deepseek-deploy.service; }
+do_stop_download() { _deepseek_user_bus systemctl --user stop deepseek-deploy.service; }
 do_configure() {
   local candidate
   candidate="$(_deepseek unit)"

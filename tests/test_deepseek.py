@@ -11,6 +11,15 @@ SPEC.loader.exec_module(deepseek)
 
 
 class DeepSeekDeploymentTests(unittest.TestCase):
+    def test_stop_download_addresses_user_manager(self):
+        script = Path(__file__).resolve().parents[1] / 'scripts/deepseek.sh'
+        result = deepseek.subprocess.run([
+            'bash', '-c',
+            'source "$1" help >/dev/null; _deepseek_user_bus() { printf "%s\\n" "$@"; }; do_stop_download',
+            'test', str(script),
+        ], check=True, capture_output=True, text=True)
+        self.assertEqual(result.stdout.splitlines(), ['systemctl', '--user', 'stop', 'deepseek-deploy.service'])
+
     def test_root_filesystem_rejected(self):
         with self.assertRaisesRegex(ValueError, 'separate from /'):
             deepseek.guard('/tmp/deepseek', '/')
