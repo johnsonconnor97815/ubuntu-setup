@@ -107,6 +107,23 @@ class StorageMoveTests(unittest.TestCase):
         self.assertEqual(copied.stat().st_ino, (self.destination/'hardlink').stat().st_ino)
         self.assertLess(copied.stat().st_blocks * 512, copied.stat().st_size)
 
+    def test_bind_mount_template_only_exposes_selected_directory(self):
+        text = storage.bind_mount_unit(self.source, self.destination, '/')
+        self.assertIn(f'What={self.source}\n', text)
+        self.assertIn(f'Where={self.destination}\n', text)
+        self.assertIn('Options=bind\n', text)
+        self.assertIn('BindsTo=-.mount\n', text)
+
+    def test_bind_mount_rejects_unit_specifiers_in_paths(self):
+        with self.assertRaises(RuntimeError):
+            storage.bind_mount_unit(self.source, self.base/'%h', '/')
+
+    def test_bind_mount_rejects_source_aliases(self):
+        alias = self.base/'source-link'
+        alias.symlink_to(self.source)
+        with self.assertRaises(RuntimeError):
+            storage.bind_mount_unit(alias, self.destination, '/')
+
 
 if __name__ == '__main__':
     unittest.main()

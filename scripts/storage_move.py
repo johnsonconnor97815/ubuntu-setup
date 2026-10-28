@@ -57,12 +57,24 @@ def writers(path):
 def mount_guard(mount):
     """Generate a systemd drop-in for a service that depends on a data disk."""
     mount = Path(mount).absolute()
-    if not mount.is_mount() or any(c.isspace() for c in str(mount)):
+    if not mount.is_mount() or '%' in str(mount) or any(c.isspace() for c in str(mount)):
         raise RuntimeError('Mount guard requires an existing mount without whitespace')
     unit = subprocess.run(['systemd-escape', '--path', '--suffix=mount', str(mount)],
                           check=True, capture_output=True, text=True).stdout.strip()
     return (f'[Unit]\nRequiresMountsFor={mount}\nConditionPathIsMountPoint={mount}\n'
             f'BindsTo={unit}\nAfter={unit}\n')
+
+
+def bind_mount_unit(source, destination, backing_mount):
+    """Expose one data directory to a service without granting home traversal."""
+    source, destination, backing_mount = map(lambda p:Path(p).absolute(),
+                                             [source, destination, backing_mount])
+    if (not source.is_dir() or source.resolve() != source or not source.is_relative_to(backing_mount)
+            or source == destination or len(destination.parts) < 3
+            or any(c.isspace() or c == '%' for c in str(source)+str(destination))):
+        raise RuntimeError('Invalid dedicated bind-mount paths')
+    return (mount_guard(backing_mount) + f'\n[Mount]\nWhat={source}\n'
+            f'Where={destination}\nType=none\nOptions=bind\n')
 
 
 class Move:
