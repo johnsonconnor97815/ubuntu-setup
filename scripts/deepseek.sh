@@ -11,7 +11,7 @@ key=deepseek
 name=DeepSeek local model
 category=ai
 tags=cli
-ops=plan,install,deploy,background,stop-download,verify,configure,start,stop
+ops=plan,install,deploy,background,stop-download,prepare-cuda,verify,configure,start,stop
 desc=Pinned DeepSeek-V4.1-Flash-1017 UD-IQ1_S and Unsloth llama.cpp (233 GB)
 META
 }
@@ -21,6 +21,7 @@ status() { _deepseek status; }
 do_plan() { _deepseek plan "$@"; }
 do_install() { _deepseek install "$@"; }
 do_verify() { _deepseek verify; }
+do_prepare_cuda() { _deepseek prepare-cuda "$@"; }
 do_deploy() { do_install "$@"; do_configure; }
 _deepseek_user_bus() {
   local runtime
@@ -82,6 +83,8 @@ stop-download: stop that job, preserving partial downloads; background resumes t
 Background jobs survive terminal closure, not reboot.
 Optional model source: --model-source huggingface|modelscope (default: huggingface).
 ModelScope must match every pinned file size and SHA256; existing partials are kept.
+prepare-cuda --from-dir ABS_DIR: copy existing compatible CUDA 12 runtime libraries
+into this deployment, checksum the copies, then require a CUDA device listing.
 HELP
 }
 kit_dispatch "$@"

@@ -138,6 +138,49 @@ def model_files(data):
         yield data / 'models' / item['path'], item
 
 
+CUDA_LIBRARIES = ('libcudart.so.12', 'libcublas.so.12', 'libcublasLt.so.12')
+
+
+def cuda_environment(data):
+    env = os.environ.copy()
+    library_dir = data / 'cuda-libs'
+    if all((library_dir / name).is_file() for name in CUDA_LIBRARIES):
+        env['LD_LIBRARY_PATH'] = f"{data / 'runtime'}:{library_dir}"
+    return env
+
+
+def prepare_cuda(data, source):
+    source = Path(source).resolve(strict=True)
+    destination = data / 'cuda-libs'
+    if destination.is_symlink():
+        raise ValueError('Refusing linked CUDA library destination')
+    sources = [(name, (source / name).resolve(strict=True)) for name in CUDA_LIBRARIES]
+    if not all(path.is_file() for _, path in sources):
+        raise ValueError('CUDA source must contain all three CUDA 12 libraries')
+    destination.mkdir(mode=0o700, exist_ok=True)
+    records = []
+    for name, path in sources:
+        item = {'size':path.stat().st_size, 'sha256':digest(path)}
+        target = destination / name
+        if target.exists() or target.is_symlink():
+            check(target, item)
+        else:
+            temporary = target.with_suffix(target.suffix + '.part')
+            if temporary.is_symlink():
+                raise ValueError('Refusing linked CUDA temporary file')
+            shutil.copy2(path, temporary)
+            check(temporary, item)
+            temporary.replace(target)
+        records.append({'source':str(path), 'destination':str(target), **item})
+    result = subprocess.run([str(data / 'runtime/llama-server'), '--list-devices'],
+                            env=cuda_environment(data), capture_output=True, text=True, timeout=30, check=True)
+    if not re.search(r'\bCUDA[0-9]+:', result.stdout):
+        raise ValueError('Runtime still does not expose a CUDA device: ' + result.stdout + result.stderr)
+    record = {'libraries':records, 'devices':result.stdout, 'checked_at':time.time()}
+    save(destination / 'manifest.json', record)
+    return record
+
+
 def installed(full=False):
     _, data, _ = config()
     for path, item in model_files(data):
@@ -145,7 +188,8 @@ def installed(full=False):
     binary = data / 'runtime/llama-server'
     if not os.access(binary, os.X_OK):
         raise ValueError(f"Runtime unavailable: {binary}")
-    version = subprocess.run([str(binary), '--version'], check=True, timeout=30, capture_output=True, text=True)
+    version = subprocess.run([str(binary), '--version'], check=True, timeout=30, capture_output=True,
+                             text=True, env=cuda_environment(data))
     print(version.stdout + version.stderr, end='', flush=True)
     print(f"DeepSeek-V4.1-Flash-1017 UD-IQ1_S: {data}", flush=True)
     return data
@@ -165,6 +209,9 @@ def unit_text(data, mount, user):
                '--temp', '1.0', '--top-p', '1.0', '--top-k', '0', '--min-p', '0.0',
                '--jinja', '--chat-template-kwargs', '{"reasoning_effort":75}']
     quoted = ' '.join('"' + token.replace('\\', '\\\\').replace('"', '\\"') + '"' for token in command)
+    environment = ''
+    if all((data / 'cuda-libs' / name).is_file() for name in CUDA_LIBRARIES):
+        environment = f'Environment="LD_LIBRARY_PATH={data / "runtime"}:{data / "cuda-libs"}"\n'
     return f'''# Managed by ubuntu-setup deepseek
 [Unit]
 Description=DeepSeek V4.1 Flash 1017 local inference
@@ -177,7 +224,7 @@ After={escaped_mount}
 Type=simple
 User={user}
 WorkingDirectory={data}
-ExecStartPre=/usr/bin/nvidia-smi -L
+{environment}ExecStartPre=/usr/bin/nvidia-smi -L
 ExecStart={quoted}
 Restart=no
 TimeoutStopSec=90
@@ -195,10 +242,11 @@ WantedBy=multi-user.target
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('action', choices=['plan', 'install', 'verify', 'status', 'unit'])
+    parser.add_argument('action', choices=['plan', 'install', 'verify', 'status', 'unit', 'prepare-cuda'])
     parser.add_argument('--data-dir')
     parser.add_argument('--backing-mount')
     parser.add_argument('--model-source', choices=['huggingface', 'modelscope'], default='huggingface')
+    parser.add_argument('--from-dir')
     args = parser.parse_args()
     if args.action in ('plan', 'install'):
         if not args.data_dir or not args.backing_mount:
@@ -255,6 +303,11 @@ def main():
                 download(urls[item['path']], path, item)
             installed()
             save(STATE / 'verified.json', {'manifest':MANIFEST, 'checked_at':time.time()})
+    elif args.action == 'prepare-cuda':
+        if not args.from_dir:
+            parser.error('--from-dir is required')
+        _, data, _ = config()
+        print(json.dumps(prepare_cuda(data, args.from_dir), indent=2))
     elif args.action in ('status', 'verify'):
         installed(full=args.action == 'verify')
 

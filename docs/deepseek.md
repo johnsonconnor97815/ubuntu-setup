@@ -40,6 +40,16 @@ swkit deepseek stop
 选择只作用于本次模型下载，不改变系统代理、DNS 配置或运行组件的来源；续传时沿用
 完整命令中的源参数。短片段测速不保证整个 233 GB 下载速度或成功。
 
+CUDA 构建仍需要 CUDA 12 用户态库，`nvidia-smi` 正常不代表这些库已经能加载。
+若本机已有受信任、与该构建兼容的 CUDA 12.8 库，可执行
+`swkit deepseek prepare-cuda --from-dir /absolute/compatible/library/directory`。
+它将 `libcudart.so.12`、`libcublas.so.12` 和 `libcublasLt.so.12` 的真实内容复制到
+数据目录的 `cuda-libs/`，校验复制后的大小与 SHA256，并要求运行程序实际列出 CUDA
+设备。已有不同内容时拒绝覆盖。原目录不修改，复制完成后不依赖原软件继续保留这些文件。
+来源、校验值和设备结果保存在该目录的 `manifest.json`。
+配置服务时只为这个服务设置 `LD_LIBRARY_PATH`，不修改全局动态库路径、驱动或 Shell。
+这项操作验证库加载及设备枚举，不能代替模型推理验收。
+
 `deploy` 顺序执行安装和服务配置；`background` 将其交给用户的 systemd 管理器，
 内存限制 1 GiB。后台任务通过 `journalctl --user -u deepseek-deploy` 查看；
 `stop-download` 仅停止这个任务，保留所有已下载内容。后台任务可跨终端关闭继续运行，

@@ -13,6 +13,44 @@ SPEC.loader.exec_module(deepseek)
 
 
 class DeepSeekDeploymentTests(unittest.TestCase):
+    def test_cuda_library_copy_is_local_and_checksum_verified(self):
+        with tempfile.TemporaryDirectory() as temp:
+            source = Path(temp) / 'source'
+            data = Path(temp) / 'deployment'
+            source.mkdir(); data.mkdir()
+            for name in deepseek.CUDA_LIBRARIES:
+                (source/name).write_bytes(name.encode())
+            result = deepseek.subprocess.CompletedProcess([], 0, stdout='CUDA0: test GPU\n', stderr='')
+            with patch.object(deepseek.subprocess, 'run', return_value=result):
+                record = deepseek.prepare_cuda(data, source)
+            self.assertEqual(len(record['libraries']), 3)
+            for name in deepseek.CUDA_LIBRARIES:
+                self.assertEqual((source/name).read_bytes(), (data/'cuda-libs'/name).read_bytes())
+            (data/'cuda-libs'/deepseek.CUDA_LIBRARIES[0]).write_bytes(b'wrong')
+            with self.assertRaises(ValueError):
+                deepseek.prepare_cuda(data, source)
+
+    def test_cuda_path_is_confined_to_model_service(self):
+        with tempfile.TemporaryDirectory() as temp:
+            data = Path(temp)
+            (data/'cuda-libs').mkdir()
+            for name in deepseek.CUDA_LIBRARIES:
+                (data/'cuda-libs'/name).touch()
+            text = deepseek.unit_text(data, Path('/mnt/disk'), 'tester')
+            self.assertIn(f'Environment="LD_LIBRARY_PATH={data}/runtime:{data}/cuda-libs"', text)
+
+    def test_cuda_library_preparation_preserves_existing_symlink(self):
+        with tempfile.TemporaryDirectory() as temp:
+            source = Path(temp)/'source'; source.mkdir()
+            data = Path(temp)/'deployment'; (data/'cuda-libs').mkdir(parents=True)
+            for name in deepseek.CUDA_LIBRARIES:
+                (source/name).write_bytes(b'library')
+            target = data/'cuda-libs'/deepseek.CUDA_LIBRARIES[0]
+            target.symlink_to('missing')
+            with self.assertRaises(ValueError):
+                deepseek.prepare_cuda(data, source)
+            self.assertTrue(target.is_symlink())
+
     def test_modelscope_uses_checked_immutable_file_revision(self):
         item = deepseek.MANIFEST['shards'][0]
         manifest = deepseek.MANIFEST | {'shards':[item]}
