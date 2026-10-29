@@ -41,14 +41,18 @@ do_background() {
 }
 do_stop_download() { _deepseek_user_bus systemctl --user stop deepseek-deploy.service; }
 do_configure() {
-  local candidate
+  local candidate unit_paths
   candidate="$(_deepseek unit)"
   if [[ -e /etc/systemd/system/deepseek-local.service ]] &&
      ! grep -qxF '# Managed by ubuntu-setup deepseek' /etc/systemd/system/deepseek-local.service; then
     log_err "Existing unmanaged deepseek-local.service; refusing to replace it."
     return 2
   fi
-  systemd-analyze verify "$candidate"
+  # verify's default search omits already generated fstab mount units. Use the
+  # host's effective system unit paths so backing-mount dependencies are checked.
+  unit_paths="$(systemd-analyze unit-paths)"
+  unit_paths="${unit_paths//$'\n'/:}"
+  env SYSTEMD_UNIT_PATH="$unit_paths" systemd-analyze verify "$candidate"
   if ! cmp -s "$candidate" /etc/systemd/system/deepseek-local.service; then
     if [[ -e /etc/systemd/system/deepseek-local.service ]]; then
       sudo_run cp -p /etc/systemd/system/deepseek-local.service "${candidate}.backup.$(date +%s)"
