@@ -7,10 +7,12 @@ import os
 from pathlib import Path
 import platform
 import pwd
+import re
 import shutil
 import subprocess
 import tarfile
 import time
+import urllib.request
 
 ROOT = Path(__file__).resolve().parents[1]
 MANIFEST = json.loads((ROOT / "configs/deepseek/manifest.json").read_text())
@@ -88,6 +90,32 @@ def download(url, path, item):
     check(partial, item)
     partial.replace(path)
     print(f"SHA256 OK {path.name}", flush=True)
+
+
+def model_download_urls(source, manifest):
+    if source == 'huggingface':
+        return {item['path']:f"https://huggingface.co/{manifest['model_repo']}/resolve/{manifest['model_revision']}/{item['path']}?download=true"
+                for item in manifest['shards']}
+    # ModelScope's revision IDs differ from Hugging Face. Validate all five
+    # entries against the pinned HF sizes and SHA256 values before using it.
+    metadata_url = f"https://modelscope.cn/api/v1/models/{manifest['model_repo']}/repo/files?Revision=master&Root={manifest['quant']}"
+    with urllib.request.urlopen(metadata_url, timeout=30) as response:
+        metadata = json.load(response)
+    data = metadata.get('Data') if isinstance(metadata, dict) else None
+    files = data.get('Files') if isinstance(data, dict) else None
+    if not isinstance(files, list):
+        raise ValueError('ModelScope did not return a file list')
+    entries = {item.get('Path'):item for item in files if isinstance(item, dict)}
+    urls = {}
+    for expected in manifest['shards']:
+        item = entries.get(expected['path'], {})
+        if item.get('Size') != expected['size'] or item.get('Sha256') != expected['sha256']:
+            raise ValueError(f"ModelScope file differs from pinned model: {expected['path']}")
+        revision = item.get('Revision', '')
+        if not re.fullmatch(r'[0-9a-f]{40}', revision):
+            raise ValueError('ModelScope did not return an immutable file revision')
+        urls[expected['path']] = f"https://modelscope.cn/models/{manifest['model_repo']}/resolve/{revision}/{expected['path']}"
+    return urls
 
 
 def config():
@@ -170,6 +198,7 @@ def main():
     parser.add_argument('action', choices=['plan', 'install', 'verify', 'status', 'unit'])
     parser.add_argument('--data-dir')
     parser.add_argument('--backing-mount')
+    parser.add_argument('--model-source', choices=['huggingface', 'modelscope'], default='huggingface')
     args = parser.parse_args()
     if args.action in ('plan', 'install'):
         if not args.data_dir or not args.backing_mount:
@@ -184,6 +213,7 @@ def main():
                           'total_download_bytes':total, 'free_bytes':free,
                           'required_free_bytes':remaining + 2 * 1024**3,
                           'model_revision':MANIFEST['model_revision'],
+                          'model_source':args.model_source,
                           'runtime':MANIFEST['runtime']['tag']}, indent=2), flush=True)
         if free < remaining + 2 * 1024**3:
             raise ValueError('Insufficient free space')
@@ -217,10 +247,12 @@ def main():
                 if flag not in help_text:
                     raise ValueError(f'Runtime lacks required feature: {flag}')
             save(STATE / 'runtime.json', {'sha256':runtime['sha256'], 'tag':runtime['tag'], 'checked_at':time.time()})
+            urls = model_download_urls(args.model_source, MANIFEST)
+            save(STATE / 'download-source.json', {'source':args.model_source,
+                                                 'urls':urls, 'checked_at':time.time()})
             for path, item in model_files(data):
                 guard(data, mount)
-                url = f"https://huggingface.co/{MANIFEST['model_repo']}/resolve/{MANIFEST['model_revision']}/{item['path']}?download=true"
-                download(url, path, item)
+                download(urls[item['path']], path, item)
             installed()
             save(STATE / 'verified.json', {'manifest':MANIFEST, 'checked_at':time.time()})
     elif args.action in ('status', 'verify'):

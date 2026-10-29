@@ -80,6 +80,8 @@ start requires a working NVIDIA driver. verify rehashes every model shard.
 deploy: install, then configure. background: run deploy in the user service manager.
 stop-download: stop that job, preserving partial downloads; background resumes them.
 Background jobs survive terminal closure, not reboot.
+Optional model source: --model-source huggingface|modelscope (default: huggingface).
+ModelScope must match every pinned file size and SHA256; existing partials are kept.
 HELP
 }
 kit_dispatch "$@"

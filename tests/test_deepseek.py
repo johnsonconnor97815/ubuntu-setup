@@ -1,5 +1,7 @@
 import hashlib
 import importlib.util
+import io
+import json
 from pathlib import Path
 import tempfile
 import unittest
@@ -11,6 +13,33 @@ SPEC.loader.exec_module(deepseek)
 
 
 class DeepSeekDeploymentTests(unittest.TestCase):
+    def test_modelscope_uses_checked_immutable_file_revision(self):
+        item = deepseek.MANIFEST['shards'][0]
+        manifest = deepseek.MANIFEST | {'shards':[item]}
+        entry = {'Path':item['path'], 'Size':item['size'], 'Sha256':item['sha256'], 'Revision':'a'*40}
+        response = io.BytesIO(json.dumps({'Data':{'Files':[entry]}}).encode())
+        with patch.object(deepseek.urllib.request, 'urlopen', return_value=response):
+            urls = deepseek.model_download_urls('modelscope', manifest)
+        self.assertEqual(urls[item['path']], f"https://modelscope.cn/models/{manifest['model_repo']}/resolve/{'a'*40}/{item['path']}")
+
+    def test_modelscope_rejects_changed_digest(self):
+        item = deepseek.MANIFEST['shards'][0]
+        manifest = deepseek.MANIFEST | {'shards':[item]}
+        entry = {'Path':item['path'], 'Size':item['size'], 'Sha256':'0'*64, 'Revision':'a'*40}
+        response = io.BytesIO(json.dumps({'Data':{'Files':[entry]}}).encode())
+        with patch.object(deepseek.urllib.request, 'urlopen', return_value=response):
+            with self.assertRaisesRegex(ValueError, 'differs from pinned model'):
+                deepseek.model_download_urls('modelscope', manifest)
+
+    def test_modelscope_rejects_moving_revision(self):
+        item = deepseek.MANIFEST['shards'][0]
+        manifest = deepseek.MANIFEST | {'shards':[item]}
+        entry = {'Path':item['path'], 'Size':item['size'], 'Sha256':item['sha256'], 'Revision':'master'}
+        response = io.BytesIO(json.dumps({'Data':{'Files':[entry]}}).encode())
+        with patch.object(deepseek.urllib.request, 'urlopen', return_value=response):
+            with self.assertRaisesRegex(ValueError, 'immutable'):
+                deepseek.model_download_urls('modelscope', manifest)
+
     def test_stop_download_addresses_user_manager(self):
         script = Path(__file__).resolve().parents[1] / 'scripts/deepseek.sh'
         result = deepseek.subprocess.run([

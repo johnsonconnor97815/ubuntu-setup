@@ -31,6 +31,15 @@ swkit deepseek stop
 不存在错误、证书校验错误、磁盘错误及最终 SHA256 不匹配不会被当作临时传输错误重试。
 参数含义以 [curl 官方手册](https://curl.se/docs/manpage.html) 及目标机器版本为准。
 
+模型文件默认从 Hugging Face 下载；网络不稳定时可对 `plan`、`install`、`deploy` 或
+`background` 显式增加 `--model-source modelscope`，从同一发布者的
+[ModelScope 仓库](https://modelscope.cn/models/unsloth/DeepSeek-V4.1-Flash-1017-GGUF)续传。
+先从该站读取文件清单，要求全部 5 个文件的大小、SHA256 与固定 Hugging Face 清单一致，
+再使用该站返回的固定文件修订号下载；不一致或修订号不固定时拒绝切换。最后仍校验
+整个分片的 SHA256。已完成分片和 `.part` 保留，不复制为第二套模型。
+选择只作用于本次模型下载，不改变系统代理、DNS 配置或运行组件的来源；续传时沿用
+完整命令中的源参数。短片段测速不保证整个 233 GB 下载速度或成功。
+
 `deploy` 顺序执行安装和服务配置；`background` 将其交给用户的 systemd 管理器，
 内存限制 1 GiB。后台任务通过 `journalctl --user -u deepseek-deploy` 查看；
 `stop-download` 仅停止这个任务，保留所有已下载内容。后台任务可跨终端关闭继续运行，
