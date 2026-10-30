@@ -2,8 +2,10 @@
 from __future__ import annotations
 
 import argparse
+import json
 import os
 from pathlib import Path
+import selectors
 import shutil
 import subprocess
 import time
@@ -39,6 +41,63 @@ def matches(actual: dict, expected: dict) -> bool:
     return all(actual.get(key) == value for key, value in expected.items()) and actual.get("enabled", True)
 
 
+def write_registration(config: Path, expected: dict, original: bytes) -> None:
+    # `codex mcp add` rewrites every MCP table and can discard fields on existing
+    # entries. The generic, version-checked config edit preserves those entries.
+    process = subprocess.Popen(
+        ["codex", "--strict-config", "app-server", "--stdio"],
+        stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+        env=dict(os.environ, CODEX_HOME=str(config.parent)),
+    )
+    serial, buffer = 0, b""
+
+    def rpc(method: str, params: dict) -> dict:
+        nonlocal serial, buffer
+        serial += 1
+        process.stdin.write(json.dumps({"id": serial, "method": method, "params": params}).encode() + b"\n")
+        process.stdin.flush()
+        deadline = time.monotonic() + 30
+        with selectors.DefaultSelector() as selector:
+            selector.register(process.stdout, selectors.EVENT_READ)
+            while time.monotonic() < deadline:
+                if b"\n" not in buffer:
+                    if not selector.select(max(0, deadline - time.monotonic())):
+                        raise TimeoutError(method)
+                    chunk = os.read(process.stdout.fileno(), 65536)
+                    if not chunk:
+                        raise RuntimeError("Codex app-server exited during configuration")
+                    buffer += chunk
+                    continue
+                line, buffer = buffer.split(b"\n", 1)
+                message = json.loads(line)
+                if message.get("id") == serial:
+                    if "error" in message:
+                        raise RuntimeError(message["error"])
+                    return message["result"]
+        raise TimeoutError(method)
+
+    try:
+        rpc("initialize", {"clientInfo": {"name": "aider-setup", "version": "1"},
+                           "capabilities": {"experimentalApi": True}})
+        result = rpc("config/read", {"includeLayers": True})
+        layer = next((item for item in result.get("layers", [])
+                      if item["name"].get("file") == str(config)), None)
+        if (config.read_bytes() if config.exists() else b"") != original:
+            raise RuntimeError("Codex configuration changed; rerun after inspecting it")
+        rpc("config/batchWrite", {"filePath": str(config),
+                                  "expectedVersion": layer["version"] if layer else None,
+                                  "reloadUserConfig": False,
+                                  "edits": [{"keyPath": f"mcp_servers.{NAME}",
+                                             "mergeStrategy": "replace", "value": expected}]})
+    finally:
+        process.terminate()
+        try:
+            process.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            process.wait()
+
+
 def configure(kit: Path, root: Path, home: Path) -> None:
     if not root.is_absolute() or not root.is_dir():
         raise ValueError("--root must be an existing absolute workspace directory")
@@ -62,19 +121,16 @@ def configure(kit: Path, root: Path, home: Path) -> None:
         backup = home / f"config.toml.aider-backup-{time.time_ns()}"
         shutil.copy2(config, backup)
         backup.chmod(0o600)
-    command = ["codex", "mcp", "add", NAME]
-    for key, value in expected["env"].items():
-        command.extend(["--env", f"{key}={value}"])
-    command.extend(["--", expected["command"], *expected["args"]])
-    subprocess.run(command, check=True)
+    write_registration(config, expected, raw)
     after = tomllib.loads(config.read_text())
     actual = after.get("mcp_servers", {}).pop(NAME, {})
     if "mcp_servers" not in before and not after.get("mcp_servers"):
         after.pop("mcp_servers", None)
     if not matches(actual, expected) or after != before:
         raise RuntimeError(f"Codex settings verification failed; original backup: {backup}")
-    subprocess.run(["codex", "--strict-config", "mcp", "get", NAME, "--json"],
-                   stdout=subprocess.DEVNULL, check=True)
+    subprocess.run(["codex", "--strict-config", "app-server", "--print-startup-config"],
+                   stdout=subprocess.DEVNULL, check=True,
+                   env=dict(os.environ, CODEX_HOME=str(home)))
     print(f"{NAME}: registered; unrelated settings unchanged; backup: {backup}")
 
 

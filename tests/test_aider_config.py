@@ -17,23 +17,20 @@ class AiderConfigTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
             config = root / "config.toml"
-            original = 'model = "example"\n[mcp_servers.existing]\ncommand = "keep"\n'
+            original = 'model = "example"\n[mcp_servers.node_repl]\ncommand = "keep"\nargs = ["retain"]\n'
             config.write_text(original)
 
-            def run(command, **kwargs):
-                if "add" not in command:
-                    return
-                tail = command.index("--")
-                values = command[4:tail]
-                env = dict(item.split("=", 1) for item in values[1::2])
+            def write(path, expected, raw):
+                self.assertEqual(raw, original.encode())
                 block = '\n[mcp_servers.aider-deepseek]\n'
-                block += 'command = ' + json.dumps(command[tail + 1]) + '\n'
-                block += 'args = ' + json.dumps(command[tail + 2:]) + '\n'
+                block += 'command = ' + json.dumps(expected['command']) + '\n'
+                block += 'args = ' + json.dumps(expected['args']) + '\n'
                 block += '[mcp_servers.aider-deepseek.env]\n'
-                block += ''.join(f'{key} = {json.dumps(value)}\n' for key, value in env.items())
+                block += ''.join(f'{key} = {json.dumps(value)}\n' for key, value in expected['env'].items())
                 config.write_text(original + block)
 
-            with patch.object(MODULE.subprocess, "run", side_effect=run) as invoke:
+            with patch.object(MODULE, "write_registration", side_effect=write) as invoke, \
+                    patch.object(MODULE.subprocess, "run"):
                 MODULE.configure(root, root, root)
                 first = config.read_bytes()
                 backups = list(root.glob("config.toml.aider-backup-*"))
@@ -41,7 +38,7 @@ class AiderConfigTests(unittest.TestCase):
                 self.assertEqual(backups[0].read_text(), original)
                 self.assertEqual(backups[0].stat().st_mode & 0o777, 0o600)
                 MODULE.configure(root, root, root)
-                self.assertEqual(invoke.call_count, 2)
+                self.assertEqual(invoke.call_count, 1)
                 self.assertEqual(config.read_bytes(), first)
                 self.assertEqual(len(list(root.glob("config.toml.aider-backup-*"))), 1)
 
