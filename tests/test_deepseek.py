@@ -173,6 +173,8 @@ class DeepSeekDeploymentTests(unittest.TestCase):
         self.assertIn('ExecStartPre=/usr/bin/nvidia-smi -L', text)
         self.assertIn('MemorySwapMax=0', text)
         self.assertIn('"--lazy-mode" "on"', text)
+        self.assertIn('"--gpu-layers" "auto"', text)
+        self.assertNotIn('"--override-tensor"', text)
 
 
 if __name__ == '__main__':

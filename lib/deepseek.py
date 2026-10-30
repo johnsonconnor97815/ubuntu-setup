@@ -201,14 +201,13 @@ def installed(full=False):
 def unit_text(data, mount, user):
     model = next(model_files(data))[0]
     escaped_mount = subprocess.check_output(['systemd-escape', '--path', '--suffix=mount', str(mount)], text=True).strip()
-    # Small initial context and one request at a time bound memory demand. Fit chooses
-    # GPU placement after reboot; the Engram table remains lazily mapped on SSD.
+    # Small initial context and one request at a time bound memory demand. Lazy
+    # tensors already use CPU buffers; explicit overrides prevent automatic fit.
     command = [str(data / 'runtime/llama-server'), '--model', str(model),
                '--alias', 'deepseek-v4.1-flash-1017', '--host', '127.0.0.1', '--port', '18080',
                '--ctx-size', '4096', '--parallel', '1', '--threads', '24',
                '--batch-size', '128', '--ubatch-size', '128', '--gpu-layers', 'auto',
                '--load-mode', 'mmap', '--lazy-mode', 'on',
-               '--override-tensor', 'per_layer_token_embd.weight=CPU',
                '--temp', '1.0', '--top-p', '1.0', '--top-k', '0', '--min-p', '0.0',
                '--jinja', '--chat-template-kwargs', '{"reasoning_effort":75}']
     quoted = ' '.join('"' + token.replace('\\', '\\\\').replace('"', '\\"') + '"' for token in command)
