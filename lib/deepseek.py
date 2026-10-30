@@ -96,9 +96,12 @@ def model_download_urls(source, manifest):
     if source == 'huggingface':
         return {item['path']:f"https://huggingface.co/{manifest['model_repo']}/resolve/{manifest['model_revision']}/{item['path']}?download=true"
                 for item in manifest['shards']}
-    # ModelScope's revision IDs differ from Hugging Face. Validate all five
-    # entries against the pinned HF sizes and SHA256 values before using it.
-    metadata_url = f"https://modelscope.cn/api/v1/models/{manifest['model_repo']}/repo/files?Revision=master&Root={manifest['quant']}"
+    # Pin the metadata snapshot too: master can change between resumptions.
+    # Still validate every entry against the pinned HF sizes and SHA256 values.
+    snapshot = manifest.get('modelscope_revision', '')
+    if not re.fullmatch(r'[0-9a-f]{40}', snapshot):
+        raise ValueError('ModelScope requires an immutable metadata revision')
+    metadata_url = f"https://modelscope.cn/api/v1/models/{manifest['model_repo']}/repo/files?Revision={snapshot}&Root={manifest['quant']}"
     with urllib.request.urlopen(metadata_url, timeout=30) as response:
         metadata = json.load(response)
     data = metadata.get('Data') if isinstance(metadata, dict) else None

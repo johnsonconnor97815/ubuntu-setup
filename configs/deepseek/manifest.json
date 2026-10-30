@@ -1,6 +1,7 @@
 {
   "model_repo": "unsloth/DeepSeek-V4.1-Flash-1017-GGUF",
   "model_revision": "60ad3651641b5c97679c807e064ab1d7a3ca1455",
+  "modelscope_revision": "cda5918f287fc0d122baba0668c72f311e243428",
   "quant": "UD-IQ1_S",
   "shards": [
     {

@@ -56,9 +56,20 @@ class DeepSeekDeploymentTests(unittest.TestCase):
         manifest = deepseek.MANIFEST | {'shards':[item]}
         entry = {'Path':item['path'], 'Size':item['size'], 'Sha256':item['sha256'], 'Revision':'a'*40}
         response = io.BytesIO(json.dumps({'Data':{'Files':[entry]}}).encode())
-        with patch.object(deepseek.urllib.request, 'urlopen', return_value=response):
+        with patch.object(deepseek.urllib.request, 'urlopen', return_value=response) as request:
             urls = deepseek.model_download_urls('modelscope', manifest)
         self.assertEqual(urls[item['path']], f"https://modelscope.cn/models/{manifest['model_repo']}/resolve/{'a'*40}/{item['path']}")
+        self.assertIn(f"Revision={manifest['modelscope_revision']}&", request.call_args.args[0])
+        self.assertNotIn('Revision=master', request.call_args.args[0])
+
+    def test_modelscope_requires_pinned_metadata_before_request(self):
+        for revision in ['', 'master', 'not-a-commit']:
+            with self.subTest(revision=revision):
+                manifest = deepseek.MANIFEST | {'modelscope_revision':revision}
+                with patch.object(deepseek.urllib.request, 'urlopen') as request:
+                    with self.assertRaisesRegex(ValueError, 'immutable metadata revision'):
+                        deepseek.model_download_urls('modelscope', manifest)
+                request.assert_not_called()
 
     def test_modelscope_rejects_changed_digest(self):
         item = deepseek.MANIFEST['shards'][0]

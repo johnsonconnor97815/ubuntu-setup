@@ -34,7 +34,8 @@ swkit deepseek stop
 模型文件默认从 Hugging Face 下载；网络不稳定时可对 `plan`、`install`、`deploy` 或
 `background` 显式增加 `--model-source modelscope`，从同一发布者的
 [ModelScope 仓库](https://modelscope.cn/models/unsloth/DeepSeek-V4.1-Flash-1017-GGUF)续传。
-先从该站读取文件清单，要求全部 5 个文件的大小、SHA256 与固定 Hugging Face 清单一致，
+先按 `manifest.json` 中固定的 `modelscope_revision` 读取文件清单，不使用会更新的 `master`；
+要求全部 5 个文件的大小、SHA256 与固定 Hugging Face 清单一致，
 再使用该站返回的固定文件修订号下载；不一致或修订号不固定时拒绝切换。最后仍校验
 整个分片的 SHA256。已完成分片和 `.part` 保留，不复制为第二套模型。
 选择只作用于本次模型下载，不改变系统代理、DNS 配置或运行组件的来源；续传时沿用
