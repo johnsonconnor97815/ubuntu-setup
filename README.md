@@ -9,6 +9,8 @@
 
 本机大模型另有 `swkit deepseek`：固定版本的下载、文件校验和独立服务准备，需显式指定大容量磁盘；当前版本、硬件要求和验收边界见 [DeepSeek 部署](docs/deepseek.md)。
 
+`swkit aider` 安装独立的 Aider 代码工具，并将本机 DeepSeek 注册为 Codex 可调用的 MCP 工作进程；配置、使用和验收边界见 [Aider 本机代码任务](docs/aider-deepseek.md)。
+
 把一台**全新安装的 Ubuntu**(含 Server / SSH / 无桌面)变成**用脚本集合管理软件**的机器。每个软件的**安装 / 卸载 / 配置逻辑都是一个 bash 脚本**(`scripts/<软件>.sh`,统一接口),背后由共享库 `lib/common.sh` 把项目的安全契约**写成可复用的代码**。脚本按类别组织,有三种方式驱动它们:
 
 - **TUI**——`./bootstrap.sh` 进入的现代全屏菜单,按类别浏览脚本,**钻进每个软件自己的管理界面**(装/卸/配,zsh 还能勾插件、选提示符);

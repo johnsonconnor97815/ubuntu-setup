@@ -1,0 +1,7 @@
+- name: openai/deepseek-v4.1-flash-1017
+  edit_format: diff
+  weak_model_name: openai/deepseek-v4.1-flash-1017
+  use_repo_map: true
+  extra_params:
+    max_tokens: 2048
+    temperature: 0.2
