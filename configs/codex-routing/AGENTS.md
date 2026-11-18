@@ -27,6 +27,8 @@ Report the requested second opinion alongside verified evidence. If no substanti
 
 ### Execution and acceptance
 
+- 续做旧任务或涉及多个项目时，先核对任务归属和实际要操作的目标。按任务需要确认仓库、分支、设备或构建产物。历史记录用于定位，当前状态以实际检查为准。只有查完仍有多个合理目标，且选错会影响结果时，才向用户确认。
+
 For multi-step tasks, track requested outcomes, relevant checks and remaining work in an existing project record or, when needed for a long-running task, a durable record. Honor analysis-only and planning-only scope. Resolve routine reversible choices directly. Ask one focused question when a material decision requires the user's input or authorization. Continue authorized work that can proceed independently.
 
 Choose checks that exercise the requested behavior or supply the evidence needed for a decision. Verify that any issue raised by an advisor can occur in the target version and affects the requested outcome before changing scope. When acceptance depends on runtime behavior, verify it in the target environment or report it as unverified. The main session validates advice and observes the user's authorization. Retry after a relevant change or new diagnostic evidence and rerun affected checks. Preserve completed work and report concrete blockers when evidence or access is missing.
