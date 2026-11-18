@@ -224,7 +224,8 @@ _research_agents() {
     return
   fi
   if ! plan="$(jq -c --arg active "$_RESEARCH_AGENTS" \
-    --rawfile rules "$assets/research-rules.md" --rawfile legacy "$assets/legacy-research-trigger.txt" \
+    --rawfile rules "$assets/research-rules.md" --rawfile previous_rules "$assets/research-rules-v1.md" \
+    --rawfile legacy "$assets/legacy-research-trigger.txt" \
     --arg home "$_RESEARCH_HOME" '
     . as $files |
     "<!-- ubuntu-setup:codex-research:start -->" as $start |
@@ -249,7 +250,8 @@ _research_agents() {
                ($prefix != "" and ($prefix | endswith("\n") | not)) or
                ($suffix != "" and ($suffix | startswith("\n") | not)) then . + {action:"conflict"}
             elif $found == $block then . + {action:"skip", after:$text}
-            elif $found == ($start + "\n## 外部事实查证\n\n" + $old + "\n" + $end) or
+            elif $found == ($start + "\n" + $previous_rules + $end) or
+                 $found == ($start + "\n## 外部事实查证\n\n" + $old + "\n" + $end) or
                  $found == ($start + "\n## 外部事实查证\n\n" + $old_plain + "\n" + $end) then
               . + {action:"replace", after:($prefix + $block + $suffix)}
             else . + {action:"conflict"} end
@@ -269,7 +271,7 @@ _research_agents() {
     _research_issue 'A global AGENTS file has an unrecognized, duplicated or modified research block/reference. Both files and the legacy skill will be preserved.'
   elif jq -e 'any(.[]; .action != "skip")' <<<"$plan" >/dev/null; then
     _RESEARCH_AGENTS_STATE=missing
-    _RESEARCH_ACTIONS+=('Write complete research rules, replacing only recognized legacy blocks in either global AGENTS file.')
+    _RESEARCH_ACTIONS+=('Write complete research rules, replacing only recognized older blocks in either global AGENTS file.')
   else
     _RESEARCH_AGENTS_STATE=configured
   fi

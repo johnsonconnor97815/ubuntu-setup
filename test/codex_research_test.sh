@@ -161,6 +161,12 @@ fixture_legacy_block() {
   printf '<!-- ubuntu-setup:codex-research:start -->\n## 外部事实查证\n\n%s\n<!-- ubuntu-setup:codex-research:end -->\n' "$line"
 }
 
+fixture_managed_rules() {
+  printf '<!-- ubuntu-setup:codex-research:start -->\n'
+  cat "$RESEARCH_TEST_ROOT/skills/codex-research-setup/assets/$1"
+  printf '<!-- ubuntu-setup:codex-research:end -->\n'
+}
+
 test_plan_read_only() {
   fixture plan
   rmdir "$RESEARCH_FIXTURE_CODEX_DIR"
@@ -735,12 +741,58 @@ test_rules_scope_fresh_target_and_override() {
   [[ ! -s "$RESEARCH_FIXTURE_CALLS" ]]
 }
 
+test_rules_scope_migrates_v1() {
+  fixture rules-v1
+  local name target before manifest backup
+  printf 'model = "fixture-model"\n' >"$RESEARCH_FIXTURE_CODEX_DIR/config.toml"
+  cp -p "$RESEARCH_FIXTURE_CODEX_DIR/config.toml" "$RESEARCH_FIXTURE_DIR/config.before"
+  for name in AGENTS.md AGENTS.override.md; do
+    target="$RESEARCH_FIXTURE_CODEX_DIR/$name"
+    {
+      printf '保留 %s 的规则。\n\n' "$name"
+      fixture_managed_rules research-rules-v1.md
+      printf '\nKeep %s suffix without a final newline.' "$name"
+    } >"$target"
+    chmod 640 "$target"
+    cp -p "$target" "$RESEARCH_FIXTURE_DIR/$name.before"
+    {
+      printf '保留 %s 的规则。\n\n' "$name"
+      fixture_managed_rules research-rules.md
+      printf '\nKeep %s suffix without a final newline.' "$name"
+    } >"$RESEARCH_FIXTURE_DIR/$name.expected"
+  done
+  before="$(tree_snapshot)"
+  do_rules plan >"$RESEARCH_FIXTURE_LOG" 2>&1 || return 1
+  [[ "$(tree_snapshot)" == "$before" ]] || return 1
+  do_rules configure --no-open >>"$RESEARCH_FIXTURE_LOG" 2>&1 || return 1
+  do_rules status >>"$RESEARCH_FIXTURE_LOG" 2>&1 || return 1
+  manifest="$(jq -r .recovery_manifest "$(latest_report)")" || return 1
+  jq -e '(.global_files | length == 2) and all(.global_files[]; .status == "written") and
+    .legacy_skill == null' "$manifest" >/dev/null || return 1
+  for name in AGENTS.md AGENTS.override.md; do
+    target="$RESEARCH_FIXTURE_CODEX_DIR/$name"
+    backup="$(jq -r --arg path "$target" '.global_files[] | select(.path == $path) | .backup' "$manifest")"
+    cmp -s "$target" "$RESEARCH_FIXTURE_DIR/$name.expected" || return 1
+    cmp -s "$backup" "$RESEARCH_FIXTURE_DIR/$name.before" || return 1
+    [[ "$(stat -c %a "$target")" == 640 ]] || return 1
+  done
+  cmp -s "$RESEARCH_FIXTURE_CODEX_DIR/config.toml" "$RESEARCH_FIXTURE_DIR/config.before" || return 1
+  before="$(configuration_tree_snapshot)"
+  do_rules configure --no-open >>"$RESEARCH_FIXTURE_LOG" 2>&1 || return 1
+  [[ "$(configuration_tree_snapshot)" == "$before" && ! -s "$RESEARCH_FIXTURE_CALLS" ]]
+}
+
 test_rules_scope_preserves_conflicts() {
   local kind before
-  for kind in global legacy symlink; do
+  for kind in global modified-v1 legacy symlink; do
     fixture "rules-conflict-$kind"
     case "$kind" in
       global) printf '<!-- ubuntu-setup:codex-research:start -->\nCustom rule\n' >"$RESEARCH_FIXTURE_CODEX_DIR/AGENTS.md" ;;
+      modified-v1)
+        fixture_managed_rules research-rules-v1.md >"$RESEARCH_FIXTURE_CODEX_DIR/AGENTS.md"
+        fixture_managed_rules research-rules-v1.md | sed 's/# Exa 与 Context7 查证/# 我的查证规则/' \
+          >"$RESEARCH_FIXTURE_CODEX_DIR/AGENTS.override.md"
+        ;;
       legacy)
         mkdir -p "$RESEARCH_FIXTURE_CODEX_DIR/skills/exa-context7-research"
         printf 'User skill\n' >"$RESEARCH_FIXTURE_CODEX_DIR/skills/exa-context7-research/SKILL.md"
@@ -806,6 +858,7 @@ run_case 'private global instructions never enter jq process arguments or public
 run_case 'a report failure after retirement leaves durable recovery data and safe retry' test_report_failure_after_retirement
 run_case 'rules-only deployment preserves proxy, disabled and absent connections without certifying them' test_rules_scope_preserves_connections
 run_case 'rules-only preview preserves absent targets and the dispatcher honors override precedence' test_rules_scope_fresh_target_and_override
+run_case 'rules-only deployment migrates exact v1 blocks in both global files, preserves recovery and is repeatable' test_rules_scope_migrates_v1
 run_case 'rules-only scope retains global, legacy and symbolic-link conflict protection' test_rules_scope_preserves_conflicts
 run_case 'rules-only scope rejects installation and unknown arguments without changes' test_rules_scope_invalid_operations
 

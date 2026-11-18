@@ -2,6 +2,8 @@
 
 仅在 `swkit codex-research plan` 或执行报告指出已有部署需要迁移时读取本文件。
 
+脚本按完整内容识别旧版查证规则。`research-rules-v1.md` 保存迁移用的旧版快照，当前规则维护在 `research-rules.md`。只更新全局查证规则时，使用 `./swkit codex-research rules configure --no-open`，再用 `./swkit codex-research rules status` 核对。脚本会保留用户定制的规则并报告冲突。
+
 ## 处理流程
 
 1. 阅读预览中的待改文件和冲突。脚本核对两份全局 `AGENTS` 文件中的受管块，以及 `CODEX_HOME/skills/exa-context7-research/` 中的文件指纹。非当前生效文件也要检查，避免后续切换指令来源后出现失效引用。
