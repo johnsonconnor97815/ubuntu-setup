@@ -26,3 +26,30 @@ description: 为 Ubuntu Fcitx5 下已在使用的 RIME 白霜拼音添加或更�
    ```
 
 6. 等待部署完成后检查生效的编译配置和桌面实际候选。部署后若不能正常输入或旧词库绑定发生变化，先恢复已备份的补丁及本次替换的词库，再重新部署并复查。交付时报告两份词库各自的新增数量、验证范围和备份位置。原始下载、个人词库和运行记录保存在目标机器的私有目录。
+
+## 单独更新网络流行新词
+
+已应用本 Skill 的两份词库时，可运行 `scripts/update_hotwords.py`。它使用 Ubuntu `librime-bin` 提供的 `rime_deployer`、`rime_dict_manager` 和 `rime_table_decompiler`。使用与目标机已安装的 librime 匹配的版本，默认从 `${XDG_STATE_HOME:-$HOME/.local/state}/ubuntu-setup/rime-hotwords/tools` 查找，也可用 `--tools-dir` 指定二进制目录。
+
+```sh
+python3 skills/rime-sogou-dictionaries/scripts/update_hotwords.py --verify-only
+python3 skills/rime-sogou-dictionaries/scripts/update_hotwords.py
+```
+
+预览也会下载、去重、试编译并逐条核对候选词是否进入编译结果。可加 `--source /path/to/hotwords.scel` 预览指定文件。正常运行遇到相同的下载摘要即跳过。新版本在隔离目录验证后才原子替换热词文件，随后让 Fcitx5 重新部署并读回编译产物。失败时恢复上一版热词。运行中断时，下次运行先处理未完成的回退记录。个人词库仅从临时副本导出参与去重。
+
+在用户明确需要定时更新时，使用宿主已有的定时任务功能安排正常运行命令，选择可访问本机桌面会话的执行环境。保存脚本路径、时区和备份位置。时钟触发和手动预览是不同验收项，定时启用前先验证预览、无变化跳过及失败回退。
+
+### 由本机 systemd 定时运行
+
+使用 [systemd 单元](assets/systemd) 时，先把两个 Python 脚本部署到用户状态目录下的 `ubuntu-setup/rime-hotwords/scripts`，并核对同目录中 `../tools` 的三个 RIME 工具。将单元放在 `${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user`。用户级定时器默认在本机时间每天 04:30 触发，错过运行时在定时器重新启动后补跑一次。
+
+```sh
+systemctl --user daemon-reload
+systemctl --user start rime-hotwords-update.service
+systemctl --user enable --now rime-hotwords-update.timer
+systemctl --user list-timers rime-hotwords-update.timer
+journalctl --user -u rime-hotwords-update.service -n 10
+```
+
+先确认服务手动运行成功，再停掉原有的热词定时任务并启用新定时器。桌面会话不可用且存在新版时，脚本保留当前词库并把失败记入日志。暂停本机定时更新可用 `systemctl --user disable --now rime-hotwords-update.timer`。

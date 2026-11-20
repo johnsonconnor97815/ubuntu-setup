@@ -1,0 +1,10 @@
+[Unit]
+Description=Validate and update Rime Frost hotwords
+After=graphical-session.target
+
+[Service]
+Type=oneshot
+UMask=0077
+Environment=PYTHONDONTWRITEBYTECODE=1
+ExecStart=/usr/bin/python3 "%S/ubuntu-setup/rime-hotwords/scripts/update_hotwords.py" --state-dir "%S/ubuntu-setup/rime-hotwords"
+TimeoutStartSec=12min

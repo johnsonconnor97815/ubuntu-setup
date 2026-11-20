@@ -93,6 +93,67 @@ def export_dictionary(config, body):
     return "---\n" + yaml.safe_dump(config, sort_keys=False, allow_unicode=True) + "...\n" + body
 
 
+def existing_words(rime, dictionaries, wanted, skip=()):
+    found = set()
+
+    def scan(name):
+        path = rime / f"{name}.dict.yaml"
+        with path.open(encoding="utf-8-sig") as stream:
+            metadata = read_header(stream, path)
+            for line in stream:
+                if not line.lstrip().startswith("#"):
+                    word = normalize(line.split("\t", 1)[0])
+                    if word in wanted:
+                        found.add(word)
+        return metadata.get("import_tables", [])
+
+    # librime imports only the direct tables of each selected dictionary.
+    for name in dictionaries:
+        for table in scan(name):
+            if table not in skip:
+                scan(table)
+    return found
+
+
+def personal_words(personal_export):
+    words = set()
+    if personal_export:
+        for line in personal_export.read_text(encoding="utf-8-sig").splitlines():
+            if line and not line.startswith("#"):
+                columns = line.split("\t")
+                if len(columns) < 3:
+                    raise ValueError("个人词库导出必须包含编码、词条及权重列")
+                words.add(normalize(columns[1]))
+    return words
+
+
+def supplemental_table(pack, data, entries, stock, personal, seen):
+    key, source_id, title = pack
+    sha = hashlib.sha256(data).hexdigest()
+    stats = dict(source_id=source_id, sha256=sha, raw=len(entries),
+                 stock=0, personal=0, duplicate=0, invalid=0, added=0)
+    rows = []
+    for word, code in entries:
+        if (not word or word.startswith("#") or any(ord(letter) < 32 for letter in word)
+                or not all(re.fullmatch(r"[a-z]+|[A-Z]", syllable) for syllable in code.split(" "))):
+            stats["invalid"] += 1
+        elif word in seen:
+            origin = "stock" if word in stock else "personal" if word in personal else "duplicate"
+            stats[origin] += 1
+        else:
+            seen.add(word)
+            rows.append(f"{word}\t{code}\t1\n")
+    stats["added"] = len(rows)
+    name = f"sogou_{key}"
+    content = (
+        f"# {title}\n# https://pinyin.sogou.com/dict/detail/index/{source_id}\n"
+        f"# SCEL SHA-256 {sha}\n"
+        + export_dictionary(dict(name=name, version=sha[:12], sort="by_weight",
+                                 use_preset_vocabulary=False), "".join(rows))
+    )
+    return content, stats
+
+
 def prepare(rime, sources, personal_export):
     main_dict = rime / f"{FROST}.dict.yaml"
     with main_dict.open(encoding="utf-8-sig") as stream:
@@ -108,67 +169,25 @@ def prepare(rime, sources, personal_export):
         data = sources[key].read_bytes()
         source_data[key] = data, read_scel(data, title)
     wanted = {word for _, entries in source_data.values() for word, _ in entries}
-    stock = set()
-
-    def collect(lines):
-        for line in lines:
-            if line and not line.lstrip().startswith("#"):
-                word = normalize(line.split("\t", 1)[0])
-                if word in wanted:
-                    stock.add(word)
-
-    collect(body.splitlines())
-    tables = list(imports)
-    english = rime / "melt_eng.dict.yaml"
-    if english.is_file():
-        with english.open(encoding="utf-8-sig") as stream:
-            tables.extend(read_header(stream, english).get("import_tables", []))
-            collect(stream)
-    for name in tables:
-        table = rime / f"{name}.dict.yaml"
-        with table.open(encoding="utf-8-sig") as stream:
-            read_header(stream, table)
-            collect(stream)
-    personal = set()
-    if personal_export:
-        for line in personal_export.read_text(encoding="utf-8-sig").splitlines():
-            if line and not line.startswith("#"):
-                columns = line.split("\t")
-                if len(columns) < 3:
-                    raise ValueError("个人词库导出必须包含编码、词条及权重列")
-                personal.add(normalize(columns[1]))
+    dictionaries = [FROST]
+    if (rime / "melt_eng.dict.yaml").is_file():
+        dictionaries.append("melt_eng")
+    stock = existing_words(rime, dictionaries, wanted)
+    personal = personal_words(personal_export)
 
     seen = stock | personal
     files = {}
     pack_report = {}
     extra_tables = []
-    for key, source_id, title in PACKS:
+    for pack in PACKS:
+        key, _, title = pack
         data, entries = source_data[key]
-        sha = hashlib.sha256(data).hexdigest()
-        stats = dict(source_id=source_id, sha256=sha, raw=len(entries),
-                     stock=0, personal=0, duplicate=0, invalid=0, added=0)
-        rows = []
-        for word, code in entries:
-            if (not word or word.startswith("#") or any(ord(letter) < 32 for letter in word)
-                    or not all(re.fullmatch(r"[a-z]+|[A-Z]", syllable) for syllable in code.split(" "))):
-                stats["invalid"] += 1
-            elif word in seen:
-                origin = "stock" if word in stock else "personal" if word in personal else "duplicate"
-                stats[origin] += 1
-            else:
-                seen.add(word)
-                rows.append(f"{word}\t{code}\t1\n")
-        stats["added"] = len(rows)
+        content, stats = supplemental_table(pack, data, entries, stock, personal, seen)
         pack_report[title] = stats
         name = f"sogou_{key}"
-        if rows:
+        if stats["added"]:
             extra_tables.append(name)
-            files[f"{name}.dict.yaml"] = (
-                f"# {title}\n# https://pinyin.sogou.com/dict/detail/index/{source_id}\n"
-                f"# SCEL SHA-256 {sha}\n"
-                + export_dictionary(dict(name=name, version=sha[:12], sort="by_weight",
-                                         use_preset_vocabulary=False), "".join(rows))
-            )
+            files[f"{name}.dict.yaml"] = content
 
     patch_file = rime / f"{FROST}.custom.yaml"
     current = yaml.safe_load(patch_file.read_text(encoding="utf-8-sig")) if patch_file.is_file() else {}
