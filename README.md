@@ -157,6 +157,19 @@ swkit libxcb-cursor0 remove     # 仅显式调用时卸载；若会连带卸载�
 
 校验命令：`bash test/libxcb_cursor_test.sh`（模拟安装、依赖冲突、失败和重复执行，不修改系统）。
 
+### 全局证据与长期记录规则
+
+[`agent-evidence-setup`](skills/agent-evidence-setup/SKILL.md) 将公共规则合并到 Codex 和 Claude Code 的全局指令，并安装可跨仓库使用的用户级 Skill。公共源与配置脚本均随仓库保存，保留原指令、权限和属主，不修改账号、模型、MCP 或权限设置。
+
+```bash
+./swkit agent-evidence plan
+./swkit agent-evidence configure
+./swkit agent-evidence status
+python3 -m unittest discover -s test -p 'agent_evidence_test.py' -v
+```
+
+需要 Python 3.11+；支持 `--target codex` / `--target claude`。预览和状态检查不写入、不调用模型；configure 保存私有备份和 HTML/JSON 报告，默认请求浏览器打开，测试可加 `--no-open`。同名规则或 Skill 有定制时保留并报差异，不自动覆盖。仓库外可调用 `$agent-evidence-setup`（Codex）或 `/agent-evidence-setup`（Claude Code），也可直接运行已安装 Skill 的 `scripts/setup.py`。静态匹配、实际加载、行为样例和长期效果须分开验证，见 [验证与恢复](skills/agent-evidence-setup/references/verification.md)。通用 bootstrap 不自动启用此偏好。
+
 ### 校验脚本
 
 ```bash

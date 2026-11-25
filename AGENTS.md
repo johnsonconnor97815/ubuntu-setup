@@ -33,6 +33,7 @@
 | [codex-research-setup](skills/codex-research-setup/SKILL.md) | 重装、换机或明确要求恢复查证配置；调用 `scripts/codex-research.sh`，配置 Exa / Context7，并将完整查证规则合并到有效全局指令 |
 | [codex-response-setup](skills/codex-response-setup/SKILL.md) | 恢复仓库保存的回复标准与推理事件显示偏好；由 `scripts/codex-response.sh` 调用 `lib/codex_response.py`，需要 Python 3.11+ 和 Codex CLI |
 | [codex-terminal-setup](skills/codex-terminal-setup/SKILL.md) | 排查或配置 Codex CLI / Agent Views 的滚动历史与 tmux vi 复制模式；当前没有专用自动配置命令，按 Skill 流程检查与执行 |
+| [agent-evidence-setup](skills/agent-evidence-setup/SKILL.md) | 合并 Codex 与 Claude 的全局证据和长期记录规则；部署独立用户级 Skill，提供预览、备份及分层验证 |
 
 - 源文件统一维护在 `skills/`。三个 `codex-*-setup` 的仓库发现入口位于 `.agents/skills/`，使用相对软链；解析资源路径时先定位实际源目录。完整查证规则只维护在 `skills/codex-research-setup/assets/research-rules.md`，由脚本合并到目标 `CODEX_HOME` 下有效的全局 `AGENTS` 文件；未设置 `CODEX_HOME` 时使用 `~/.codex`。查证与回复规则分别以对应源文件为准，避免维护内容不同的多份规则。
 - 全局配置只在用户要求配置目标机器且授权覆盖时执行。通用 bootstrap 不自动启用这些偏好；维护仓库文档或 Skill 不构成修改当前主机配置的授权。具体执行、冲突处理、报告和恢复要求沿用相应 Skill。
